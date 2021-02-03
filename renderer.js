@@ -927,7 +927,7 @@ function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list, omit_access_node
 
 function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omit_access_nodes) {
     // layout the state as a dagre graph
-    let g = new dagre.graphlib.Graph({ multigraph: true });
+    let g = new dagre.graphlib.Graph({ multigraph: true, compound: true });
 
     // Set layout options and a simpler algorithm for large graphs
     let layout_options = {ranksep: 30};
@@ -981,13 +981,33 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omi
             node.attributes.layout.height = sdfginfo.height + 2 * LINEHEIGHT;
         }
 
+        let group_id = null;
+        let group_node = null;
+        if (SDFGElements[node.type].prototype instanceof EntryNode) {
+            group_id = 'group_' + node.id;
+            g.setNode(group_id, {isGroup: true});
+        }
+        if (node.scope_entry !== null) {
+            group_id = 'group_' + node.scope_entry;
+        }
+        if (group_id !== null) {
+            group_node = g.node(group_id);
+        }
+
         // Dynamically create node type
-        let obj = new SDFGElements[node.type]({ node: node, graph: nested_g }, node.id, sdfg, sdfg_state.id);
+        let obj = new SDFGElements[node.type]({ node: node, graph: nested_g }, node.id, sdfg, sdfg_state.id, group_node);
 
         // If it's a nested SDFG, we need to record the node as all of its
         // state's parent node
         if (node.type === 'NestedSDFG')
             state_parent_list[node.attributes.sdfg.sdfg_list_id] = obj;
+
+        g.setNode(node.id, obj);
+        drawn_nodes.add(node.id.toString());
+
+        if (group_id !== null) {
+            g.setParent(node.id, group_id);
+        }
 
         // Add input connectors
         let i = 0;
@@ -997,7 +1017,7 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omi
         else
             conns = Object.keys(node.attributes.layout.in_connectors);
         for (let cname of conns) {
-            let conn = new Connector({ name: cname }, i, sdfg, node.id);
+            let conn = new Connector({ name: cname, node: { type: "Connector" } }, i, sdfg, node.id);
             obj.in_connectors.push(conn);
             i += 1;
         }
@@ -1009,13 +1029,10 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omi
         else
             conns = Object.keys(node.attributes.layout.out_connectors);
         for (let cname of conns) {
-            let conn = new Connector({ name: cname }, i, sdfg, node.id);
+            let conn = new Connector({ name: cname, node: { type: "Connector" }}, i, sdfg, node.id);
             obj.out_connectors.push(conn);
             i += 1;
         }
-
-        g.setNode(node.id, obj);
-        drawn_nodes.add(node.id.toString());
 
         // Recursively draw nodes
         if (node.id in sdfg_state.scope_dict) {
@@ -1113,8 +1130,51 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omi
         }
     });
 
+    const component_by_node = new Map();
+    dagre.graphlib.alg.components(g).forEach(function(node_ids, component_id) {
+        for (let i = 0; i < node_ids.length; ++i) {
+            component_by_node.set(node_ids[i], component_id);
+        }
+    });
+    let groups_by_component = new Map();
+    console.log('sources', g.sources())
+    g.sources().forEach(function(node_id) {
+        if (g.node(node_id).isGroup || g.node(node_id).data.node.type === 'Connector')
+            return;
+        let component = component_by_node.get(node_id);
+        if (!groups_by_component.has(component)) {
+            let group_id = 'sources_' + component;
+            g.setNode(group_id, {isGroup: true});
+            groups_by_component.set(component, group_id);
+        }
+        g.setParent(node_id, groups_by_component.get(component));
+        //g.node(node_id).rank = "min";
+    });
+    groups_by_component.clear();
+    g.sinks().forEach(function(node_id) {
+        if (g.node(node_id).isGroup || g.node(node_id).data.node.type === 'Connector')
+            return;
+        let component = component_by_node.get(node_id);
+        if (!groups_by_component.has(component)) {
+            let group_id = 'sinks' + component;
+            g.setNode(group_id, {isGroup: true});
+            groups_by_component.set(component, group_id);
+        }
+        //console.log(g.node(node_id).data, component)
+        g.setParent(node_id, groups_by_component.get(component));
+        //g.node(node_id).rank = "min";
+    });
+
     dagre.layout(g);
 
+    /*g.nodes().forEach(function (node_id) {
+        console.log('GROUP:');
+        if (g.node(node_id).isGroup) {
+            g.children(node_id).forEach(function (node_id) {
+                console.log(g.node(node_id));
+            });
+        }
+    });*/
 
     // Layout connectors and nested SDFGs
     sdfg_state.nodes.forEach(function (node, id) {
@@ -1123,11 +1183,20 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omi
             // ignore nodes that should not be drawn
             return;
         }
+
+        // Make entry / exit nodes span their content
+        if (gnode instanceof ScopeNode) {
+            let entry_id = gnode instanceof EntryNode ? node.id : node.scope_entry;
+            let group_node = g.node('group_' + entry_id);
+            //console.log(g.children('group_' + entry_id));
+            gnode.width = group_node.width;
+            gnode.x = group_node.x;
+        }
+
         let topleft = gnode.topleft();
 
         // Offset nested SDFG
         if (node.type === "NestedSDFG") {
-
             offset_sdfg(node.attributes.sdfg, gnode.data.graph, {
                 x: topleft.x + LINEHEIGHT,
                 y: topleft.y + LINEHEIGHT
@@ -1669,7 +1738,7 @@ class SDFGRenderer {
 		if (this.overlay_manager !== null)
 			this.overlay_manager.refresh();
 
-        // If we're in a VSCode context, we also want to refresh the outline.
+        // If we're in a VSCode ctx, we also want to refresh the outline.
         try {
             if (vscode)
                 outline(this, this.graph);
@@ -1983,6 +2052,9 @@ class SDFGRenderer {
                         return;
                     ng.nodes().forEach(node_id => {
                         let node = ng.node(node_id);
+                        if (node.isGroup) {
+                            return;
+                        }
                         if (node.intersect(x, y, w, h)) {
                             // Selected nodes
                             func('nodes', { sdfg: sdfg_name, sdfg_id: sdfg_id, state: state_id, id: node_id }, node);
@@ -2084,6 +2156,9 @@ class SDFGRenderer {
                     return;
                 ng.nodes().forEach(node_id => {
                     let node = ng.node(node_id);
+                    if (node.isGroup)
+                        return;
+
                     // Selected nodes
                     func('nodes', { sdfg: sdfg_name, state: state_id, id: node_id, graph: ng }, node, node.intersect(x, y, w, h));
 

@@ -2,11 +2,12 @@
 
 class SDFGElement {
     // Parent ID is the state ID, if relevant
-    constructor(elem, elem_id, sdfg, parent_id = null) {
+    constructor(elem, elem_id, sdfg, parent_id = null, group = null) {
         this.data = elem;
         this.id = elem_id;
         this.parent_id = parent_id;
         this.sdfg = sdfg;
+        this.group = group;
         this.in_connectors = [];
         this.out_connectors = [];
 
@@ -348,10 +349,10 @@ class Edge extends SDFGElement {
         // Show anchor points for moving
         if (this.selected && renderer.mouse_mode === 'move') {
             let i;
-            for (i = 1; i < this.points.length - 1; i++)                
+            for (i = 1; i < this.points.length - 1; i++)
                 ctx.strokeRect(this.points[i].x - 5, this.points[i].y - 5, 8, 8);
         }
-          
+
         drawArrow(ctx, edge.points[edge.points.length - 2], edge.points[edge.points.length - 1], 3);
     }
 
@@ -674,6 +675,12 @@ class ScopeNode extends Node {
 
 class EntryNode extends ScopeNode {
     scopeend() { return false; }
+    draw(renderer, ctx, mousepos) {
+        /*ctx.fillStyle = '#ff0000';
+        ctx.fillRect(this.group.x - this.group.width / 2, this.group.y - this.group.height / 2,
+            this.group.width, this.group.height);*/
+        super.draw(renderer, ctx, mousepos);
+    }
 }
 
 class ExitNode extends ScopeNode {
@@ -830,7 +837,7 @@ class NestedSDFG extends Node {
         }
 
         // Draw square around nested SDFG
-        super.draw(renderer, ctx, mousepos, '--nested-sdfg-foreground-color', 
+        super.draw(renderer, ctx, mousepos, '--nested-sdfg-foreground-color',
                    '--nested-sdfg-background-color');
 
         // Draw nested graph
@@ -975,6 +982,8 @@ function draw_sdfg(renderer, ctx, sdfg_dagre, mousepos) {
         if (!node.data.state.attributes.is_collapsed && ng) {
             ng.nodes().forEach(v => {
                 let n = ng.node(v);
+                if (n.isGroup)
+                    return;
 
                 if (ctx.lod && !n.intersect(visible_rect.x, visible_rect.y, visible_rect.w, visible_rect.h))
                     return;
@@ -1036,6 +1045,11 @@ function offset_state(state, state_graph, offset) {
         let node = state_graph.data.graph.node(nid);
         if (!node) return;
         drawn_nodes.add(nid.toString());
+
+        if (SDFGElements[n.type].prototype instanceof EntryNode) {
+            node.group.x += offset.x;
+            node.group.y += offset.y;
+        }
 
         node.x += offset.x;
         node.y += offset.y;
