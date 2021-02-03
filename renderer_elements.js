@@ -975,6 +975,8 @@ function draw_sdfg(renderer, ctx, sdfg_dagre, mousepos) {
         if (!node.data.state.attributes.is_collapsed && ng) {
             ng.nodes().forEach(v => {
                 let n = ng.node(v);
+                if (n.isGroup)
+                    return;
 
                 if (ctx.lod && !n.intersect(visible_rect.x, visible_rect.y, visible_rect.w, visible_rect.h))
                     return;
