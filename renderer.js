@@ -1120,7 +1120,6 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omi
         }
     });
     let groups_by_component = new Map();
-    console.log('sources', g.sources())
     g.sources().forEach(function(node_id) {
         if (g.node(node_id).isGroup || g.node(node_id).data.node.type === 'Connector')
             return;
@@ -1168,23 +1167,53 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omi
         }
         // Connector management 
         let SPACING = LINEHEIGHT;
-        let iconn_length = (LINEHEIGHT + SPACING) * Object.keys(node.attributes.layout.in_connectors).length - SPACING;
-        let oconn_length = (LINEHEIGHT + SPACING) * Object.keys(node.attributes.layout.out_connectors).length - SPACING;
+        let iconn_scoped = [], iconn_unscoped = [], oconn_scoped = [], oconn_unscoped = [];
+        Object.keys(node.attributes.layout.in_connectors).forEach(function (conn) {
+            let is_scoped = conn.startsWith('IN_') &&
+                node.attributes.layout.out_connectors.hasOwnProperty('OUT_' + conn.substr(3));
+            (is_scoped ? iconn_scoped : iconn_unscoped).push(conn);
+        });
+        Object.keys(node.attributes.layout.out_connectors).forEach(function (conn) {
+            let is_scoped = conn.startsWith('OUT_') &&
+                node.attributes.layout.in_connectors.hasOwnProperty('IN_' + conn.substr(4));
+            (is_scoped ? oconn_scoped : oconn_unscoped).push(conn);
+        });
+        let conn_indexes = new Map();
+        for (let i = 0; i < iconn_unscoped.length; ++i) {
+            let is_left = i < iconn_unscoped.length - (iconn_unscoped.length > oconn_unscoped.length) / 2;
+            conn_indexes.set(iconn_unscoped[i], i + (is_left ? 0 : iconn_scoped.length));
+        }
+        let offset = Math.ceil(iconn_unscoped.length - (iconn_unscoped.length > oconn_unscoped.length) / 2);
+        for (let i = 0; i < iconn_scoped.length; ++i) {
+            conn_indexes.set(iconn_scoped[i], i + offset);
+        }
+        for (let i = 0; i < oconn_unscoped.length; ++i) {
+            let is_left = i < oconn_unscoped.length - (oconn_unscoped.length > iconn_unscoped.length) / 2;
+            conn_indexes.set(oconn_unscoped[i], i + (is_left ? 0 : oconn_scoped.length));
+        }
+        offset = Math.ceil(oconn_unscoped.length - (oconn_unscoped.length > iconn_unscoped.length) / 2);
+        for (let i = 0; i < oconn_scoped.length; ++i) {
+            conn_indexes.set(oconn_scoped[i], i + offset);
+        }
+        let diff = iconn_unscoped.length - oconn_unscoped.length;
+        let ispace = (diff % 2 === -1);
+        let ospace = (diff % 2 === 1);
+
+        let iconn_length = (LINEHEIGHT + SPACING) * (iconn_scoped.length + iconn_unscoped.length + ispace) - SPACING;
+        let oconn_length = (LINEHEIGHT + SPACING) * (oconn_scoped.length + oconn_unscoped.length + ospace) - SPACING;
         let iconn_x = gnode.x - iconn_length / 2.0 + LINEHEIGHT / 2.0;
         let oconn_x = gnode.x - oconn_length / 2.0 + LINEHEIGHT / 2.0;
 
         for (let c of gnode.in_connectors) {
             c.width = LINEHEIGHT;
             c.height = LINEHEIGHT;
-            c.x = iconn_x;
-            iconn_x += LINEHEIGHT + SPACING;
+            c.x = iconn_x + (LINEHEIGHT + SPACING) * conn_indexes.get(c.data.name);
             c.y = topleft.y;
         }
         for (let c of gnode.out_connectors) {
             c.width = LINEHEIGHT;
             c.height = LINEHEIGHT;
-            c.x = oconn_x;
-            oconn_x += LINEHEIGHT + SPACING;
+            c.x = oconn_x + (LINEHEIGHT + SPACING) * conn_indexes.get(c.data.name);
             c.y = topleft.y + gnode.height;
         }
     });
