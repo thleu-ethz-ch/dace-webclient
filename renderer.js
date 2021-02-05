@@ -733,6 +733,13 @@ function calculateBoundingBox(g) {
         if (y > bb.height) bb.height = y;
     });
 
+    g.edges().forEach(function (e) {
+        g.edge(e).points.forEach(function (p) {
+            if (p.x > bb.width) bb.width = p.x;
+            if (p.y > bb.height) bb.height = p.y;
+        });
+    });
+
     return bb;
 }
 
