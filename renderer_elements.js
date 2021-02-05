@@ -676,9 +676,9 @@ class ScopeNode extends Node {
 class EntryNode extends ScopeNode {
     scopeend() { return false; }
     draw(renderer, ctx, mousepos) {
-        /*ctx.fillStyle = '#ff0000';
+        ctx.fillStyle = '#ff0000';
         ctx.fillRect(this.group.x - this.group.width / 2, this.group.y - this.group.height / 2,
-            this.group.width, this.group.height);*/
+            this.group.width, this.group.height);
         super.draw(renderer, ctx, mousepos);
     }
 }

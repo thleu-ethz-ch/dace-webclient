@@ -733,6 +733,13 @@ function calculateBoundingBox(g) {
         if (y > bb.height) bb.height = y;
     });
 
+    g.edges().forEach(function (e) {
+        g.edge(e).points.forEach(function (p) {
+            if (p.x > bb.width) bb.width = p.x;
+            if (p.y > bb.height) bb.height = p.y;
+        });
+    });
+
     return bb;
 }
 
@@ -1160,21 +1167,26 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omi
             g.setNode(group_id, {isGroup: true});
             groups_by_component.set(component, group_id);
         }
-        //console.log(g.node(node_id).data, component)
         g.setParent(node_id, groups_by_component.get(component));
-        //g.node(node_id).rank = "min";
     });
 
     dagre.layout(g);
 
-    /*g.nodes().forEach(function (node_id) {
-        console.log('GROUP:');
-        if (g.node(node_id).isGroup) {
-            g.children(node_id).forEach(function (node_id) {
-                console.log(g.node(node_id));
+    // adjust unnecessarily large group size
+    g.nodes().forEach(function (node_id) {
+        let node = g.node(node_id);
+        if (node.isGroup) {
+            console.log(node.width);
+            let min_x = Number.POSITIVE_INFINITY;
+            let max_x = Number.NEGATIVE_INFINITY;
+            g.children(node_id).forEach(function (v) {
+                min_x = Math.min(g.node(v).x - g.node(v).width / 2, min_x);
+                max_x = Math.max(g.node(v).x + g.node(v).width / 2, max_x);
             });
+            node.width = max_x - min_x + 2 * LINEHEIGHT;
+            node.x = min_x - LINEHEIGHT + node.width / 2;
         }
-    });*/
+    });
 
     // Layout connectors and nested SDFGs
     sdfg_state.nodes.forEach(function (node, id) {
@@ -1224,6 +1236,8 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omi
             c.y = topleft.y + gnode.height;
         }
     });
+
+
 
     sdfg_state.edges.forEach(function (edge, id) {
         edge = check_and_redirect_edge(edge, drawn_nodes, sdfg_state);
@@ -1291,7 +1305,6 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omi
         gedge.x = bb.x;
         gedge.y = bb.y;
     });
-
 
     return g;
 }
