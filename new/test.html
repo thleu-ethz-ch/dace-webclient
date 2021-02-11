@@ -1,0 +1,30 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+    <script src="./dist/sdfg.js"></script>
+    <script>
+        window.addEventListener("load", function () {
+            const renderer = new sdfg.Renderer(document.body);
+            renderer.show("symm");
+        });
+    </script>
+</head>
+<body></body>
+</html>
