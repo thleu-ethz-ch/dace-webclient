@@ -1,0 +1,808 @@
+{
+  "type": "SDFG",
+  "attributes": {
+    "arg_types": [],
+    "constants_prop": {},
+    "_arrays": {
+      "__x_in": {
+        "type": "Array",
+        "attributes": {
+          "allow_conflicts": false,
+          "materialize_func": null,
+          "strides": [
+            "1"
+          ],
+          "total_size": "N",
+          "offset": [
+            "0"
+          ],
+          "may_alias": false,
+          "alignment": 0,
+          "dtype": {
+            "type": "vector",
+            "dtype": "float32",
+            "elements": 4
+          },
+          "shape": [
+            "N/4"
+          ],
+          "transient": false,
+          "storage": "FPGA_Global",
+          "lifetime": "Scope",
+          "location": {},
+          "debuginfo": null
+        }
+      },
+      "__y_in": {
+        "type": "Array",
+        "attributes": {
+          "allow_conflicts": false,
+          "materialize_func": null,
+          "strides": [
+            "1"
+          ],
+          "total_size": "N",
+          "offset": [
+            "0"
+          ],
+          "may_alias": false,
+          "alignment": 0,
+          "dtype": {
+            "type": "vector",
+            "dtype": "float32",
+            "elements": 4
+          },
+          "shape": [
+            "N/4"
+          ],
+          "transient": false,
+          "storage": "FPGA_Global",
+          "lifetime": "Scope",
+          "location": {},
+          "debuginfo": null
+        }
+      },
+      "__z_in": {
+        "type": "Array",
+        "attributes": {
+          "allow_conflicts": false,
+          "materialize_func": null,
+          "strides": [
+            "1"
+          ],
+          "total_size": "N",
+          "offset": [
+            "0"
+          ],
+          "may_alias": false,
+          "alignment": 0,
+          "dtype": {
+            "type": "vector",
+            "dtype": "float32",
+            "elements": 4
+          },
+          "shape": [
+            "N/4"
+          ],
+          "transient": false,
+          "storage": "FPGA_Global",
+          "lifetime": "Scope",
+          "location": {},
+          "debuginfo": null
+        }
+      },
+      "__z_out": {
+        "type": "Array",
+        "attributes": {
+          "allow_conflicts": false,
+          "materialize_func": null,
+          "strides": [
+            "1"
+          ],
+          "total_size": "N",
+          "offset": [
+            "0"
+          ],
+          "may_alias": false,
+          "alignment": 0,
+          "dtype": {
+            "type": "vector",
+            "dtype": "float32",
+            "elements": 4
+          },
+          "shape": [
+            "N/4"
+          ],
+          "transient": false,
+          "storage": "FPGA_Global",
+          "lifetime": "Scope",
+          "location": {},
+          "debuginfo": null
+        }
+      }
+    },
+    "symbols": {
+      "N": "int32"
+    },
+    "global_code": {
+      "frame": {
+        "string_data": "",
+        "language": "CPP"
+      }
+    },
+    "init_code": {
+      "frame": {
+        "string_data": "",
+        "language": "CPP"
+      }
+    },
+    "exit_code": {
+      "frame": {
+        "string_data": "",
+        "language": "CPP"
+      }
+    },
+    "name": "vec_sum_1"
+  },
+  "nodes": [
+    {
+      "type": "SDFGState",
+      "label": "s13_4",
+      "id": 0,
+      "collapsed": false,
+      "scope_dict": {
+        "-1": [
+          0,
+          2,
+          3,
+          4,
+          5
+        ],
+        "0": [
+          1,
+          6
+        ]
+      },
+      "nodes": [
+        {
+          "type": "MapEntry",
+          "label": "sum[i=0:floor(N/4)]",
+          "attributes": {
+            "label": "sum",
+            "params": [
+              "i"
+            ],
+            "range": {
+              "type": "Range",
+              "ranges": [
+                {
+                  "start": "0",
+                  "end": "floor(N/4) - 1",
+                  "step": "1",
+                  "tile": "1"
+                }
+              ]
+            },
+            "schedule": "FPGA_Device",
+            "unroll": false,
+            "collapse": 1,
+            "debuginfo": {
+              "type": "DebugInfo",
+              "start_line": 1245,
+              "end_line": 1245,
+              "start_column": 0,
+              "end_column": 0,
+              "filename": "/mnt/c/Users/XK/Desktop/university/dace/dace/frontend/python/newast.py"
+            },
+            "is_collapsed": false,
+            "instrument": "No_Instrumentation",
+            "in_connectors": {
+              "IN_1": {
+                "type": "pointer",
+                "dtype": {
+                  "type": "vector",
+                  "dtype": "float32",
+                  "elements": 4
+                }
+              },
+              "IN_2": {
+                "type": "pointer",
+                "dtype": {
+                  "type": "vector",
+                  "dtype": "float32",
+                  "elements": 4
+                }
+              },
+              "IN_3": {
+                "type": "pointer",
+                "dtype": {
+                  "type": "vector",
+                  "dtype": "float32",
+                  "elements": 4
+                }
+              }
+            },
+            "out_connectors": {
+              "OUT_1": {
+                "type": "pointer",
+                "dtype": {
+                  "type": "vector",
+                  "dtype": "float32",
+                  "elements": 4
+                }
+              },
+              "OUT_2": {
+                "type": "pointer",
+                "dtype": {
+                  "type": "vector",
+                  "dtype": "float32",
+                  "elements": 4
+                }
+              },
+              "OUT_3": {
+                "type": "vector",
+                "dtype": "float32",
+                "elements": 4
+              }
+            }
+          },
+          "id": 0,
+          "scope_entry": null,
+          "scope_exit": "1"
+        },
+        {
+          "type": "MapExit",
+          "label": "sum[i=0:floor(N/4)]",
+          "attributes": {
+            "in_connectors": {
+              "IN_1": {
+                "type": "pointer",
+                "dtype": {
+                  "type": "vector",
+                  "dtype": "float32",
+                  "elements": 4
+                }
+              }
+            },
+            "out_connectors": {
+              "OUT_1": {
+                "type": "pointer",
+                "dtype": {
+                  "type": "vector",
+                  "dtype": "float32",
+                  "elements": 4
+                }
+              }
+            }
+          },
+          "id": 1,
+          "scope_entry": "0",
+          "scope_exit": "1"
+        },
+        {
+          "type": "AccessNode",
+          "label": "__x_in",
+          "attributes": {
+            "access": "ReadOnly",
+            "setzero": false,
+            "debuginfo": {
+              "type": "DebugInfo",
+              "start_line": 1719,
+              "end_line": 1719,
+              "start_column": 0,
+              "end_column": 0,
+              "filename": "/mnt/c/Users/XK/Desktop/university/dace/dace/frontend/python/newast.py"
+            },
+            "data": "__x_in",
+            "in_connectors": {},
+            "out_connectors": {}
+          },
+          "id": 2,
+          "scope_entry": null,
+          "scope_exit": null
+        },
+        {
+          "type": "AccessNode",
+          "label": "__y_in",
+          "attributes": {
+            "access": "ReadOnly",
+            "setzero": false,
+            "debuginfo": {
+              "type": "DebugInfo",
+              "start_line": 1719,
+              "end_line": 1719,
+              "start_column": 0,
+              "end_column": 0,
+              "filename": "/mnt/c/Users/XK/Desktop/university/dace/dace/frontend/python/newast.py"
+            },
+            "data": "__y_in",
+            "in_connectors": {},
+            "out_connectors": {}
+          },
+          "id": 3,
+          "scope_entry": null,
+          "scope_exit": null
+        },
+        {
+          "type": "AccessNode",
+          "label": "__z_in",
+          "attributes": {
+            "access": "ReadOnly",
+            "setzero": false,
+            "debuginfo": {
+              "type": "DebugInfo",
+              "start_line": 1719,
+              "end_line": 1719,
+              "start_column": 0,
+              "end_column": 0,
+              "filename": "/mnt/c/Users/XK/Desktop/university/dace/dace/frontend/python/newast.py"
+            },
+            "data": "__z_in",
+            "in_connectors": {},
+            "out_connectors": {}
+          },
+          "id": 4,
+          "scope_entry": null,
+          "scope_exit": null
+        },
+        {
+          "type": "AccessNode",
+          "label": "__z_out",
+          "attributes": {
+            "access": "WriteOnly",
+            "setzero": false,
+            "debuginfo": {
+              "type": "DebugInfo",
+              "start_line": 1815,
+              "end_line": 1815,
+              "start_column": 0,
+              "end_column": 0,
+              "filename": "/mnt/c/Users/XK/Desktop/university/dace/dace/frontend/python/newast.py"
+            },
+            "data": "__z_out",
+            "in_connectors": {},
+            "out_connectors": {}
+          },
+          "id": 5,
+          "scope_entry": null,
+          "scope_exit": null
+        },
+        {
+          "type": "Tasklet",
+          "label": "sum",
+          "attributes": {
+            "code": {
+              "string_data": "out = ((in_x + in_y) + in_z)",
+              "language": "Python"
+            },
+            "debuginfo": {
+              "type": "DebugInfo",
+              "start_line": 13,
+              "end_line": 20,
+              "start_column": 4,
+              "end_column": 8,
+              "filename": "tests/intel_fpga/vec_sum.py"
+            },
+            "instrument": "No_Instrumentation",
+            "label": "sum",
+            "location": {},
+            "environments": [],
+            "in_connectors": {
+              "in_y": {
+                "type": "vector",
+                "dtype": "float32",
+                "elements": 4
+              },
+              "in_z": {
+                "type": "vector",
+                "dtype": "float32",
+                "elements": 4
+              },
+              "in_x": {
+                "type": "vector",
+                "dtype": "float32",
+                "elements": 4
+              }
+            },
+            "out_connectors": {
+              "out": {
+                "type": "vector",
+                "dtype": "float32",
+                "elements": 4
+              }
+            }
+          },
+          "id": 6,
+          "scope_entry": "0",
+          "scope_exit": "1"
+        }
+      ],
+      "edges": [
+        {
+          "type": "MultiConnectorEdge",
+          "attributes": {
+            "data": {
+              "type": "Memlet",
+              "attributes": {
+                "volume": "4*floor(N/4)",
+                "dynamic": false,
+                "subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "0",
+                      "end": "4*floor(N/4) - 1",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "other_subset": null,
+                "data": "__x_in",
+                "wcr": null,
+                "veclen": 1,
+                "debuginfo": null,
+                "wcr_nonatomic": false,
+                "allow_oob": false,
+                "src_subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "0",
+                      "end": "4*floor(N/4) - 1",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "dst_subset": null,
+                "num_accesses": "4*floor(N/4)"
+              }
+            }
+          },
+          "src": "2",
+          "dst": "0",
+          "dst_connector": "IN_1",
+          "src_connector": null
+        },
+        {
+          "type": "MultiConnectorEdge",
+          "attributes": {
+            "data": {
+              "type": "Memlet",
+              "attributes": {
+                "volume": "4*floor(N/4)",
+                "dynamic": false,
+                "subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "0",
+                      "end": "4*floor(N/4) - 1",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "other_subset": null,
+                "data": "__y_in",
+                "wcr": null,
+                "veclen": 1,
+                "debuginfo": null,
+                "wcr_nonatomic": false,
+                "allow_oob": false,
+                "src_subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "0",
+                      "end": "4*floor(N/4) - 1",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "dst_subset": null,
+                "num_accesses": "4*floor(N/4)"
+              }
+            }
+          },
+          "src": "3",
+          "dst": "0",
+          "dst_connector": "IN_2",
+          "src_connector": null
+        },
+        {
+          "type": "MultiConnectorEdge",
+          "attributes": {
+            "data": {
+              "type": "Memlet",
+              "attributes": {
+                "volume": "floor(N/4)",
+                "dynamic": false,
+                "subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "0",
+                      "end": "floor(N/4) - 1",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "other_subset": null,
+                "data": "__z_in",
+                "wcr": null,
+                "veclen": 1,
+                "debuginfo": null,
+                "wcr_nonatomic": false,
+                "allow_oob": false,
+                "src_subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "0",
+                      "end": "floor(N/4) - 1",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "dst_subset": null,
+                "num_accesses": "floor(N/4)"
+              }
+            }
+          },
+          "src": "4",
+          "dst": "0",
+          "dst_connector": "IN_3",
+          "src_connector": null
+        },
+        {
+          "type": "MultiConnectorEdge",
+          "attributes": {
+            "data": {
+              "type": "Memlet",
+              "attributes": {
+                "volume": "4*floor(N/4)",
+                "dynamic": false,
+                "subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "0",
+                      "end": "4*floor(N/4) - 1",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "other_subset": null,
+                "data": "__z_out",
+                "wcr": null,
+                "veclen": 1,
+                "debuginfo": null,
+                "wcr_nonatomic": false,
+                "allow_oob": false,
+                "src_subset": null,
+                "dst_subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "0",
+                      "end": "4*floor(N/4) - 1",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "num_accesses": "4*floor(N/4)"
+              }
+            }
+          },
+          "src": "1",
+          "dst": "5",
+          "dst_connector": null,
+          "src_connector": "OUT_1"
+        },
+        {
+          "type": "MultiConnectorEdge",
+          "attributes": {
+            "data": {
+              "type": "Memlet",
+              "attributes": {
+                "volume": "4",
+                "dynamic": false,
+                "subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "4*i",
+                      "end": "4*i + 3",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "other_subset": null,
+                "data": "__x_in",
+                "wcr": null,
+                "veclen": 1,
+                "debuginfo": null,
+                "wcr_nonatomic": false,
+                "allow_oob": false,
+                "src_subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "4*i",
+                      "end": "4*i + 3",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "dst_subset": null,
+                "num_accesses": "4"
+              }
+            }
+          },
+          "src": "0",
+          "dst": "6",
+          "dst_connector": "in_x",
+          "src_connector": "OUT_1"
+        },
+        {
+          "type": "MultiConnectorEdge",
+          "attributes": {
+            "data": {
+              "type": "Memlet",
+              "attributes": {
+                "volume": "4",
+                "dynamic": false,
+                "subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "4*i",
+                      "end": "4*i + 3",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "other_subset": null,
+                "data": "__y_in",
+                "wcr": null,
+                "veclen": 1,
+                "debuginfo": null,
+                "wcr_nonatomic": false,
+                "allow_oob": false,
+                "src_subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "4*i",
+                      "end": "4*i + 3",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "dst_subset": null,
+                "num_accesses": "4"
+              }
+            }
+          },
+          "src": "0",
+          "dst": "6",
+          "dst_connector": "in_y",
+          "src_connector": "OUT_2"
+        },
+        {
+          "type": "MultiConnectorEdge",
+          "attributes": {
+            "data": {
+              "type": "Memlet",
+              "attributes": {
+                "volume": "1",
+                "dynamic": false,
+                "subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "i",
+                      "end": "i",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "other_subset": null,
+                "data": "__z_in",
+                "wcr": null,
+                "veclen": 1,
+                "debuginfo": null,
+                "wcr_nonatomic": false,
+                "allow_oob": false,
+                "src_subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "i",
+                      "end": "i",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "dst_subset": null,
+                "num_accesses": "1"
+              }
+            }
+          },
+          "src": "0",
+          "dst": "6",
+          "dst_connector": "in_z",
+          "src_connector": "OUT_3"
+        },
+        {
+          "type": "MultiConnectorEdge",
+          "attributes": {
+            "data": {
+              "type": "Memlet",
+              "attributes": {
+                "volume": "4",
+                "dynamic": false,
+                "subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "4*i",
+                      "end": "4*i + 3",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "other_subset": null,
+                "data": "__z_out",
+                "wcr": null,
+                "veclen": 1,
+                "debuginfo": null,
+                "wcr_nonatomic": false,
+                "allow_oob": false,
+                "src_subset": null,
+                "dst_subset": {
+                  "type": "Range",
+                  "ranges": [
+                    {
+                      "start": "4*i",
+                      "end": "4*i + 3",
+                      "step": "1",
+                      "tile": "1"
+                    }
+                  ]
+                },
+                "num_accesses": "4"
+              }
+            }
+          },
+          "src": "6",
+          "dst": "1",
+          "dst_connector": "IN_1",
+          "src_connector": "out"
+        }
+      ],
+      "attributes": {
+        "is_collapsed": false,
+        "nosync": false,
+        "instrument": "No_Instrumentation",
+        "location": {}
+      }
+    }
+  ],
+  "edges": [],
+  "sdfg_list_id": 1
+}
