@@ -16,12 +16,16 @@ import * as PIXI from 'pixi.js';
 import SimpleShape from "./simpleShape";
 var Layout = /** @class */ (function (_super) {
     __extends(Layout, _super);
-    function Layout() {
-        var _this = _super.call(this, 0, 0, 0, 0) || this;
+    function Layout(x, y) {
+        if (x === void 0) { x = 0; }
+        if (y === void 0) { y = 0; }
+        var _this = _super.call(this, x, y, 0, 0) || this;
         _this.elements = [];
         return _this;
     }
     Layout.prototype.addElement = function (shape, reference, parentNodeId) {
+        if (reference === void 0) { reference = null; }
+        if (parentNodeId === void 0) { parentNodeId = null; }
         var id = this.elements.length;
         this.elements.push([shape, reference, parentNodeId]);
         return id;

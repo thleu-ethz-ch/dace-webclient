@@ -3891,7 +3891,7 @@ THE SOFTWARE.
 
                 if (this._isCompound) {
                     // v -> parent
-                    this._parent = {};
+                    this.parent = {};
 
                     // v -> children
                     this._children = {};

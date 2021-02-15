@@ -1,23 +1,24 @@
 import SdfgNode from "./sdfgNode";
 import Text from "../layout/text";
-import LayoutElement from "../layout/layoutElement";
-import LayoutUtil from "../layout/layoutUtil";
+import Shape from "../layout/shape";
+import LayoutUtil from "../layouter/layoutUtil";
 import Ellipse from "../layout/ellipse";
+import Group from "../layout/group";
 
 export default class AccessNode extends SdfgNode {
     public static PADDING = 10;
 
-    shapes(): (x: number, y: number) => Array<LayoutElement> {
-        return (x, y) => {
-            const size = this.size();
-            return [
-                new Ellipse(x, y, size.width, size.height),
-                new Text(x + AccessNode.PADDING, y + AccessNode.PADDING, this._label),
-            ];
-        };
+    shape(x: number, y: number): Shape {
+        const size = this.size();
+        const group = new Group(x, y, [
+            new Ellipse(0, 0, size.width, size.height),
+            new Text(AccessNode.PADDING, AccessNode.PADDING, this._label),
+        ]);
+        group.reference = this;
+        return group;
     }
 
     size() {
-        return LayoutUtil.textSize(this._label, 12, AccessNode.PADDING, AccessNode.PADDING)
+        return this.labelSize();
     }
 }

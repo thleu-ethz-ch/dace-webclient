@@ -2,10 +2,10 @@ import SdfgNode from "./sdfgNode";
 import SdfgGraph from "./sdfgGraph";
 import Parser from "../parse/parser";
 import Rectangle from "../layout/rectangle";
-import Layout from "../layout/layout";
-import Layouter from "../layout/layouter";
+import Group from "../layout/group";
+import Layouter from "../layouter/layouter";
 import Size from "../layout/size";
-import LayoutElement from "../layout/layoutElement";
+import Shape from "../layout/shape";
 
 export default class SdfgState extends SdfgNode {
     public static PADDING = 20;
@@ -18,20 +18,21 @@ export default class SdfgState extends SdfgNode {
         this._graph = Parser.parse(jsonNode);
     }
 
-    shapes(): (x: number, y: number) => Array<LayoutElement> {
-        return (x, y) => {
-            const size = this.size();
-            return [
-                new Rectangle(x, y, size.width, size.height, SdfgState.BACKGROUND_COLOR, SdfgState.BACKGROUND_COLOR),
-            ];
-        };
+    shape(x: number, y: number): Shape {
+        const size = this.size();
+        const group = new Group(x, y);
+        const rectangle = new Rectangle(0, 0, size.width, size.height, SdfgState.BACKGROUND_COLOR, SdfgState.BACKGROUND_COLOR);
+        group.addElement(rectangle);
+        group.addElement(this.childLayout());
+        group.reference = this;
+        return group;
     }
 
     childGraph(): SdfgGraph {
         return this._graph;
     }
 
-    childLayout(): Layout {
+    childLayout(): Group {
         if (this._childLayout === null) {
             this._childLayout = Layouter.layout(this._graph);
             this._childLayout.offset(SdfgState.PADDING, SdfgState.PADDING);

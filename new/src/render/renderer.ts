@@ -1,8 +1,8 @@
 import * as PIXI from "pixi.js";
 import {Viewport} from "pixi-viewport"
-import Layouter from "../layout/layouter";
+import Layouter from "../layouter/layouter";
 import Loader from "../parse/loader";
-import Layout from "../layout/layout";
+import Group from "../layout/group";
 
 export default class Renderer {
     private _viewport;
@@ -24,17 +24,19 @@ export default class Renderer {
             interaction: app.renderer.plugins.interaction // the interaction module is important for wheel to work properly when renderer.view is placed or scaled
         });
         app.stage.addChild(this._viewport);
+        /*app.stage.interactive = true;
+        app.stage.on('mouseover', (e) => {
+            console.log(e.target.parent === app.stage);
+            if (e.target.children) {
+                e.target.removeChildAt(0);
+            }
+        });*/
 
-        app.stage.on('mouseover', (object) => {
-            console.log(object);
-        });
-
-
-        const update = () => {
+        /*const update = () => {
             requestAnimationFrame(update);
             app.renderer.render(app.stage);
         }
-        update();
+        update();*/
 
         this._viewport.drag().pinch().wheel().decelerate();
     }
@@ -51,7 +53,7 @@ export default class Renderer {
         });
     }
 
-    render(layout: Layout) {
+    render(layout: Group) {
         layout.render(this._viewport);
     }
 }

@@ -13,28 +13,30 @@ var __extends = (this && this.__extends) || (function () {
 })();
 import SdfgNode from "./sdfgNode";
 import Text from "../layout/text";
-import LayoutUtil from "../layout/layoutUtil";
-import UpwardTrapezoid from "../layout/updwardTrapezoid";
+import UpwardTrapezoid from "../layout/upwardTrapezoid";
+import * as _ from "lodash";
+import Group from "../layout/group";
 var MapEntry = /** @class */ (function (_super) {
     __extends(MapEntry, _super);
     function MapEntry() {
         return _super !== null && _super.apply(this, arguments) || this;
     }
-    MapEntry.prototype.shapes = function () {
-        var _this = this;
-        return function (x, y) {
-            var size = _this.size();
-            return [
-                new UpwardTrapezoid(x, y, size.width, size.height),
-                new Text(x + MapEntry.PADDING_X, y + MapEntry.PADDING_Y, _this._label),
-            ];
-        };
+    MapEntry.prototype.shape = function (x, y) {
+        var size = this.size();
+        var group = new Group(x, y, _.concat([
+            new UpwardTrapezoid(0, 0, size.width, size.height),
+            new Text(this.labelPosition().x, this.labelPosition().y, this._label),
+        ], this.connectorShapes(0, 0)));
+        group.reference = this;
+        return group;
     };
     MapEntry.prototype.size = function () {
-        return LayoutUtil.textSize(this._label, 12, MapEntry.PADDING_X, MapEntry.PADDING_Y);
+        return {
+            width: Math.max(this.labelSize().width, this.connectorsWidth()),
+            height: this.labelSize().height,
+        };
     };
-    MapEntry.PADDING_X = 30;
-    MapEntry.PADDING_Y = 10;
+    MapEntry.LABEL_PADDING_X = 30;
     return MapEntry;
 }(SdfgNode));
 export default MapEntry;

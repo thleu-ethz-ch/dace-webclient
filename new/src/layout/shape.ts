@@ -1,35 +1,44 @@
+import {Container} from "pixi.js";
+import BoundingBox from "./boundingBox";
+import Position from "./position";
 import LayoutUtil from "../layouter/layoutUtil";
-var Shape = /** @class */ (function () {
-    function Shape(x, y) {
-        this.reference = null;
-        this.parent = null;
-        this._x = 0;
-        this._y = 0;
+
+export default abstract class Shape {
+    public reference = null;
+
+    public parent: Shape = null;
+    protected _x: number = 0;
+    protected _y: number = 0;
+
+    protected constructor(x: number, y: number) {
         this._x = x;
         this._y = y;
     }
-    Shape.prototype.offset = function (x, y) {
+
+    offset(x: number, y: number): void {
         this._x += x;
         this._y += y;
-    };
-    Shape.prototype.globalPosition = function () {
-        var position = {
+    }
+
+    globalPosition(): Position {
+        const position = {
             x: this._x,
             y: this._y,
-        };
+        }
         if (this.parent !== null) {
-            var parentPosition = this.parent.globalPosition();
+            const parentPosition = this.parent.globalPosition();
             position.x += parentPosition.x;
             position.y += parentPosition.y;
         }
         return position;
-    };
-    Shape.prototype.globalBoundingBox = function () {
-        var localBox = this.boundingBox();
-        var parentPosition = {
+    }
+
+    globalBoundingBox(): BoundingBox {
+        const localBox = this.boundingBox();
+        let parentPosition = {
             x: 0,
             y: 0,
-        };
+        }
         if (this.parent !== null) {
             parentPosition = this.parent.globalPosition();
         }
@@ -39,14 +48,16 @@ var Shape = /** @class */ (function () {
             width: localBox.width,
             height: localBox.height,
         };
-    };
-    Shape.prototype.center = function () {
-        var box = this.boundingBox();
+    }
+
+    center(): Position {
+        const box = this.boundingBox();
         return LayoutUtil.cornerToCenter(box);
-    };
-    Shape.prototype.parentWithReferenceType = function (type) {
-        var shape = this;
-        var node = this.reference;
+    }
+
+    parentWithReferenceType(type) {
+        let shape: Shape = this;
+        let node = this.reference;
         while (shape.parent !== null) {
             node = shape.reference;
             if (node !== null) {
@@ -61,8 +72,9 @@ var Shape = /** @class */ (function () {
             return node;
         }
         return null;
-    };
-    return Shape;
-}());
-export default Shape;
-//# sourceMappingURL=shape.js.map
+    }
+
+    abstract boundingBox(): BoundingBox;
+
+    abstract render(container: Container): void;
+}

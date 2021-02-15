@@ -14,7 +14,8 @@ var __extends = (this && this.__extends) || (function () {
 import SdfgNode from "./sdfgNode";
 import Parser from "../parse/parser";
 import Rectangle from "../layout/rectangle";
-import Layouter from "../layout/layouter";
+import Group from "../layout/group";
+import Layouter from "../layouter/layouter";
 var SdfgState = /** @class */ (function (_super) {
     __extends(SdfgState, _super);
     function SdfgState(jsonNode) {
@@ -22,14 +23,14 @@ var SdfgState = /** @class */ (function (_super) {
         _this._graph = Parser.parse(jsonNode);
         return _this;
     }
-    SdfgState.prototype.shapes = function () {
-        var _this = this;
-        return function (x, y) {
-            var size = _this.size();
-            return [
-                new Rectangle(x, y, size.width, size.height, SdfgState.BACKGROUND_COLOR, SdfgState.BACKGROUND_COLOR),
-            ];
-        };
+    SdfgState.prototype.shape = function (x, y) {
+        var size = this.size();
+        var group = new Group(x, y);
+        var rectangle = new Rectangle(0, 0, size.width, size.height, SdfgState.BACKGROUND_COLOR, SdfgState.BACKGROUND_COLOR);
+        group.addElement(rectangle);
+        group.addElement(this.childLayout());
+        group.reference = this;
+        return group;
     };
     SdfgState.prototype.childGraph = function () {
         return this._graph;

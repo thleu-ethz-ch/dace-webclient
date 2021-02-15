@@ -1,26 +1,28 @@
 import SdfgNode from "./sdfgNode";
-import Rectangle from "../layout/rectangle";
 import Text from "../layout/text";
 import Size from "../layout/size";
-import LayoutElement from "../layout/layoutElement";
-import LayoutUtil from "../layout/layoutUtil";
-import UpwardTrapezoid from "../layout/updwardTrapezoid";
+import Shape from "../layout/shape";
+import UpwardTrapezoid from "../layout/upwardTrapezoid";
+import * as _ from "lodash";
+import Group from "../layout/group";
 
 export default class MapEntry extends SdfgNode {
-    public static PADDING_X = 30;
-    public static PADDING_Y = 10;
+    public static LABEL_PADDING_X = 30;
 
-    shapes(): (x: number, y: number) => Array<LayoutElement> {
-        return (x, y) => {
-            const size = this.size();
-            return [
-                new UpwardTrapezoid(x, y, size.width, size.height),
-                new Text(x + MapEntry.PADDING_X, y + MapEntry.PADDING_Y, this._label),
-            ];
-        };
+    shape(x: number, y: number): Shape {
+        const size = this.size();
+        const group = new Group(x, y, _.concat([
+            new UpwardTrapezoid(0, 0, size.width, size.height),
+            new Text(this.labelPosition().x, this.labelPosition().y, this._label),
+        ], this.connectorShapes(0, 0)));
+        group.reference = this;
+        return group;
     }
 
     size(): Size {
-        return LayoutUtil.textSize(this._label, 12, MapEntry.PADDING_X, MapEntry.PADDING_Y);
+        return {
+            width: Math.max(this.labelSize().width, this.connectorsWidth()),
+            height: this.labelSize().height,
+        }
     }
 }

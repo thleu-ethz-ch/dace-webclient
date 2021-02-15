@@ -1,12 +1,17 @@
 export default class SdfgEdge
 {
-    public src: number;
-    public dst: number;
-    public metadata: object;
+    public id: number = null;
+    public src: number = null;
+    public dst: number = null;
+    public srcConnector: string = null;
+    public dstConnector: string = null;
+    public metadata = {};
 
-    constructor(src: number, dst: number, metadata: object) {
-        this.src = src;
-        this.dst = dst;
+    constructor(src, dst, metadata) {
+        this.src = parseInt(src);
+        this.dst = parseInt(dst);
+        this.srcConnector = metadata.src_connector || null;
+        this.dstConnector = metadata.dst_connector || null;
         this.metadata = metadata;
     }
 }

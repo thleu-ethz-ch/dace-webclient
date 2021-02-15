@@ -1,6 +1,6 @@
 import SimpleShape from "./simpleShape";
 import * as PIXI from "pixi.js";
-import LayoutUtil from "./layoutUtil";
+import LayoutUtil from "../layouter/layoutUtil";
 
 export default class Ellipse extends SimpleShape {
     private _backgroundColor: number;

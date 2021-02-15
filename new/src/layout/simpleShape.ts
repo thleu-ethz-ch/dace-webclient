@@ -1,23 +1,15 @@
-import LayoutElement from "./layoutElement";
+import Shape from "./shape";
 import BoundingBox from "./boundingBox";
+import Position from "./position";
 
-export default abstract class SimpleShape extends LayoutElement {
-    protected _x: number = 0;
-    protected _y: number = 0;
-    protected _width: number = 0;
-    protected _height: number = 0;
+export default abstract class SimpleShape extends Shape {
+    protected _width: number;
+    protected _height: number;
 
     constructor(x: number, y: number, width: number, height: number) {
-        super();
-        this._x = x;
-        this._y = y;
+        super(x, y);
         this._width = width;
         this._height = height;
-    }
-
-    offset(x: number, y: number): void {
-        this._x += x;
-        this._y += y;
     }
 
     boundingBox(): BoundingBox {
@@ -25,7 +17,7 @@ export default abstract class SimpleShape extends LayoutElement {
             x: this._x,
             y: this._y,
             width: this._width,
-            height: this._height
-        }
+            height: this._height,
+        };
     }
 }

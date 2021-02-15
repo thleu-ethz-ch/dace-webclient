@@ -13,27 +13,29 @@ var __extends = (this && this.__extends) || (function () {
 })();
 import SdfgNode from "./sdfgNode";
 import Octagon from "../layout/octagon";
-import LayoutUtil from "../layout/layoutUtil";
 import Text from "../layout/text";
+import * as _ from "lodash";
+import Group from "../layout/group";
 var Tasklet = /** @class */ (function (_super) {
     __extends(Tasklet, _super);
     function Tasklet() {
         return _super !== null && _super.apply(this, arguments) || this;
     }
-    Tasklet.prototype.shapes = function () {
-        var _this = this;
-        return function (x, y) {
-            var size = _this.size();
-            return [
-                new Octagon(x, y, size.width, size.height),
-                new Text(x + Tasklet.PADDING, y + Tasklet.PADDING, _this._label),
-            ];
-        };
+    Tasklet.prototype.shape = function (x, y) {
+        var size = this.size();
+        var group = new Group(x, y, _.concat([
+            new Octagon(0, 0, size.width, size.height),
+            new Text(this.labelPosition().x, this.labelPosition().y, this._label),
+        ], this.connectorShapes(0, 0)));
+        group.reference = this;
+        return group;
     };
     Tasklet.prototype.size = function () {
-        return LayoutUtil.textSize(this._label, 12, Tasklet.PADDING, Tasklet.PADDING);
+        return {
+            width: Math.max(this.labelSize().width, this.connectorsWidth()),
+            height: this.labelSize().height,
+        };
     };
-    Tasklet.PADDING = 10;
     return Tasklet;
 }(SdfgNode));
 export default Tasklet;

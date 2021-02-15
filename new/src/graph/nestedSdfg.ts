@@ -2,11 +2,10 @@ import SdfgNode from "./sdfgNode";
 import SdfgGraph from "./sdfgGraph";
 import Parser from "../parse/parser";
 import Rectangle from "../layout/rectangle";
-import Layout from "../layout/layout";
-import Layouter from "../layout/layouter";
+import Group from "../layout/group";
+import Layouter from "../layouter/layouter";
 import Size from "../layout/size";
-import LayoutElement from "../layout/layoutElement";
-import LayoutUtil from "../layout/layoutUtil";
+import Shape from "../layout/shape";
 
 export default class NestedSdfg extends SdfgNode {
     public static PADDING = 20;
@@ -18,20 +17,20 @@ export default class NestedSdfg extends SdfgNode {
         this._graph = Parser.parse(jsonNode.attributes.sdfg);
     }
 
-    shapes(): (x: number, y: number) => Array<LayoutElement> {
-        return (x, y) => {
-            const size = this.size();
-            return [
-                new Rectangle(x, y, size.width, size.height),
-            ];
-        };
+    shape(x: number, y: number): Shape {
+        const size = this.size();
+        const group = new Group(x, y);
+        group.addElement(new Rectangle(0, 0, size.width, size.height));
+        group.addElement(this.childLayout());
+        group.addElements(this.connectorShapes(0, 0))
+        return group;
     }
 
     childGraph(): SdfgGraph {
         return this._graph;
     }
 
-    childLayout(): Layout {
+    childLayout(): Group {
         if (this._childLayout === null) {
             this._childLayout = Layouter.layout(this._graph);
             this._childLayout.offset(NestedSdfg.PADDING, NestedSdfg.PADDING);

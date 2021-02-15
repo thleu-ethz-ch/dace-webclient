@@ -11,34 +11,24 @@ var __extends = (this && this.__extends) || (function () {
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
-import LayoutElement from "./layoutElement";
+import Shape from "./shape";
 var SimpleShape = /** @class */ (function (_super) {
     __extends(SimpleShape, _super);
     function SimpleShape(x, y, width, height) {
-        var _this = _super.call(this) || this;
-        _this._x = 0;
-        _this._y = 0;
-        _this._width = 0;
-        _this._height = 0;
-        _this._x = x;
-        _this._y = y;
+        var _this = _super.call(this, x, y) || this;
         _this._width = width;
         _this._height = height;
         return _this;
     }
-    SimpleShape.prototype.offset = function (x, y) {
-        this._x += x;
-        this._y += y;
-    };
     SimpleShape.prototype.boundingBox = function () {
         return {
             x: this._x,
             y: this._y,
             width: this._width,
-            height: this._height
+            height: this._height,
         };
     };
     return SimpleShape;
-}(LayoutElement));
+}(Shape));
 export default SimpleShape;
 //# sourceMappingURL=simpleShape.js.map

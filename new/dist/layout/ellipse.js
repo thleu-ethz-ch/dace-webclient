@@ -13,7 +13,7 @@ var __extends = (this && this.__extends) || (function () {
 })();
 import SimpleShape from "./simpleShape";
 import * as PIXI from "pixi.js";
-import LayoutUtil from "./layoutUtil";
+import LayoutUtil from "../layouter/layoutUtil";
 var Ellipse = /** @class */ (function (_super) {
     __extends(Ellipse, _super);
     function Ellipse(x, y, width, height, backgroundColor, borderColor) {

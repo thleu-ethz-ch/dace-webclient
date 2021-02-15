@@ -13,25 +13,24 @@ var __extends = (this && this.__extends) || (function () {
 })();
 import SdfgNode from "./sdfgNode";
 import Text from "../layout/text";
-import LayoutUtil from "../layout/layoutUtil";
 import Ellipse from "../layout/ellipse";
+import Group from "../layout/group";
 var AccessNode = /** @class */ (function (_super) {
     __extends(AccessNode, _super);
     function AccessNode() {
         return _super !== null && _super.apply(this, arguments) || this;
     }
-    AccessNode.prototype.shapes = function () {
-        var _this = this;
-        return function (x, y) {
-            var size = _this.size();
-            return [
-                new Ellipse(x, y, size.width, size.height),
-                new Text(x + AccessNode.PADDING, y + AccessNode.PADDING, _this._label),
-            ];
-        };
+    AccessNode.prototype.shape = function (x, y) {
+        var size = this.size();
+        var group = new Group(x, y, [
+            new Ellipse(0, 0, size.width, size.height),
+            new Text(AccessNode.PADDING, AccessNode.PADDING, this._label),
+        ]);
+        group.reference = this;
+        return group;
     };
     AccessNode.prototype.size = function () {
-        return LayoutUtil.textSize(this._label, 12, AccessNode.PADDING, AccessNode.PADDING);
+        return this.labelSize();
     };
     AccessNode.PADDING = 10;
     return AccessNode;

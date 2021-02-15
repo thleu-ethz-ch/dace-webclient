@@ -1,25 +1,26 @@
 import SdfgNode from "./sdfgNode";
 import Text from "../layout/text";
 import Size from "../layout/size";
-import LayoutElement from "../layout/layoutElement";
-import LayoutUtil from "../layout/layoutUtil";
+import Shape from "../layout/shape";
 import DownwardTrapezoid from "../layout/downwardTrapezoid";
+import * as _ from "lodash";
+import Group from "../layout/group";
 
 export default class MapExit extends SdfgNode {
-    public static PADDING_X = 30;
-    public static PADDING_Y = 10;
+    public static LABEL_PADDING_X = 30;
 
-    shapes(): (x: number, y: number) => Array<LayoutElement> {
-        return (x, y) => {
-            const size = this.size();
-            return [
-                new DownwardTrapezoid(x, y, size.width, size.height),
-                new Text(x + MapExit.PADDING_X, y + MapExit.PADDING_Y, this._label),
-            ];
-        };
+    shape(x: number, y: number): Shape {
+        const size = this.size();
+        return new Group(x, y, _.concat([
+            new DownwardTrapezoid(0, 0, size.width, size.height),
+            new Text(this.labelPosition().x, this.labelPosition().y, this._label),
+        ], this.connectorShapes(0, 0)));
     }
 
     size(): Size {
-        return LayoutUtil.textSize(this._label, 12, MapExit.PADDING_X, MapExit.PADDING_Y);
+        return {
+            width: Math.max(this.labelSize().width, this.connectorsWidth()),
+            height: this.labelSize().height,
+        }
     }
 }

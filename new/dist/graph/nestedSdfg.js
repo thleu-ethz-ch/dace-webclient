@@ -14,7 +14,8 @@ var __extends = (this && this.__extends) || (function () {
 import SdfgNode from "./sdfgNode";
 import Parser from "../parse/parser";
 import Rectangle from "../layout/rectangle";
-import Layouter from "../layout/layouter";
+import Group from "../layout/group";
+import Layouter from "../layouter/layouter";
 var NestedSdfg = /** @class */ (function (_super) {
     __extends(NestedSdfg, _super);
     function NestedSdfg(jsonNode) {
@@ -22,14 +23,13 @@ var NestedSdfg = /** @class */ (function (_super) {
         _this._graph = Parser.parse(jsonNode.attributes.sdfg);
         return _this;
     }
-    NestedSdfg.prototype.shapes = function () {
-        var _this = this;
-        return function (x, y) {
-            var size = _this.size();
-            return [
-                new Rectangle(x, y, size.width, size.height),
-            ];
-        };
+    NestedSdfg.prototype.shape = function (x, y) {
+        var size = this.size();
+        var group = new Group(x, y);
+        group.addElement(new Rectangle(0, 0, size.width, size.height));
+        group.addElement(this.childLayout());
+        group.addElements(this.connectorShapes(0, 0));
+        return group;
     };
     NestedSdfg.prototype.childGraph = function () {
         return this._graph;

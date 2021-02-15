@@ -13,28 +13,28 @@ var __extends = (this && this.__extends) || (function () {
 })();
 import SdfgNode from "./sdfgNode";
 import Text from "../layout/text";
-import LayoutUtil from "../layout/layoutUtil";
 import DownwardTrapezoid from "../layout/downwardTrapezoid";
+import * as _ from "lodash";
+import Group from "../layout/group";
 var MapExit = /** @class */ (function (_super) {
     __extends(MapExit, _super);
     function MapExit() {
         return _super !== null && _super.apply(this, arguments) || this;
     }
-    MapExit.prototype.shapes = function () {
-        var _this = this;
-        return function (x, y) {
-            var size = _this.size();
-            return [
-                new DownwardTrapezoid(x, y, size.width, size.height),
-                new Text(x + MapExit.PADDING_X, y + MapExit.PADDING_Y, _this._label),
-            ];
-        };
+    MapExit.prototype.shape = function (x, y) {
+        var size = this.size();
+        return new Group(x, y, _.concat([
+            new DownwardTrapezoid(0, 0, size.width, size.height),
+            new Text(this.labelPosition().x, this.labelPosition().y, this._label),
+        ], this.connectorShapes(0, 0)));
     };
     MapExit.prototype.size = function () {
-        return LayoutUtil.textSize(this._label, 12, MapExit.PADDING_X, MapExit.PADDING_Y);
+        return {
+            width: Math.max(this.labelSize().width, this.connectorsWidth()),
+            height: this.labelSize().height,
+        };
     };
-    MapExit.PADDING_X = 30;
-    MapExit.PADDING_Y = 10;
+    MapExit.LABEL_PADDING_X = 30;
     return MapExit;
 }(SdfgNode));
 export default MapExit;
