@@ -40,10 +40,17 @@ export default class LayoutUtil {
         return (size.width - box.width) / 2;
     }
 
-    static subtract(minuend: Position, subtrahend: Position): Position {
+    static subtract(positionA: Position, positionB: Position): Position {
         return {
-            x: minuend.x - subtrahend.x,
-            y: minuend.y - subtrahend.y,
+            x: positionA.x - positionB.x,
+            y: positionA.y - positionB.y,
         }
+    }
+
+    static add(positionA: Position, positionB: Position) {
+        return {
+            x: positionA.x + positionB.x,
+            y: positionB.x + positionB.y,
+        };
     }
 }

@@ -2,6 +2,7 @@ import {Container} from "pixi.js";
 import BoundingBox from "./boundingBox";
 import Position from "./position";
 import LayoutUtil from "../layouter/layoutUtil";
+import * as _ from "lodash";
 
 export default abstract class Shape {
     public reference = null;
@@ -74,7 +75,22 @@ export default abstract class Shape {
         return null;
     }
 
+    get x(): number {
+        return this._x;
+    }
+
+    get y(): number {
+        return this._y;
+    }
+
+    clone(): Shape {
+        const clone = new (this.constructor as { new() })();
+        _.assign(clone, <Shape>this);
+        return clone;
+    }
+
     abstract boundingBox(): BoundingBox;
 
     abstract render(container: Container): void;
+
 }

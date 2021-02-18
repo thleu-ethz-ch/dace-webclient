@@ -44,7 +44,7 @@ export default class Renderer {
     show(name: string) {
         Loader.load(name).then((graph) => {
             const layout = Layouter.layout(graph);
-            this.render(layout);
+            this.render(<Group>layout.clone());
 
             // center and fit the graph in the viewport
             const box = layout.boundingBox();

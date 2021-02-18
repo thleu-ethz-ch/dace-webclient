@@ -1,5 +1,6 @@
 import * as PIXI from "pixi.js";
 import SimpleShape from "./simpleShape";
+import Shape from "./shape";
 
 export default class Text extends SimpleShape {
     private _text;
@@ -18,5 +19,9 @@ export default class Text extends SimpleShape {
         pixiText.x = this._x;
         pixiText.y = this._y;
         group.addChild(pixiText);
+    }
+
+    clone(): Shape {
+        return new Text(this._x, this._y, this._text, this._fontStyle.fontSize, this._fontStyle.fill);
     }
 }

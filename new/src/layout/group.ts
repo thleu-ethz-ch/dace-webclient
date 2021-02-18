@@ -14,7 +14,6 @@ export default class Group extends Shape
         this.addElements(elements);
     }
 
-
     addElement(shape: Shape): void {
         this._elements.push(shape);
         shape.parent = this;
@@ -61,5 +60,18 @@ export default class Group extends Shape
             width: maxX - minX,
             height: maxY - minY,
         }
+    }
+
+    clear() {
+        this._elements = [];
+    }
+
+    clone(): Shape {
+        const clone = <Group>super.clone();
+        clone.clear();
+        _.forEach(this._elements, (element) => {
+            clone.addElement(element.clone());
+        });
+        return clone;
     }
 }
