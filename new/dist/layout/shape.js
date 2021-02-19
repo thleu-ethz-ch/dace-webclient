@@ -1,4 +1,5 @@
 import LayoutUtil from "../layouter/layoutUtil";
+import * as _ from "lodash";
 var Shape = /** @class */ (function () {
     function Shape(x, y) {
         this.reference = null;
@@ -61,6 +62,28 @@ var Shape = /** @class */ (function () {
             return node;
         }
         return null;
+    };
+    Object.defineProperty(Shape.prototype, "x", {
+        get: function () {
+            return this._x;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Object.defineProperty(Shape.prototype, "y", {
+        get: function () {
+            return this._y;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    Shape.prototype.clone = function () {
+        var clone = new this.constructor();
+        _.assign(clone, this);
+        return clone;
+    };
+    Shape.prototype.intersects = function (otherShape) {
+        return LayoutUtil.boxesIntersect(this.globalBoundingBox(), otherShape.globalBoundingBox());
     };
     return Shape;
 }());

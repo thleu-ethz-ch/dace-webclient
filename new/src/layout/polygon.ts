@@ -19,9 +19,6 @@ export default abstract class Polygon extends SimpleShape {
         polygon.beginFill(this._backgroundColor);
         polygon.drawPolygon(this.getPath());
         polygon.endFill();
-        polygon.on('mouseover', (e) => {
-            console.log(e);
-        });
         container.addChild(polygon);
     }
 }

@@ -32,6 +32,9 @@ var Text = /** @class */ (function (_super) {
         pixiText.y = this._y;
         group.addChild(pixiText);
     };
+    Text.prototype.clone = function () {
+        return new Text(this._x, this._y, this._text, this._fontStyle.fontSize, this._fontStyle.fill);
+    };
     return Text;
 }(SimpleShape));
 export default Text;

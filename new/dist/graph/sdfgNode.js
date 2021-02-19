@@ -11,7 +11,9 @@ var SdfgNode = /** @class */ (function () {
         this.scopeEntry = null;
         this.inConnectors = [];
         this.outConnectors = [];
-        this._childLayout = null;
+        this._childGraph = null;
+        this._childGraphSize = null;
+        this._childGraphLayout = null;
         this._label = null;
         this._labelSize = null;
         this._label = jsonNode.label;
@@ -60,10 +62,7 @@ var SdfgNode = /** @class */ (function () {
         }
     };
     SdfgNode.prototype.childGraph = function () {
-        return null;
-    };
-    SdfgNode.prototype.childLayout = function (nodeId) {
-        return null;
+        return this._childGraph;
     };
     SdfgNode.prototype.size = function () {
         return {
@@ -152,6 +151,13 @@ var SdfgNode = /** @class */ (function () {
         });
         return match;
     };
+    SdfgNode.prototype.setChildGraphSize = function (size) {
+        this._childGraphSize = _.clone(size);
+    };
+    SdfgNode.prototype.setChildGraphLayout = function (layout) {
+        this._childGraphLayout = _.clone(layout);
+    };
+    SdfgNode.CHILD_PADDING = 0;
     SdfgNode.LABEL_PADDING_X = 10;
     SdfgNode.LABEL_PADDING_Y = 10;
     SdfgNode.LABEL_FONT_SIZE = 12;

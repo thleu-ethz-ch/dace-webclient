@@ -15,12 +15,11 @@ import SdfgNode from "./sdfgNode";
 import Parser from "../parse/parser";
 import Rectangle from "../layout/rectangle";
 import Group from "../layout/group";
-import Layouter from "../layouter/layouter";
 var SdfgState = /** @class */ (function (_super) {
     __extends(SdfgState, _super);
     function SdfgState(jsonNode) {
         var _this = _super.call(this, jsonNode) || this;
-        _this._graph = Parser.parse(jsonNode);
+        _this._childGraph = Parser.parse(jsonNode);
         return _this;
     }
     SdfgState.prototype.shape = function (x, y) {
@@ -28,28 +27,19 @@ var SdfgState = /** @class */ (function (_super) {
         var group = new Group(x, y);
         var rectangle = new Rectangle(0, 0, size.width, size.height, SdfgState.BACKGROUND_COLOR, SdfgState.BACKGROUND_COLOR);
         group.addElement(rectangle);
-        group.addElement(this.childLayout());
+        if (this._childGraphLayout !== null) {
+            group.addElement(this._childGraphLayout);
+        }
         group.reference = this;
         return group;
     };
-    SdfgState.prototype.childGraph = function () {
-        return this._graph;
-    };
-    SdfgState.prototype.childLayout = function () {
-        if (this._childLayout === null) {
-            this._childLayout = Layouter.layout(this._graph);
-            this._childLayout.offset(SdfgState.PADDING, SdfgState.PADDING);
-        }
-        return this._childLayout;
-    };
     SdfgState.prototype.size = function () {
-        var box = this.childLayout().boundingBox();
         return {
-            width: box.width + 2 * SdfgState.PADDING,
-            height: box.height + 2 * SdfgState.PADDING,
+            width: this._childGraphSize.width + 2 * SdfgState.CHILD_PADDING,
+            height: this._childGraphSize.height + 2 * SdfgState.CHILD_PADDING,
         };
     };
-    SdfgState.PADDING = 20;
+    SdfgState.CHILD_PADDING = 20;
     SdfgState.BACKGROUND_COLOR = 0xDEEBF7;
     return SdfgState;
 }(SdfgNode));

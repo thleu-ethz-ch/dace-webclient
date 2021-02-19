@@ -2,7 +2,6 @@ import * as _ from "lodash";
 import * as PIXI from 'pixi.js';
 import BoundingBox from "./boundingBox";
 import Shape from "./shape";
-import SimpleShape from "./simpleShape";
 
 export default class Group extends Shape
 {
@@ -17,7 +16,7 @@ export default class Group extends Shape
     addElement(shape: Shape): void {
         this._elements.push(shape);
         shape.parent = this;
-        this._boundingBox = null; // invalidate
+        this.invalidateBoundingBox();
     }
 
     addElements(shapes: Array<Shape>): void {
@@ -28,7 +27,7 @@ export default class Group extends Shape
         if (this._boundingBox === null) {
             this.updateBoundingBox();
         }
-        return this._boundingBox;
+        return _.clone(this._boundingBox); // clone prevents that the bounding box gets mutated
     }
 
     render(container: PIXI.Container) {
@@ -69,9 +68,27 @@ export default class Group extends Shape
     clone(): Shape {
         const clone = <Group>super.clone();
         clone.clear();
-        _.forEach(this._elements, (element) => {
-            clone.addElement(element.clone());
+        _.forEach(this._elements, (child) => {
+            const clonedChild = child.clone();
+            clonedChild.parent = clone;
+            clone.addElement(clonedChild);
         });
         return clone;
     }
+
+    invalidateBoundingBox() {
+        this._boundingBox = null;
+        if (this.parent !== null) {
+            (<Group>this.parent).invalidateBoundingBox();
+        }
+    }
+
+    get elements() {
+        const elements = [];
+        _.forEach(this._elements, (element) => {
+            elements.push(element.clone());
+        });
+        return elements;
+    }
+
 }

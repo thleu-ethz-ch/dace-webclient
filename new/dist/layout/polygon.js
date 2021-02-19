@@ -29,9 +29,6 @@ var Polygon = /** @class */ (function (_super) {
         polygon.beginFill(this._backgroundColor);
         polygon.drawPolygon(this.getPath());
         polygon.endFill();
-        polygon.on('mouseover', function (e) {
-            console.log(e);
-        });
         container.addChild(polygon);
     };
     return Polygon;

@@ -9,6 +9,7 @@ import SdfgEdge from "../graph/sdfgEdge";
 import NestedSdfg from "../graph/nestedSdfg";
 import SdfgNode from "../graph/sdfgNode";
 import {MapNode} from "../graph/map";
+import LibraryNode from "../graph/libraryNode";
 
 export default class Parser {
     static parse(json): SdfgGraph {
@@ -17,7 +18,7 @@ export default class Parser {
             this.addNode(graph, jsonNode);
         });
         _.forEach(json.edges, (jsonEdge) => {
-            graph.addEdge(new SdfgEdge(jsonEdge.src, jsonEdge.dst, jsonEdge));
+            graph.addEdge(new SdfgEdge(graph, jsonEdge.src, jsonEdge.dst, jsonEdge));
         });
         this.contractMaps(graph);
 
@@ -45,6 +46,7 @@ export default class Parser {
     static classForType(type) {
         const types = {
             "AccessNode": AccessNode,
+            "LibraryNode": LibraryNode,
             "MapEntry": MapEntry,
             "MapExit": MapExit,
             "NestedSDFG": NestedSdfg,
@@ -103,14 +105,13 @@ export default class Parser {
                 if (dstAffected) {
                     const map = <MapNode>graph.node(mapByEntryId.get(entryIdByNode.get(edge.src)));
                     graph.removeEdge(edge.id);
+                    const newEdge = _.clone(edge);
                     map.addEdge(edge);
                 } else {
                     edge.src = mapByEntryId.get(entryIdByNode.get(edge.src));
-                    //graph.removeEdge(edge.id);
                 }
             } else if (dstAffected) {
                 edge.dst = mapByEntryId.get(entryIdByNode.get(edge.dst));
-                //graph.removeEdge(edge.id);
             }
         });
     }

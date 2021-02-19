@@ -1,0 +1,41 @@
+import SimpleShape from "./simpleShape";
+import * as PIXI from "pixi.js";
+
+export default class FoldedCornerRectangle extends SimpleShape {
+    private _backgroundColor: number;
+    private _borderColor: number;
+
+    constructor(x: number, y: number, width: number, height: number, backgroundColor = 0xFFFFFF, borderColor = 0x000000) {
+        super(x, y, width, height);
+        this._backgroundColor = backgroundColor;
+        this._borderColor = borderColor;
+    }
+
+    render(container: PIXI.Container): void {
+        const cornerLength = this._height / 6;
+
+        const rectangle = new PIXI.Graphics();
+        rectangle.lineStyle(1, this._borderColor, 1);
+        rectangle.beginFill(this._backgroundColor);
+        rectangle.drawPolygon([
+            this._x, this._y,
+            this._x, this._y + this._height,
+            this._x + this._width, this._y + this._height,
+            this._x + this._width, this._y + cornerLength,
+            this._x + this._width - cornerLength, this._y,
+        ]);
+        rectangle.endFill();
+        container.addChild(rectangle);
+
+        const triangle = new PIXI.Graphics();
+        triangle.lineStyle(1, this._borderColor, 1);
+        triangle.beginFill(this._backgroundColor);
+        triangle.drawPolygon([
+            this._x + this._width - cornerLength, this._y,
+            this._x + this._width - cornerLength, this._y + cornerLength,
+            this._x + this._width, this._y + cornerLength,
+        ]);
+        triangle.endFill();
+        container.addChild(triangle);
+    }
+}

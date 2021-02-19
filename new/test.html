@@ -21,8 +21,10 @@
     <script src="./dist/sdfg.js"></script>
     <script>
         window.addEventListener("load", function () {
+            const layouter = new sdfg.DagreLayouter();
             const renderer = new sdfg.Renderer(document.body);
-            renderer.show("symm");
+            const graph = (new URLSearchParams(window.location.search)).get('graph') || "symm";
+            renderer.show(layouter, graph);
         });
     </script>
 </head>

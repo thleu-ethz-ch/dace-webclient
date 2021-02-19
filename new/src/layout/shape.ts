@@ -1,6 +1,6 @@
 import {Container} from "pixi.js";
 import BoundingBox from "./boundingBox";
-import Position from "./position";
+import Point from "./point";
 import LayoutUtil from "../layouter/layoutUtil";
 import * as _ from "lodash";
 
@@ -21,7 +21,7 @@ export default abstract class Shape {
         this._y += y;
     }
 
-    globalPosition(): Position {
+    globalPosition(): Point {
         const position = {
             x: this._x,
             y: this._y,
@@ -51,7 +51,7 @@ export default abstract class Shape {
         };
     }
 
-    center(): Position {
+    center(): Point {
         const box = this.boundingBox();
         return LayoutUtil.cornerToCenter(box);
     }
@@ -87,6 +87,10 @@ export default abstract class Shape {
         const clone = new (this.constructor as { new() })();
         _.assign(clone, <Shape>this);
         return clone;
+    }
+
+    intersects(otherShape: Shape) {
+        return LayoutUtil.boxesIntersect(this.globalBoundingBox(), otherShape.globalBoundingBox());
     }
 
     abstract boundingBox(): BoundingBox;

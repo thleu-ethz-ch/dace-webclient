@@ -5,12 +5,13 @@ import Shape from "../layout/shape";
 import * as _ from "lodash";
 import Connector from "./connector";
 import LayoutUtil from "../layouter/layoutUtil";
-import Position from "../layout/position";
+import Point from "../layout/point";
 import Ellipse from "../layout/ellipse";
 import PlaceHolder from "../layout/placeHolder";
 import Text from "../layout/text";
 
 export default abstract class SdfgNode {
+    public static CHILD_PADDING = 0;
     public static LABEL_PADDING_X = 10;
     public static LABEL_PADDING_Y = 10;
     public static LABEL_FONT_SIZE = 12;
@@ -20,7 +21,9 @@ export default abstract class SdfgNode {
     public inConnectors: Array<Connector> = [];
     public outConnectors: Array<Connector> = [];
 
-    protected _childLayout: Group = null;
+    protected _childGraph: SdfgGraph = null;
+    protected _childGraphSize: Size = null;
+    protected _childGraphLayout: Group = null;
     protected _label: string = null;
     protected _labelSize: Size = null;
 
@@ -76,11 +79,7 @@ export default abstract class SdfgNode {
     abstract shape(x: number, y: number): Shape;
 
     childGraph(): SdfgGraph {
-        return null;
-    }
-
-    childLayout(nodeId: number): Group {
-        return null;
+        return this._childGraph;
     }
 
     size(): Size {
@@ -108,7 +107,7 @@ export default abstract class SdfgNode {
     /**
      * Adds an offset to center the label within the node (if necessary).
      */
-    labelPosition(): Position {
+    labelPosition(): Point {
         const constructor = <typeof SdfgNode>this.constructor;
         const labelBox = {
             x: constructor.LABEL_PADDING_X,
@@ -177,5 +176,13 @@ export default abstract class SdfgNode {
             }
         });
         return match;
+    }
+
+    setChildGraphSize(size: Size) {
+        this._childGraphSize = _.clone(size);
+    }
+
+    setChildGraphLayout(layout: Group) {
+        this._childGraphLayout = _.clone(layout);
     }
 }

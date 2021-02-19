@@ -11,31 +11,13 @@ var __extends = (this && this.__extends) || (function () {
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
-import SdfgNode from "./sdfgNode";
-import Text from "../layout/text";
-import DownwardTrapezoid from "../layout/downwardTrapezoid";
-import * as _ from "lodash";
-import Group from "../layout/group";
+import ExitNode from "./exitNode";
 var MapExit = /** @class */ (function (_super) {
     __extends(MapExit, _super);
     function MapExit() {
         return _super !== null && _super.apply(this, arguments) || this;
     }
-    MapExit.prototype.shape = function (x, y) {
-        var size = this.size();
-        return new Group(x, y, _.concat([
-            new DownwardTrapezoid(0, 0, size.width, size.height),
-            new Text(this.labelPosition().x, this.labelPosition().y, this._label),
-        ], this.connectorShapes(0, 0)));
-    };
-    MapExit.prototype.size = function () {
-        return {
-            width: Math.max(this.labelSize().width, this.connectorsWidth()),
-            height: this.labelSize().height,
-        };
-    };
-    MapExit.LABEL_PADDING_X = 30;
     return MapExit;
-}(SdfgNode));
+}(ExitNode));
 export default MapExit;
 //# sourceMappingURL=mapExit.js.map

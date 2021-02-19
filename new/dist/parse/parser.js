@@ -8,6 +8,7 @@ import Tasklet from "../graph/tasklet";
 import SdfgEdge from "../graph/sdfgEdge";
 import NestedSdfg from "../graph/nestedSdfg";
 import { MapNode } from "../graph/map";
+import LibraryNode from "../graph/libraryNode";
 var Parser = /** @class */ (function () {
     function Parser() {
     }
@@ -18,7 +19,7 @@ var Parser = /** @class */ (function () {
             _this.addNode(graph, jsonNode);
         });
         _.forEach(json.edges, function (jsonEdge) {
-            graph.addEdge(new SdfgEdge(jsonEdge.src, jsonEdge.dst, jsonEdge));
+            graph.addEdge(new SdfgEdge(graph, jsonEdge.src, jsonEdge.dst, jsonEdge));
         });
         this.contractMaps(graph);
         return graph;
@@ -40,6 +41,7 @@ var Parser = /** @class */ (function () {
     Parser.classForType = function (type) {
         var types = {
             "AccessNode": AccessNode,
+            "LibraryNode": LibraryNode,
             "MapEntry": MapEntry,
             "MapExit": MapExit,
             "NestedSDFG": NestedSdfg,
@@ -94,16 +96,15 @@ var Parser = /** @class */ (function () {
                 if (dstAffected) {
                     var map = graph.node(mapByEntryId.get(entryIdByNode.get(edge.src)));
                     graph.removeEdge(edge.id);
+                    var newEdge = _.clone(edge);
                     map.addEdge(edge);
                 }
                 else {
                     edge.src = mapByEntryId.get(entryIdByNode.get(edge.src));
-                    //graph.removeEdge(edge.id);
                 }
             }
             else if (dstAffected) {
                 edge.dst = mapByEntryId.get(entryIdByNode.get(edge.dst));
-                //graph.removeEdge(edge.id);
             }
         });
     };

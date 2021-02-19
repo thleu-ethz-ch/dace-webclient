@@ -11,33 +11,13 @@ var __extends = (this && this.__extends) || (function () {
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
-import SdfgNode from "./sdfgNode";
-import Text from "../layout/text";
-import UpwardTrapezoid from "../layout/upwardTrapezoid";
-import * as _ from "lodash";
-import Group from "../layout/group";
+import EntryNode from "./entryNode";
 var MapEntry = /** @class */ (function (_super) {
     __extends(MapEntry, _super);
     function MapEntry() {
         return _super !== null && _super.apply(this, arguments) || this;
     }
-    MapEntry.prototype.shape = function (x, y) {
-        var size = this.size();
-        var group = new Group(x, y, _.concat([
-            new UpwardTrapezoid(0, 0, size.width, size.height),
-            new Text(this.labelPosition().x, this.labelPosition().y, this._label),
-        ], this.connectorShapes(0, 0)));
-        group.reference = this;
-        return group;
-    };
-    MapEntry.prototype.size = function () {
-        return {
-            width: Math.max(this.labelSize().width, this.connectorsWidth()),
-            height: this.labelSize().height,
-        };
-    };
-    MapEntry.LABEL_PADDING_X = 30;
     return MapEntry;
-}(SdfgNode));
+}(EntryNode));
 export default MapEntry;
 //# sourceMappingURL=mapEntry.js.map

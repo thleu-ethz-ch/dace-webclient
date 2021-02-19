@@ -1,11 +1,13 @@
 var SdfgEdge = /** @class */ (function () {
-    function SdfgEdge(src, dst, metadata) {
+    function SdfgEdge(graph, src, dst, metadata) {
         this.id = null;
+        this.graph = null;
         this.src = null;
         this.dst = null;
         this.srcConnector = null;
         this.dstConnector = null;
         this.metadata = {};
+        this.graph = graph;
         this.src = parseInt(src);
         this.dst = parseInt(dst);
         this.srcConnector = metadata.src_connector || null;

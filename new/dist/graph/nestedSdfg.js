@@ -15,40 +15,30 @@ import SdfgNode from "./sdfgNode";
 import Parser from "../parse/parser";
 import Rectangle from "../layout/rectangle";
 import Group from "../layout/group";
-import Layouter from "../layouter/layouter";
 var NestedSdfg = /** @class */ (function (_super) {
     __extends(NestedSdfg, _super);
     function NestedSdfg(jsonNode) {
         var _this = _super.call(this, jsonNode) || this;
-        _this._graph = Parser.parse(jsonNode.attributes.sdfg);
+        _this._childGraph = Parser.parse(jsonNode.attributes.sdfg);
         return _this;
     }
     NestedSdfg.prototype.shape = function (x, y) {
         var size = this.size();
         var group = new Group(x, y);
         group.addElement(new Rectangle(0, 0, size.width, size.height));
-        group.addElement(this.childLayout());
+        if (this._childGraphLayout !== null) {
+            group.addElement(this._childGraphLayout);
+        }
         group.addElements(this.connectorShapes(0, 0));
         return group;
     };
-    NestedSdfg.prototype.childGraph = function () {
-        return this._graph;
-    };
-    NestedSdfg.prototype.childLayout = function () {
-        if (this._childLayout === null) {
-            this._childLayout = Layouter.layout(this._graph);
-            this._childLayout.offset(NestedSdfg.PADDING, NestedSdfg.PADDING);
-        }
-        return this._childLayout;
-    };
     NestedSdfg.prototype.size = function () {
-        var box = this.childLayout().boundingBox();
         return {
-            width: box.width + 2 * NestedSdfg.PADDING,
-            height: box.height + 2 * NestedSdfg.PADDING,
+            width: this._childGraphSize.width + 2 * NestedSdfg.CHILD_PADDING,
+            height: this._childGraphSize.height + 2 * NestedSdfg.CHILD_PADDING,
         };
     };
-    NestedSdfg.PADDING = 20;
+    NestedSdfg.CHILD_PADDING = 20;
     return NestedSdfg;
 }(SdfgNode));
 export default NestedSdfg;
