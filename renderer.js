@@ -934,7 +934,7 @@ function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list, omit_access_node
 
 function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omit_access_nodes) {
     // layout the state as a dagre graph
-    let g = new dagre.graphlib.Graph({ multigraph: true, compound: true });
+    let g = new dagre.graphlib.Graph({ multigraph: true });
 
     // Set layout options and a simpler algorithm for large graphs
     let layout_options = {ranksep: 30};
@@ -1120,41 +1120,8 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omi
         }
     });
 
-    const component_by_node = new Map();
-    dagre.graphlib.alg.components(g).forEach(function(node_ids, component_id) {
-        for (let i = 0; i < node_ids.length; ++i) {
-            component_by_node.set(node_ids[i], component_id);
-        }
-    });
-    let groups_by_component = new Map();
-    g.sources().forEach(function(node_id) {
-        if (g.node(node_id).isGroup || g.node(node_id).data.node.type === 'Connector')
-            return;
-        let component = component_by_node.get(node_id);
-        if (!groups_by_component.has(component)) {
-            let group_id = 'sources_' + component;
-            g.setNode(group_id, {isGroup: true});
-            groups_by_component.set(component, group_id);
-        }
-        g.setParent(node_id, groups_by_component.get(component));
-        //g.node(node_id).rank = "min";
-    });
-    groups_by_component.clear();
-    g.sinks().forEach(function(node_id) {
-        if (g.node(node_id).isGroup || g.node(node_id).data.node.type === 'Connector')
-            return;
-        let component = component_by_node.get(node_id);
-        if (!groups_by_component.has(component)) {
-            let group_id = 'sinks' + component;
-            g.setNode(group_id, {isGroup: true});
-            groups_by_component.set(component, group_id);
-        }
-        //console.log(g.node(node_id).data, component)
-        g.setParent(node_id, groups_by_component.get(component));
-        //g.node(node_id).rank = "min";
-    });
-
     dagre.layout(g);
+
 
     // Layout connectors and nested SDFGs
     sdfg_state.nodes.forEach(function (node, id) {
@@ -1167,6 +1134,7 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omi
 
         // Offset nested SDFG
         if (node.type === "NestedSDFG") {
+
             offset_sdfg(node.attributes.sdfg, gnode.data.graph, {
                 x: topleft.x + LINEHEIGHT,
                 y: topleft.y + LINEHEIGHT
@@ -2052,9 +2020,6 @@ class SDFGRenderer {
                         return;
                     ng.nodes().forEach(node_id => {
                         let node = ng.node(node_id);
-                        if (node.isGroup) {
-                            return;
-                        }
                         if (node.intersect(x, y, w, h)) {
                             // Selected nodes
                             func('nodes', { sdfg: sdfg_name, sdfg_id: sdfg_id, state: state_id, id: node_id }, node);
@@ -2156,9 +2121,6 @@ class SDFGRenderer {
                     return;
                 ng.nodes().forEach(node_id => {
                     let node = ng.node(node_id);
-                    if (node.isGroup)
-                        return;
-
                     // Selected nodes
                     func('nodes', { sdfg: sdfg_name, state: state_id, id: node_id, graph: ng }, node, node.intersect(x, y, w, h));
 
