@@ -8,7 +8,7 @@ import Tasklet from "../graph/tasklet";
 import SdfgEdge from "../graph/sdfgEdge";
 import NestedSdfg from "../graph/nestedSdfg";
 import SdfgNode from "../graph/sdfgNode";
-import {MapNode} from "../graph/map";
+import MapNode from "../graph/mapNode";
 import LibraryNode from "../graph/libraryNode";
 
 export default class Parser {
@@ -21,12 +21,21 @@ export default class Parser {
             graph.addEdge(new SdfgEdge(graph, jsonEdge.src, jsonEdge.dst, jsonEdge));
         });
         this.contractMaps(graph);
+        //console.log(graph);
 
         return graph;
     }
 
     static addNode(graph: SdfgGraph, jsonNode) {
-        const node = new (this.classForType(jsonNode.type))(jsonNode);
+        const node = new (this.classForType(jsonNode.type))(parseInt(jsonNode.id), graph, jsonNode.label);
+
+        // set child graph
+        if (jsonNode.type === "NestedSDFG") {
+            node.setChildGraph(this.parse(jsonNode.attributes.sdfg));
+        }
+        if (jsonNode.type === "SDFGState") {
+            node.setChildGraph(this.parse(jsonNode));
+        }
 
         // set connectors
         const inConnectors = jsonNode.attributes.in_connectors || [];
@@ -34,11 +43,11 @@ export default class Parser {
         node.setConnectors(inConnectors, outConnectors);
 
         // set scope
-        let scope = jsonNode.scope_entry || null;
+        let scope = jsonNode.scope_entry ? parseInt(jsonNode.scope_entry) : null;
         if (node instanceof MapEntry) {
-            scope = jsonNode.id;
+            scope = parseInt(jsonNode.id);
         }
-        node.setScopeEntry(scope);
+        node.scopeEntry = scope;
 
         graph.addNode(node, jsonNode.id);
     }
@@ -64,7 +73,7 @@ export default class Parser {
         const nodesByEntryId = new Map();
         const entryIdByNode = new Map();
         const exitByEntryId = new Map();
-        _.forEach(graph.nodes, (node: SdfgNode) => {
+        _.forEach(graph.nodes(), (node: SdfgNode) => {
             if (node.scopeEntry === null) {
                 return;
             }
@@ -81,7 +90,7 @@ export default class Parser {
         // create map nodes and move connectors to them
         const mapByEntryId = new Map();
         nodesByEntryId.forEach((nodes, entryId) => {
-            const map = new MapNode(graph.nodes.length, nodes);
+            const map = new MapNode(graph.nodes().length, graph.node(entryId).graph, nodes);
             map.inConnectors = graph.node(entryId).inConnectors;
             map.node(entryId).inConnectors = [];
             map.outConnectors = graph.node(exitByEntryId.get(entryId)).outConnectors;
@@ -90,7 +99,7 @@ export default class Parser {
         });
 
         // remove nodes from current graph
-        _.forEach(graph.nodes, (node: SdfgNode) => {
+        _.forEach(graph.nodes(), (node: SdfgNode) => {
             if (node.scopeEntry !== null) {
                 graph.removeNode(node.id);
             }
@@ -98,7 +107,7 @@ export default class Parser {
 
         // find child edges and remove from current graph
         const edgesByEntryId = new Map();
-        _.forEach(graph.edges, (edge: SdfgEdge) => {
+        _.forEach(graph.edges(), (edge: SdfgEdge) => {
             const srcAffected = entryIdByNode.has(edge.src);
             const dstAffected = entryIdByNode.has(edge.dst);
             if (srcAffected) {
@@ -106,7 +115,7 @@ export default class Parser {
                     const map = <MapNode>graph.node(mapByEntryId.get(entryIdByNode.get(edge.src)));
                     graph.removeEdge(edge.id);
                     const newEdge = _.clone(edge);
-                    map.addEdge(edge);
+                    map.childGraph().addEdge(edge);
                 } else {
                     edge.src = mapByEntryId.get(entryIdByNode.get(edge.src));
                 }

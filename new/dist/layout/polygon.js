@@ -11,14 +11,14 @@ var __extends = (this && this.__extends) || (function () {
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
-import SimpleShape from "./simpleShape";
 import * as PIXI from "pixi.js";
+import SimpleShape from "./simpleShape";
 var Polygon = /** @class */ (function (_super) {
     __extends(Polygon, _super);
-    function Polygon(x, y, width, height, backgroundColor, borderColor) {
+    function Polygon(reference, x, y, width, height, backgroundColor, borderColor) {
         if (backgroundColor === void 0) { backgroundColor = 0xFFFFFF; }
         if (borderColor === void 0) { borderColor = 0x000000; }
-        var _this = _super.call(this, x, y, width, height) || this;
+        var _this = _super.call(this, reference, x, y, width, height) || this;
         _this._backgroundColor = backgroundColor;
         _this._borderColor = borderColor;
         return _this;

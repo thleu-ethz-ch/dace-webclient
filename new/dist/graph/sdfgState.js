@@ -11,33 +11,18 @@ var __extends = (this && this.__extends) || (function () {
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
+import * as _ from "lodash";
 import SdfgNode from "./sdfgNode";
-import Parser from "../parse/parser";
 import Rectangle from "../layout/rectangle";
-import Group from "../layout/group";
 var SdfgState = /** @class */ (function (_super) {
     __extends(SdfgState, _super);
-    function SdfgState(jsonNode) {
-        var _this = _super.call(this, jsonNode) || this;
-        _this._childGraph = Parser.parse(jsonNode);
-        return _this;
+    function SdfgState() {
+        return _super !== null && _super.apply(this, arguments) || this;
     }
-    SdfgState.prototype.shape = function (x, y) {
-        var size = this.size();
-        var group = new Group(x, y);
-        var rectangle = new Rectangle(0, 0, size.width, size.height, SdfgState.BACKGROUND_COLOR, SdfgState.BACKGROUND_COLOR);
-        group.addElement(rectangle);
-        if (this._childGraphLayout !== null) {
-            group.addElement(this._childGraphLayout);
-        }
-        group.reference = this;
-        return group;
-    };
-    SdfgState.prototype.size = function () {
-        return {
-            width: this._childGraphSize.width + 2 * SdfgState.CHILD_PADDING,
-            height: this._childGraphSize.height + 2 * SdfgState.CHILD_PADDING,
-        };
+    SdfgState.prototype.shapes = function () {
+        return _.concat([
+            new Rectangle(this, this._x, this._y, this._width, this._height, SdfgState.BACKGROUND_COLOR, SdfgState.BACKGROUND_COLOR),
+        ], _super.prototype.shapes.call(this));
     };
     SdfgState.CHILD_PADDING = 20;
     SdfgState.BACKGROUND_COLOR = 0xDEEBF7;

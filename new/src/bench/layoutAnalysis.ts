@@ -1,17 +1,16 @@
-import Group from "../layout/group";
-import LayoutUtil from "../layouter/layoutUtil";
 import * as _ from "lodash";
 import Edge from "../layout/edge";
 import Segment from "../layout/segment";
+import Shape from "../layout/shape";
 
 export default class LayoutAnalysis
 {
-    private _layout: Group = null;
+    private _layout: Array<Shape> = null;
     private _edges: Array<Edge> = null;
     private _segments: Array<Segment> = null;
 
-    constructor(layout: Group) {
-        this._layout = LayoutUtil.flattenLayout(layout);
+    constructor(layout: Array<Shape>) {
+        this._layout = layout;
     }
 
     /**
@@ -49,7 +48,7 @@ export default class LayoutAnalysis
         let cImpossible = 0;
         const startPointsByGraph = new Map();
         for (let i = 0; i < this.edges.length; ++i) {
-            const pointsA = this.edges[i].globalPoints();
+            const pointsA = this.edges[i].points();
             // segments of the same edge can not overlap
             cImpossible += this.edges[i].segments().length * (this.edges[i].segments().length - 1) / 2;
             for (let j = i + 1; j < this.edges.length; ++j) {
@@ -58,7 +57,7 @@ export default class LayoutAnalysis
                     cImpossible += this.edges[i].segments().length * this.edges[j].segments().length;
                     continue;
                 }
-                const pointsB = this.edges[j].globalPoints();
+                const pointsB = this.edges[j].points();
                 const sameStart = _.isEqual(pointsA[0], pointsB[0]);
                 const sameEnd = _.isEqual(_.last(pointsA), _.last(pointsB));
                 if (sameStart || sameEnd) {
@@ -83,7 +82,7 @@ export default class LayoutAnalysis
     get edges() {
         if (this._edges === null) {
             this._edges = [];
-            _.forEach(this._layout.elements, (element) => {
+            _.forEach(this._layout, (element) => {
                 if (element instanceof Edge) {
                     this._edges.push(element);
                 }
@@ -96,7 +95,7 @@ export default class LayoutAnalysis
         if (this._segments === null) {
             this._segments = [];
             _.forEach(this.edges, (edge) => {
-                _.forEach(edge.globalSegments(), (segment) => {
+                _.forEach(edge.segments(), (segment) => {
                     this._segments.push(segment);
                 });
             });

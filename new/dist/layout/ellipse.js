@@ -11,15 +11,15 @@ var __extends = (this && this.__extends) || (function () {
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
-import SimpleShape from "./simpleShape";
 import * as PIXI from "pixi.js";
 import LayoutUtil from "../layouter/layoutUtil";
+import SimpleShape from "./simpleShape";
 var Ellipse = /** @class */ (function (_super) {
     __extends(Ellipse, _super);
-    function Ellipse(x, y, width, height, backgroundColor, borderColor) {
+    function Ellipse(reference, x, y, width, height, backgroundColor, borderColor) {
         if (backgroundColor === void 0) { backgroundColor = 0xFFFFFF; }
         if (borderColor === void 0) { borderColor = 0x000000; }
-        var _this = _super.call(this, x, y, width, height) || this;
+        var _this = _super.call(this, reference, x, y, width, height) || this;
         _this._backgroundColor = backgroundColor;
         _this._borderColor = borderColor;
         return _this;

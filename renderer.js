@@ -1155,18 +1155,18 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omi
         });
         let conn_indexes = new Map();
         for (let i = 0; i < iconn_unscoped.length; ++i) {
-            let is_left = i < iconn_unscoped.length - (iconn_unscoped.length > oconn_unscoped.length) / 2;
+            let is_left = i < (iconn_unscoped.length - (iconn_unscoped.length > oconn_unscoped.length)) / 2;
             conn_indexes.set(iconn_unscoped[i], i + (is_left ? 0 : iconn_scoped.length));
         }
-        let offset = Math.ceil(iconn_unscoped.length - (iconn_unscoped.length > oconn_unscoped.length) / 2);
+        let offset = Math.ceil((iconn_unscoped.length - (iconn_unscoped.length > oconn_unscoped.length)) / 2);
         for (let i = 0; i < iconn_scoped.length; ++i) {
             conn_indexes.set(iconn_scoped[i], i + offset);
         }
         for (let i = 0; i < oconn_unscoped.length; ++i) {
-            let is_left = i < oconn_unscoped.length - (oconn_unscoped.length > iconn_unscoped.length) / 2;
+            let is_left = i < (oconn_unscoped.length - (oconn_unscoped.length > iconn_unscoped.length)) / 2;
             conn_indexes.set(oconn_unscoped[i], i + (is_left ? 0 : oconn_scoped.length));
         }
-        offset = Math.ceil(oconn_unscoped.length - (oconn_unscoped.length > iconn_unscoped.length) / 2);
+        offset = Math.ceil((oconn_unscoped.length - (oconn_unscoped.length > iconn_unscoped.length)) / 2);
         for (let i = 0; i < oconn_scoped.length; ++i) {
             conn_indexes.set(oconn_scoped[i], i + offset);
         }

@@ -2,13 +2,11 @@ import * as PIXI from "pixi.js";
 import {Viewport} from "pixi-viewport"
 import Layouter from "../layouter/layouter";
 import Loader from "../parse/loader";
-import Group from "../layout/group";
-import Edge from "../layout/edge";
-import Rectangle from "../layout/rectangle";
-import LayoutUtil from "../layouter/layoutUtil";
 import LayoutAnalysis from "../bench/layoutAnalysis";
-import * as _ from "lodash";
 import PerformanceAnalysis from "../bench/performanceAnalysis";
+import Shape from "../layout/shape";
+import * as _ from "lodash";
+import SdfgGraph from "../graph/sdfgGraph";
 
 export default class Renderer {
     private _viewport;
@@ -57,25 +55,31 @@ export default class Renderer {
 
     show(layouter: Layouter, name: string) {
         Loader.load(name).then((graph) => {
-            const layout = layouter.layout(graph);
-            this.render(layout);
-            const layoutAnalysis = new LayoutAnalysis(layout);
+            layouter.layout(graph);
+            console.log(graph);
+            this.render(graph);
+            /*const layoutAnalysis = new LayoutAnalysis(graph.shapes());
             console.log(layoutAnalysis.bendsMetric());
-            console.log(layoutAnalysis.crossingsMetric());
-            const performanceAnalysis = new PerformanceAnalysis(layouter);
+            console.log(layoutAnalysis.crossingsMetric());*/
+            /*const performanceAnalysis = new PerformanceAnalysis(layouter);
             performanceAnalysis.measure(name, 1).then(time => {
                 console.log(time + " ms");
-            });
+            });*/
 
             // center and fit the graph in the viewport
-            const box = layout.boundingBox();
+            const box = graph.boundingBox();
             this._viewport.moveCorner((box.width - this._viewport.worldWidth) / 2, (box.height - this._viewport.worldHeight) / 2);
             this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);
         });
     }
 
-    render(layout: Group) {
-        this._layout = LayoutUtil.flattenLayout(layout);
-        layout.render(this._viewport);
+    /**
+     * Shows a graph in the designated container.
+     * @param graph Graph with layout information for all nodes and edges (x, y, width, height).
+     */
+    render(graph: SdfgGraph) {
+        _.forEach(graph.shapes(), (shape) => {
+            shape.render(this._viewport);
+        });
     }
 }

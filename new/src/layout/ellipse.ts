@@ -1,13 +1,13 @@
-import SimpleShape from "./simpleShape";
 import * as PIXI from "pixi.js";
 import LayoutUtil from "../layouter/layoutUtil";
+import SimpleShape from "./simpleShape";
 
 export default class Ellipse extends SimpleShape {
-    private _backgroundColor: number;
-    private _borderColor: number;
+    private readonly _backgroundColor: number;
+    private readonly _borderColor: number;
 
-    constructor(x: number, y: number, width: number, height: number, backgroundColor: number = 0xFFFFFF, borderColor: number = 0x000000) {
-        super(x, y, width, height);
+    constructor(reference: object, x: number, y: number, width: number, height: number, backgroundColor: number = 0xFFFFFF, borderColor: number = 0x000000) {
+        super(reference, x, y, width, height);
         this._backgroundColor = backgroundColor;
         this._borderColor = borderColor;
     }
@@ -21,5 +21,4 @@ export default class Ellipse extends SimpleShape {
         ellipse.endFill();
         container.addChild(ellipse);
     }
-
 }

@@ -1,13 +1,12 @@
 import {Container, Graphics} from "pixi.js";
-import BoundingBox from "./boundingBox";
 import SimpleShape from "./simpleShape";
 
 export default class Rectangle extends SimpleShape {
-    private _backgroundColor: number;
-    private _borderColor: number;
+    private readonly _backgroundColor: number;
+    private readonly _borderColor: number;
 
-    constructor(x: number, y: number, width: number, height: number, backgroundColor = 0xFFFFFF, borderColor = 0x000000) {
-        super(x, y, width, height);
+    constructor(reference: object, x: number, y: number, width: number, height: number, backgroundColor = 0xFFFFFF, borderColor = 0x000000) {
+        super(reference, x, y, width, height);
         this._backgroundColor = backgroundColor;
         this._borderColor = borderColor;
     }

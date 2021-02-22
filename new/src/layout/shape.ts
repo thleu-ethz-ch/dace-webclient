@@ -7,11 +7,11 @@ import * as _ from "lodash";
 export default abstract class Shape {
     public reference = null;
 
-    public parent: Shape = null;
     protected _x: number = 0;
     protected _y: number = 0;
 
-    protected constructor(x: number, y: number) {
+    protected constructor(reference: object, x: number, y: number) {
+        this.reference = reference;
         this._x = x;
         this._y = y;
     }
@@ -21,66 +21,11 @@ export default abstract class Shape {
         this._y += y;
     }
 
-    globalPosition(): Point {
-        const position = {
+    position(): Point {
+        return {
             x: this._x,
             y: this._y,
         }
-        if (this.parent !== null) {
-            const parentPosition = this.parent.globalPosition();
-            position.x += parentPosition.x;
-            position.y += parentPosition.y;
-        }
-        return position;
-    }
-
-    globalBoundingBox(): BoundingBox {
-        const localBox = this.boundingBox();
-        let parentPosition = {
-            x: 0,
-            y: 0,
-        }
-        if (this.parent !== null) {
-            parentPosition = this.parent.globalPosition();
-        }
-        return {
-            x: localBox.x + parentPosition.x,
-            y: localBox.y + parentPosition.y,
-            width: localBox.width,
-            height: localBox.height,
-        };
-    }
-
-    center(): Point {
-        const box = this.boundingBox();
-        return LayoutUtil.cornerToCenter(box);
-    }
-
-    parentWithReferenceType(type) {
-        let shape: Shape = this;
-        let node = this.reference;
-        while (shape.parent !== null) {
-            node = shape.reference;
-            if (node !== null) {
-                if (node.constructor.name === type) {
-                    break;
-                }
-            }
-            shape = shape.parent;
-        }
-        node = shape.reference;
-        if (node !== null && node.constructor.name === type) {
-            return node;
-        }
-        return null;
-    }
-
-    get x(): number {
-        return this._x;
-    }
-
-    get y(): number {
-        return this._y;
     }
 
     clone(): Shape {
@@ -90,7 +35,7 @@ export default abstract class Shape {
     }
 
     intersects(otherShape: Shape) {
-        return LayoutUtil.boxesIntersect(this.globalBoundingBox(), otherShape.globalBoundingBox());
+        return LayoutUtil.boxesIntersect(this.boundingBox(), otherShape.boundingBox());
     }
 
     abstract boundingBox(): BoundingBox;

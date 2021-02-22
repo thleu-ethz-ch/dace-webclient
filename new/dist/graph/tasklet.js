@@ -15,26 +15,16 @@ import SdfgNode from "./sdfgNode";
 import Octagon from "../layout/octagon";
 import Text from "../layout/text";
 import * as _ from "lodash";
-import Group from "../layout/group";
 var Tasklet = /** @class */ (function (_super) {
     __extends(Tasklet, _super);
     function Tasklet() {
         return _super !== null && _super.apply(this, arguments) || this;
     }
-    Tasklet.prototype.shape = function (x, y) {
-        var size = this.size();
-        var group = new Group(x, y, _.concat([
-            new Octagon(0, 0, size.width, size.height),
+    Tasklet.prototype.shapes = function () {
+        return _.concat([
+            new Octagon(this, this._x, this._y, this._width, this._height),
             new Text(this.labelPosition().x, this.labelPosition().y, this._label),
-        ], this.connectorShapes(0, 0)));
-        group.reference = this;
-        return group;
-    };
-    Tasklet.prototype.size = function () {
-        return {
-            width: Math.max(this.labelSize().width, this.connectorsWidth()),
-            height: this.labelSize().height,
-        };
+        ], _super.prototype.shapes.call(this));
     };
     return Tasklet;
 }(SdfgNode));

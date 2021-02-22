@@ -1,9 +1,7 @@
 import * as PIXI from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import Loader from "../parse/loader";
-import LayoutUtil from "../layouter/layoutUtil";
-import LayoutAnalysis from "../bench/layoutAnalysis";
-import PerformanceAnalysis from "../bench/performanceAnalysis";
+import * as _ from "lodash";
 var Renderer = /** @class */ (function () {
     function Renderer(domContainer) {
         this._layout = null;
@@ -45,24 +43,31 @@ var Renderer = /** @class */ (function () {
     Renderer.prototype.show = function (layouter, name) {
         var _this = this;
         Loader.load(name).then(function (graph) {
-            var layout = layouter.layout(graph);
-            _this.render(layout);
-            var layoutAnalysis = new LayoutAnalysis(layout);
+            layouter.layout(graph);
+            console.log(graph);
+            _this.render(graph);
+            /*const layoutAnalysis = new LayoutAnalysis(graph.shapes());
             console.log(layoutAnalysis.bendsMetric());
-            console.log(layoutAnalysis.crossingsMetric());
-            var performanceAnalysis = new PerformanceAnalysis(layouter);
-            performanceAnalysis.measure(name, 1).then(function (time) {
+            console.log(layoutAnalysis.crossingsMetric());*/
+            /*const performanceAnalysis = new PerformanceAnalysis(layouter);
+            performanceAnalysis.measure(name, 1).then(time => {
                 console.log(time + " ms");
-            });
+            });*/
             // center and fit the graph in the viewport
-            var box = layout.boundingBox();
+            var box = graph.boundingBox();
             _this._viewport.moveCorner((box.width - _this._viewport.worldWidth) / 2, (box.height - _this._viewport.worldHeight) / 2);
             _this._viewport.setZoom(Math.min(1, _this._viewport.worldWidth / box.width, _this._viewport.worldHeight / box.height), true);
         });
     };
-    Renderer.prototype.render = function (layout) {
-        this._layout = LayoutUtil.flattenLayout(layout);
-        layout.render(this._viewport);
+    /**
+     * Shows a graph in the designated container.
+     * @param graph Graph with layout information for all nodes and edges (x, y, width, height).
+     */
+    Renderer.prototype.render = function (graph) {
+        var _this = this;
+        _.forEach(graph.shapes(), function (shape) {
+            shape.render(_this._viewport);
+        });
     };
     return Renderer;
 }());

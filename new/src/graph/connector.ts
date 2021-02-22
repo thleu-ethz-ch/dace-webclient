@@ -3,7 +3,7 @@ import SimpleShape from "../layout/simpleShape";
 
 export default class Connector
 {
-    public static WIDTH = 10;
+    public static DIAMETER = 10;
     public static MARGIN = 10;
     public static PADDING = 20;
 

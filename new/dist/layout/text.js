@@ -21,7 +21,7 @@ var Text = /** @class */ (function (_super) {
         var _this = this;
         var fontStyle = new PIXI.TextStyle({ fontFamily: 'Arial', fontSize: fontSize, fill: color });
         var metrics = PIXI.TextMetrics.measureText(text, fontStyle);
-        _this = _super.call(this, x, y, metrics.width, metrics.height) || this;
+        _this = _super.call(this, null, x, y, metrics.width, metrics.height) || this;
         _this._text = text;
         _this._fontStyle = fontStyle;
         return _this;

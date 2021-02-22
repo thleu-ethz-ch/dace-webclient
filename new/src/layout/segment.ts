@@ -4,8 +4,8 @@ import BoundingBox from "./boundingBox";
 import * as _ from "lodash";
 
 export default class Segment {
-    start: Point;
-    end: Point;
+    readonly start: Point;
+    readonly end: Point;
 
     constructor(start: Point, end: Point) {
         this.start = start;
@@ -16,9 +16,6 @@ export default class Segment {
         if (!LayoutUtil.boxesIntersect(this.boundingBox(), other.boundingBox())) {
             return false;
         }
-        /*if (_.isEqual(this.start, other.start) || _.isEqual(this.end, other.end)) {
-            return false;
-        }*/
         const deltaX = this.end.x - this.start.x;
         const deltaY = this.end.y - this.start.y;
         const offset = deltaX * this.start.y - deltaY * this.start.x;

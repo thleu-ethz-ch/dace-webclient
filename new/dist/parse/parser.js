@@ -7,7 +7,7 @@ import AccessNode from "../graph/accessNode";
 import Tasklet from "../graph/tasklet";
 import SdfgEdge from "../graph/sdfgEdge";
 import NestedSdfg from "../graph/nestedSdfg";
-import { MapNode } from "../graph/map";
+import MapNode from "../graph/mapNode";
 import LibraryNode from "../graph/libraryNode";
 var Parser = /** @class */ (function () {
     function Parser() {
@@ -22,20 +22,28 @@ var Parser = /** @class */ (function () {
             graph.addEdge(new SdfgEdge(graph, jsonEdge.src, jsonEdge.dst, jsonEdge));
         });
         this.contractMaps(graph);
+        //console.log(graph);
         return graph;
     };
     Parser.addNode = function (graph, jsonNode) {
-        var node = new (this.classForType(jsonNode.type))(jsonNode);
+        var node = new (this.classForType(jsonNode.type))(parseInt(jsonNode.id), graph, jsonNode.label);
+        // set child graph
+        if (jsonNode.type === "NestedSDFG") {
+            node.setChildGraph(this.parse(jsonNode.attributes.sdfg));
+        }
+        if (jsonNode.type === "SDFGState") {
+            node.setChildGraph(this.parse(jsonNode));
+        }
         // set connectors
         var inConnectors = jsonNode.attributes.in_connectors || [];
         var outConnectors = jsonNode.attributes.out_connectors || [];
         node.setConnectors(inConnectors, outConnectors);
         // set scope
-        var scope = jsonNode.scope_entry || null;
+        var scope = jsonNode.scope_entry ? parseInt(jsonNode.scope_entry) : null;
         if (node instanceof MapEntry) {
-            scope = jsonNode.id;
+            scope = parseInt(jsonNode.id);
         }
-        node.setScopeEntry(scope);
+        node.scopeEntry = scope;
         graph.addNode(node, jsonNode.id);
     };
     Parser.classForType = function (type) {
@@ -58,7 +66,7 @@ var Parser = /** @class */ (function () {
         var nodesByEntryId = new Map();
         var entryIdByNode = new Map();
         var exitByEntryId = new Map();
-        _.forEach(graph.nodes, function (node) {
+        _.forEach(graph.nodes(), function (node) {
             if (node.scopeEntry === null) {
                 return;
             }
@@ -74,7 +82,7 @@ var Parser = /** @class */ (function () {
         // create map nodes and move connectors to them
         var mapByEntryId = new Map();
         nodesByEntryId.forEach(function (nodes, entryId) {
-            var map = new MapNode(graph.nodes.length, nodes);
+            var map = new MapNode(graph.nodes().length, graph.node(entryId).graph, nodes);
             map.inConnectors = graph.node(entryId).inConnectors;
             map.node(entryId).inConnectors = [];
             map.outConnectors = graph.node(exitByEntryId.get(entryId)).outConnectors;
@@ -82,14 +90,14 @@ var Parser = /** @class */ (function () {
             mapByEntryId.set(entryId, graph.addNode(map));
         });
         // remove nodes from current graph
-        _.forEach(graph.nodes, function (node) {
+        _.forEach(graph.nodes(), function (node) {
             if (node.scopeEntry !== null) {
                 graph.removeNode(node.id);
             }
         });
         // find child edges and remove from current graph
         var edgesByEntryId = new Map();
-        _.forEach(graph.edges, function (edge) {
+        _.forEach(graph.edges(), function (edge) {
             var srcAffected = entryIdByNode.has(edge.src);
             var dstAffected = entryIdByNode.has(edge.dst);
             if (srcAffected) {
@@ -97,7 +105,7 @@ var Parser = /** @class */ (function () {
                     var map = graph.node(mapByEntryId.get(entryIdByNode.get(edge.src)));
                     graph.removeEdge(edge.id);
                     var newEdge = _.clone(edge);
-                    map.addEdge(edge);
+                    map.childGraph().addEdge(edge);
                 }
                 else {
                     edge.src = mapByEntryId.get(entryIdByNode.get(edge.src));

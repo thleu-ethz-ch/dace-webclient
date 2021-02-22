@@ -6,19 +6,10 @@ export default abstract class SimpleShape extends Shape {
     protected _width: number;
     protected _height: number;
 
-    constructor(x: number, y: number, width: number, height: number) {
-        super(x, y);
+    protected constructor(reference: object, x: number, y: number, width: number, height: number) {
+        super(reference, x, y);
         this._width = width;
         this._height = height;
-    }
-
-    resize(newWidth: number = null, newHeight: number = null) {
-        if (newWidth !== null) {
-            this._width = newWidth;
-        }
-        if (newHeight !== null) {
-            this._height = newHeight;
-        }
     }
 
     intersects(otherShape: Shape): boolean {

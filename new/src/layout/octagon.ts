@@ -1,5 +1,3 @@
-import SimpleShape from "./simpleShape";
-import * as PIXI from "pixi.js";
 import Polygon from "./polygon";
 
 export default class Octagon extends Polygon {

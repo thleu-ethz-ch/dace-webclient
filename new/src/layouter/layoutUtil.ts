@@ -1,7 +1,6 @@
 import BoundingBox from "../layout/boundingBox";
 import Size from "../layout/size";
 import Point from "../layout/point";
-import Group from "../layout/group";
 import Shape from "../layout/shape";
 import * as _ from "lodash";
 
@@ -43,10 +42,6 @@ export default class LayoutUtil {
         return (size.width - box.width) / 2;
     }
 
-    static globalToLocal(global: Point, container: Shape): Point {
-        return this.subtract(global, container.globalPosition());
-    }
-
     static subtract(positionA: Point, positionB: Point): Point {
         return {
             x: positionA.x - positionB.x,
@@ -66,24 +61,5 @@ export default class LayoutUtil {
             && (boxA.x + boxA.width > boxB.x)
             && (boxA.y < boxB.y + boxB.height)
             && (boxA.y + boxA.height > boxB.y);
-    }
-
-    static flattenLayout(layout: Group) {
-        const flatLayout = new Group(layout.x, layout.y);
-
-        const addShape = function (shape: Shape, offsetX, offsetY) {
-            if (shape instanceof Group) {
-                _.forEach(shape.elements, (element) => {
-                    addShape(element, offsetX + shape.x, offsetY + shape.y);
-                });
-            } else {
-                shape.offset(offsetX, offsetY);
-                flatLayout.addElement(shape);
-            }
-        };
-
-        addShape(layout.clone(), 0, 0);
-
-        return flatLayout;
     }
 }

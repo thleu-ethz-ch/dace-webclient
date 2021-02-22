@@ -1,13 +1,11 @@
-import SdfgGraph from "./sdfgGraph";
-import Group from "../layout/group";
-import Size from "../layout/size";
-import Shape from "../layout/shape";
 import * as _ from "lodash";
 import Connector from "./connector";
+import Ellipse from "../layout/ellipse";
 import LayoutUtil from "../layouter/layoutUtil";
 import Point from "../layout/point";
-import Ellipse from "../layout/ellipse";
-import PlaceHolder from "../layout/placeHolder";
+import SdfgGraph from "./sdfgGraph";
+import Shape from "../layout/shape";
+import Size from "../layout/size";
 import Text from "../layout/text";
 
 export default abstract class SdfgNode {
@@ -17,19 +15,33 @@ export default abstract class SdfgNode {
     public static LABEL_FONT_SIZE = 12;
 
     public readonly id: number = null;
-    public scopeEntry: number = null;
+    public graph: SdfgGraph = null;
     public inConnectors: Array<Connector> = [];
     public outConnectors: Array<Connector> = [];
+    public scopeEntry: number = null;
 
     protected _childGraph: SdfgGraph = null;
-    protected _childGraphSize: Size = null;
-    protected _childGraphLayout: Group = null;
     protected _label: string = null;
     protected _labelSize: Size = null;
 
-    constructor(jsonNode) {
-        this._label = jsonNode.label;
-        this.id = parseInt(jsonNode.id);
+    protected _x: number = null;
+    protected _y: number = null;
+    protected _width: number = null;
+    protected _height: number = null;
+
+    constructor(id: number, graph: SdfgGraph = null, label: string = null) {
+        this._label = label;
+        this.id = id;
+        this.graph = graph;
+        if (this._label !== null) {
+            const labelSize = this.labelSize();
+            this._width = labelSize.width
+            this._height = labelSize.height;
+        }
+    }
+
+    setChildGraph(childGraph: SdfgGraph) {
+        this._childGraph = childGraph;
     }
 
     /**
@@ -68,24 +80,47 @@ export default abstract class SdfgNode {
         for (let i = 0; i < outConnectorsScoped.length; ++i) {
             this.outConnectors[i + offset] = outConnectorsScoped[i];
         }
+
+        // update width
+        this._width = Math.max(this._width, this.connectorsWidth());
     }
 
-    setScopeEntry(entryId) {
-        if (entryId !== null) {
-            this.scopeEntry = parseInt(entryId);
-        }
+    setPosition(position: Point) {
+        this._x = position.x;
+        this._y = position.y;
     }
 
-    abstract shape(x: number, y: number): Shape;
+    setSize(size: Size) {
+        this._width = size.width;
+        this._height = size.height;
+    }
+
+    setWidth(width: number) {
+        this._width = width;
+    }
 
     childGraph(): SdfgGraph {
         return this._childGraph;
     }
 
+    offset(x: number, y: number) {
+        this._x += x;
+        this._y += y;
+    }
+
     size(): Size {
         return {
-            width: 0,
-            height: 0,
+            width: this._width,
+            height: this._height,
+        };
+    }
+
+    boundingBox() {
+        return {
+            x: this._x,
+            y: this._y,
+            width: this._width,
+            height: this._height,
         };
     }
 
@@ -110,8 +145,8 @@ export default abstract class SdfgNode {
     labelPosition(): Point {
         const constructor = <typeof SdfgNode>this.constructor;
         const labelBox = {
-            x: constructor.LABEL_PADDING_X,
-            y: constructor.LABEL_PADDING_Y,
+            x: this._x + constructor.LABEL_PADDING_X,
+            y: this._y + constructor.LABEL_PADDING_Y,
             width: this.labelSize().width,
             height: this.labelSize().height,
         };
@@ -123,45 +158,41 @@ export default abstract class SdfgNode {
      */
     connectorsWidth(): number {
         const numConnectors = Math.max(this.inConnectors.length, this.outConnectors.length);
-        return numConnectors * Connector.WIDTH + (numConnectors - 1) * Connector.MARGIN + 2 * Connector.PADDING;
+        return numConnectors * Connector.DIAMETER + (numConnectors - 1) * Connector.MARGIN + 2 * Connector.PADDING;
     }
 
-    connectorShapes(x: number, y: number): Array<Shape> {
+    connectorShapes(): Array<Shape> {
         const connectorDifference = this.inConnectors.length - this.outConnectors.length;
         const shapes = [];
 
-        // create group of in-connectors if necessary
+        // add in-connectors
         if (this.inConnectors.length > 0) {
-            const inConnectors = new Group(x, y - Connector.WIDTH / 2);
-            _.forEach(this.inConnectors, (connector, i) => {
-                const circle = new Ellipse((Connector.WIDTH + Connector.MARGIN) * i, 0, Connector.WIDTH, Connector.WIDTH);
-                circle.reference = connector;
-                inConnectors.addElement(circle);
-                connector.shape = circle;
-            });
+            let inConnectorsWidth = this.inConnectors.length * Connector.DIAMETER + (this.inConnectors.length - 1) * Connector.MARGIN;
             if (connectorDifference % 2 === -1) {
-                const placeholder = new PlaceHolder((Connector.WIDTH + Connector.MARGIN) * this.inConnectors.length, 0, Connector.WIDTH, Connector.WIDTH)
-                inConnectors.addElement(placeholder);
+                inConnectorsWidth += Connector.DIAMETER + Connector.MARGIN;
             }
-            inConnectors.offset(LayoutUtil.calculatePaddingX(inConnectors.boundingBox(), this.size()), 0);
-            shapes.push(inConnectors);
+            const firstX = this._x + (this._width - inConnectorsWidth) / 2;
+            const y = this._y - Connector.DIAMETER / 2;
+            _.forEach(this.inConnectors, (connector, i) => {
+                const circle = new Ellipse(connector, firstX + (Connector.DIAMETER + Connector.MARGIN) * i, y, Connector.DIAMETER, Connector.DIAMETER);
+                connector.shape = circle;
+                shapes.push(circle);
+            });
         }
 
-        // create group of out-connectors if necessary
+        // add out-connectors
         if (this.outConnectors.length > 0) {
-            const outConnectors = new Group(x, y + this.size().height - Connector.WIDTH / 2);
-            _.forEach(this.outConnectors, (connector, i) => {
-                const circle = new Ellipse((Connector.WIDTH + Connector.MARGIN) * i, 0, Connector.WIDTH, Connector.WIDTH);
-                circle.reference = connector;
-                outConnectors.addElement(circle);
-                connector.shape = circle;
-            });
+            let outConnectorsWidth = this.outConnectors.length * Connector.DIAMETER + (this.outConnectors.length - 1) * Connector.MARGIN;
             if (connectorDifference % 2 === 1) {
-                const placeholder = new PlaceHolder((Connector.WIDTH + Connector.MARGIN) * this.outConnectors.length, 0, Connector.WIDTH, Connector.WIDTH)
-                outConnectors.addElement(placeholder);
+                outConnectorsWidth += Connector.DIAMETER + Connector.MARGIN;
             }
-            outConnectors.offset(LayoutUtil.calculatePaddingX(outConnectors.boundingBox(), this.size()), 0);
-            shapes.push(outConnectors);
+            const firstX = this._x + (this._width - outConnectorsWidth) / 2;
+            const y = this._y + this._height - Connector.DIAMETER / 2;
+            _.forEach(this.outConnectors, (connector, i) => {
+                const circle = new Ellipse(connector, firstX + (Connector.DIAMETER + Connector.MARGIN) * i, y, Connector.DIAMETER, Connector.DIAMETER);
+                connector.shape = circle;
+                shapes.push(circle);
+            });
         }
 
         return shapes;
@@ -178,11 +209,18 @@ export default abstract class SdfgNode {
         return match;
     }
 
-    setChildGraphSize(size: Size) {
-        this._childGraphSize = _.clone(size);
+    childGraphShapes(): Array<Shape> {
+        const shapes = [];
+        if (this._childGraph !== null) {
+            _.forEach(this._childGraph.shapes(), (shape: Shape) => {
+                shape.offset(this._x, this._y);
+                shapes.push(shape);
+            });
+        }
+        return shapes;
     }
 
-    setChildGraphLayout(layout: Group) {
-        this._childGraphLayout = _.clone(layout);
+    shapes(): Array<Shape> {
+        return _.concat(this.childGraphShapes(), this.connectorShapes());
     }
 }

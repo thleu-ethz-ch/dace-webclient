@@ -15,22 +15,12 @@ import Shape from "./shape";
 import Edge from "./edge";
 var SimpleShape = /** @class */ (function (_super) {
     __extends(SimpleShape, _super);
-    function SimpleShape(x, y, width, height) {
-        var _this = _super.call(this, x, y) || this;
+    function SimpleShape(reference, x, y, width, height) {
+        var _this = _super.call(this, reference, x, y) || this;
         _this._width = width;
         _this._height = height;
         return _this;
     }
-    SimpleShape.prototype.resize = function (newWidth, newHeight) {
-        if (newWidth === void 0) { newWidth = null; }
-        if (newHeight === void 0) { newHeight = null; }
-        if (newWidth !== null) {
-            this._width = newWidth;
-        }
-        if (newHeight !== null) {
-            this._height = newHeight;
-        }
-    };
     SimpleShape.prototype.intersects = function (otherShape) {
         if (otherShape instanceof Edge) {
             return otherShape.intersects(this);

@@ -15,10 +15,10 @@ import { Graphics } from "pixi.js";
 import SimpleShape from "./simpleShape";
 var Rectangle = /** @class */ (function (_super) {
     __extends(Rectangle, _super);
-    function Rectangle(x, y, width, height, backgroundColor, borderColor) {
+    function Rectangle(reference, x, y, width, height, backgroundColor, borderColor) {
         if (backgroundColor === void 0) { backgroundColor = 0xFFFFFF; }
         if (borderColor === void 0) { borderColor = 0x000000; }
-        var _this = _super.call(this, x, y, width, height) || this;
+        var _this = _super.call(this, reference, x, y, width, height) || this;
         _this._backgroundColor = backgroundColor;
         _this._borderColor = borderColor;
         return _this;

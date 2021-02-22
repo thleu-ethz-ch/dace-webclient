@@ -14,25 +14,18 @@ var __extends = (this && this.__extends) || (function () {
 import SdfgNode from "./sdfgNode";
 import Text from "../layout/text";
 import Ellipse from "../layout/ellipse";
-import Group from "../layout/group";
+import * as _ from "lodash";
 var AccessNode = /** @class */ (function (_super) {
     __extends(AccessNode, _super);
     function AccessNode() {
         return _super !== null && _super.apply(this, arguments) || this;
     }
-    AccessNode.prototype.shape = function (x, y) {
-        var size = this.size();
-        var group = new Group(x, y, [
-            new Ellipse(0, 0, size.width, size.height),
-            new Text(AccessNode.PADDING, AccessNode.PADDING, this._label),
+    AccessNode.prototype.shapes = function () {
+        return _.concat(_super.prototype.shapes.call(this), [
+            new Ellipse(this, this._x, this._y, this._width, this._height),
+            new Text(this.labelPosition().x, this.labelPosition().y, this._label),
         ]);
-        group.reference = this;
-        return group;
     };
-    AccessNode.prototype.size = function () {
-        return this.labelSize();
-    };
-    AccessNode.PADDING = 10;
     return AccessNode;
 }(SdfgNode));
 export default AccessNode;

@@ -1,24 +1,36 @@
-import Group from "../layout/group";
 import * as _ from "lodash";
 import Connector from "./connector";
-import LayoutUtil from "../layouter/layoutUtil";
 import Ellipse from "../layout/ellipse";
-import PlaceHolder from "../layout/placeHolder";
+import LayoutUtil from "../layouter/layoutUtil";
 import Text from "../layout/text";
 var SdfgNode = /** @class */ (function () {
-    function SdfgNode(jsonNode) {
+    function SdfgNode(id, graph, label) {
+        if (graph === void 0) { graph = null; }
+        if (label === void 0) { label = null; }
         this.id = null;
-        this.scopeEntry = null;
+        this.graph = null;
         this.inConnectors = [];
         this.outConnectors = [];
+        this.scopeEntry = null;
         this._childGraph = null;
-        this._childGraphSize = null;
-        this._childGraphLayout = null;
         this._label = null;
         this._labelSize = null;
-        this._label = jsonNode.label;
-        this.id = parseInt(jsonNode.id);
+        this._x = null;
+        this._y = null;
+        this._width = null;
+        this._height = null;
+        this._label = label;
+        this.id = id;
+        this.graph = graph;
+        if (this._label !== null) {
+            var labelSize = this.labelSize();
+            this._width = labelSize.width;
+            this._height = labelSize.height;
+        }
     }
+    SdfgNode.prototype.setChildGraph = function (childGraph) {
+        this._childGraph = childGraph;
+    };
     /**
      * Places the scoped connectors in the middle and the unscoped evenly on both sides.
      * @param inConnectors
@@ -55,19 +67,39 @@ var SdfgNode = /** @class */ (function () {
         for (var i = 0; i < outConnectorsScoped.length; ++i) {
             this.outConnectors[i + offset] = outConnectorsScoped[i];
         }
+        // update width
+        this._width = Math.max(this._width, this.connectorsWidth());
     };
-    SdfgNode.prototype.setScopeEntry = function (entryId) {
-        if (entryId !== null) {
-            this.scopeEntry = parseInt(entryId);
-        }
+    SdfgNode.prototype.setPosition = function (position) {
+        this._x = position.x;
+        this._y = position.y;
+    };
+    SdfgNode.prototype.setSize = function (size) {
+        this._width = size.width;
+        this._height = size.height;
+    };
+    SdfgNode.prototype.setWidth = function (width) {
+        this._width = width;
     };
     SdfgNode.prototype.childGraph = function () {
         return this._childGraph;
     };
+    SdfgNode.prototype.offset = function (x, y) {
+        this._x += x;
+        this._y += y;
+    };
     SdfgNode.prototype.size = function () {
         return {
-            width: 0,
-            height: 0,
+            width: this._width,
+            height: this._height,
+        };
+    };
+    SdfgNode.prototype.boundingBox = function () {
+        return {
+            x: this._x,
+            y: this._y,
+            width: this._width,
+            height: this._height,
         };
     };
     /**
@@ -90,8 +122,8 @@ var SdfgNode = /** @class */ (function () {
     SdfgNode.prototype.labelPosition = function () {
         var constructor = this.constructor;
         var labelBox = {
-            x: constructor.LABEL_PADDING_X,
-            y: constructor.LABEL_PADDING_Y,
+            x: this._x + constructor.LABEL_PADDING_X,
+            y: this._y + constructor.LABEL_PADDING_Y,
             width: this.labelSize().width,
             height: this.labelSize().height,
         };
@@ -102,42 +134,38 @@ var SdfgNode = /** @class */ (function () {
      */
     SdfgNode.prototype.connectorsWidth = function () {
         var numConnectors = Math.max(this.inConnectors.length, this.outConnectors.length);
-        return numConnectors * Connector.WIDTH + (numConnectors - 1) * Connector.MARGIN + 2 * Connector.PADDING;
+        return numConnectors * Connector.DIAMETER + (numConnectors - 1) * Connector.MARGIN + 2 * Connector.PADDING;
     };
-    SdfgNode.prototype.connectorShapes = function (x, y) {
+    SdfgNode.prototype.connectorShapes = function () {
         var connectorDifference = this.inConnectors.length - this.outConnectors.length;
         var shapes = [];
-        // create group of in-connectors if necessary
+        // add in-connectors
         if (this.inConnectors.length > 0) {
-            var inConnectors_1 = new Group(x, y - Connector.WIDTH / 2);
-            _.forEach(this.inConnectors, function (connector, i) {
-                var circle = new Ellipse((Connector.WIDTH + Connector.MARGIN) * i, 0, Connector.WIDTH, Connector.WIDTH);
-                circle.reference = connector;
-                inConnectors_1.addElement(circle);
-                connector.shape = circle;
-            });
+            var inConnectorsWidth = this.inConnectors.length * Connector.DIAMETER + (this.inConnectors.length - 1) * Connector.MARGIN;
             if (connectorDifference % 2 === -1) {
-                var placeholder = new PlaceHolder((Connector.WIDTH + Connector.MARGIN) * this.inConnectors.length, 0, Connector.WIDTH, Connector.WIDTH);
-                inConnectors_1.addElement(placeholder);
+                inConnectorsWidth += Connector.DIAMETER + Connector.MARGIN;
             }
-            inConnectors_1.offset(LayoutUtil.calculatePaddingX(inConnectors_1.boundingBox(), this.size()), 0);
-            shapes.push(inConnectors_1);
-        }
-        // create group of out-connectors if necessary
-        if (this.outConnectors.length > 0) {
-            var outConnectors_1 = new Group(x, y + this.size().height - Connector.WIDTH / 2);
-            _.forEach(this.outConnectors, function (connector, i) {
-                var circle = new Ellipse((Connector.WIDTH + Connector.MARGIN) * i, 0, Connector.WIDTH, Connector.WIDTH);
-                circle.reference = connector;
-                outConnectors_1.addElement(circle);
+            var firstX_1 = this._x + (this._width - inConnectorsWidth) / 2;
+            var y_1 = this._y - Connector.DIAMETER / 2;
+            _.forEach(this.inConnectors, function (connector, i) {
+                var circle = new Ellipse(connector, firstX_1 + (Connector.DIAMETER + Connector.MARGIN) * i, y_1, Connector.DIAMETER, Connector.DIAMETER);
                 connector.shape = circle;
+                shapes.push(circle);
             });
+        }
+        // add out-connectors
+        if (this.outConnectors.length > 0) {
+            var outConnectorsWidth = this.outConnectors.length * Connector.DIAMETER + (this.outConnectors.length - 1) * Connector.MARGIN;
             if (connectorDifference % 2 === 1) {
-                var placeholder = new PlaceHolder((Connector.WIDTH + Connector.MARGIN) * this.outConnectors.length, 0, Connector.WIDTH, Connector.WIDTH);
-                outConnectors_1.addElement(placeholder);
+                outConnectorsWidth += Connector.DIAMETER + Connector.MARGIN;
             }
-            outConnectors_1.offset(LayoutUtil.calculatePaddingX(outConnectors_1.boundingBox(), this.size()), 0);
-            shapes.push(outConnectors_1);
+            var firstX_2 = this._x + (this._width - outConnectorsWidth) / 2;
+            var y_2 = this._y + this._height - Connector.DIAMETER / 2;
+            _.forEach(this.outConnectors, function (connector, i) {
+                var circle = new Ellipse(connector, firstX_2 + (Connector.DIAMETER + Connector.MARGIN) * i, y_2, Connector.DIAMETER, Connector.DIAMETER);
+                connector.shape = circle;
+                shapes.push(circle);
+            });
         }
         return shapes;
     };
@@ -151,11 +179,19 @@ var SdfgNode = /** @class */ (function () {
         });
         return match;
     };
-    SdfgNode.prototype.setChildGraphSize = function (size) {
-        this._childGraphSize = _.clone(size);
+    SdfgNode.prototype.childGraphShapes = function () {
+        var _this = this;
+        var shapes = [];
+        if (this._childGraph !== null) {
+            _.forEach(this._childGraph.shapes(), function (shape) {
+                shape.offset(_this._x, _this._y);
+                shapes.push(shape);
+            });
+        }
+        return shapes;
     };
-    SdfgNode.prototype.setChildGraphLayout = function (layout) {
-        this._childGraphLayout = _.clone(layout);
+    SdfgNode.prototype.shapes = function () {
+        return _.concat(this.childGraphShapes(), this.connectorShapes());
     };
     SdfgNode.CHILD_PADDING = 0;
     SdfgNode.LABEL_PADDING_X = 10;
