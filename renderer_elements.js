@@ -15,6 +15,8 @@ class SDFGElement {
         this.highlighted = false;
         this.hovered = false;
 
+        this.childGraph = elem.graph;
+
         this.set_layout();
     }
 
@@ -64,7 +66,7 @@ class SDFGElement {
     }
 
     topleft() {
-        return { x: this.x - this.width / 2, y: this.y - this.height / 2 };
+        return { x: this.x, y: this.y };
     }
 
     strokeStyle(renderer=undefined) {
@@ -87,15 +89,15 @@ class SDFGElement {
     // General bounding-box intersection function. Returns true iff point or rectangle intersect element.
     intersect(x, y, w = 0, h = 0) {
         if (w == 0 || h == 0) {  // Point-element intersection
-            return (x >= this.x - this.width / 2.0) &&
-                (x <= this.x + this.width / 2.0) &&
-                (y >= this.y - this.height / 2.0) &&
-                (y <= this.y + this.height / 2.0);
+            return (x >= this.x) &&
+                (x <= this.x + this.width) &&
+                (y >= this.y) &&
+                (y <= this.y + this.height);
         } else {                 // Box-element intersection
-            return (x <= this.x + this.width / 2.0) &&
-                (x + w >= this.x - this.width / 2.0) &&
-                (y <= this.y + this.height / 2.0) &&
-                (y + h >= this.y - this.height / 2.0);
+            return (x <= this.x + this.width) &&
+                (x + w >= this.x) &&
+                (y <= this.y + this.height) &&
+                (y + h >= this.y);
         }
     }
 
@@ -108,10 +110,10 @@ class SDFGElement {
         var box_start_y = y;
         var box_end_y = y + h;
 
-        var el_start_x = this.x - (this.width / 2.0);
-        var el_end_x = this.x + (this.width / 2.0);
-        var el_start_y = this.y - (this.height / 2.0);
-        var el_end_y = this.y + (this.height / 2.0);
+        var el_start_x = this.x;
+        var el_end_x = this.x + this.width;
+        var el_start_y = this.y;
+        var el_end_y = this.y + this.height ;
 
         return box_start_x <= el_start_x &&
             box_end_x >= el_end_x &&
@@ -121,6 +123,47 @@ class SDFGElement {
 
     getCssProperty(renderer, propertyName) {
         return window.getComputedStyle(renderer.canvas).getPropertyValue(propertyName).trim();
+    }
+
+    size() {
+        return {
+            width: this.width,
+            height: this.height,
+        };
+    }
+
+    setPosition(position) {
+        const prevX = this.x || 0;
+        const prevY = this.y || 0;
+        const offsetX = position.x - prevX;
+        const offsetY = position.y - prevY;
+        this.x = position.x;
+        this.y = position.y;
+        if (this.childGraph !== null) {
+            this.childGraph.offsetChildren(offsetX, offsetY);
+        }
+    }
+
+    setSize(size) {
+        this.width = size.width;
+        this.height = size.height;
+    }
+
+    boundingBox() {
+        return {
+            x: this.x,
+            y: this.y,
+            width: this.width,
+            height: this.height,
+        }
+    }
+
+    offset(x, y) {
+        this.x += x;
+        this.y += y;
+        if (this.childGraph !== null) {
+            this.childGraph.offsetChildren(x, y);
+        }
     }
 }
 
@@ -139,6 +182,8 @@ class SDFG extends SDFGElement {
 }
 
 class State extends SDFGElement {
+    static CHILD_PADDING = 4 * LINEHEIGHT;
+
     draw(renderer, ctx, mousepos) {
         let topleft = this.topleft();
         let visible_rect = renderer.visible_rect;
@@ -457,6 +502,26 @@ class Edge extends SDFGElement {
         }
         return true;
     }
+
+    boundingBox() {
+        return calculateEdgeBoundingBox(this);
+    }
+
+    updateBoundingBox() {
+        let bb = calculateEdgeBoundingBox(this);
+        this.x = bb.x;
+        this.y = bb.y;
+        this.width = bb.width;
+        this.height = bb.height;
+    }
+
+    offset(x, y) {
+        this.points.forEach(point => {
+            point.x += x;
+            point.y += y;
+        });
+        this.updateBoundingBox();
+    }
 }
 
 class Connector extends SDFGElement {
@@ -553,7 +618,7 @@ class AccessNode extends Node {
         ctx.fill();
         ctx.fillStyle = this.getCssProperty(renderer, '--node-foreground-color');
         var textmetrics = ctx.measureText(this.label());
-        ctx.fillText(this.label(), this.x - textmetrics.width / 2.0, this.y + LINEHEIGHT / 4.0);
+        ctx.fillText(this.label(), this.x + this.width / 2 - textmetrics.width / 2.0, this.y + this.height / 2 + LINEHEIGHT / 4.0);
     }
 
     shade(renderer, ctx, color, alpha='0.6') {
@@ -604,7 +669,7 @@ class ScopeNode extends Node {
 
         let far_label = this.far_label();
         drawAdaptiveText(ctx, renderer, far_label,
-            this.close_label(renderer), this.x, this.y,
+            this.close_label(renderer), this.x + this.width / 2, this.y + this.height / 2,
             this.width, this.height,
             SCOPE_LOD);
     }
@@ -728,15 +793,15 @@ class Tasklet extends Node {
             // Set the start offset such that the middle row of the text is in this.y
             let y = this.y + text_yoffset - ((lines.length - 1) / 2) * FONTSIZE * 1.05;
             for (let i = 0; i < lines.length; i++)
-                ctx.fillText(lines[i], this.x - (this.width * TASKLET_WRATIO) / 2.0,
-                    y + i * FONTSIZE * 1.05);
+                ctx.fillText(lines[i], this.x + (1 - TASKLET_WRATIO) * this.width / 2,
+                    y + this.height / 2 + i * FONTSIZE * 1.05);
 
             ctx.font = oldfont;
             return;
         }
 
         let textmetrics = ctx.measureText(this.label());
-        ctx.fillText(this.label(), this.x - textmetrics.width / 2.0, this.y + LINEHEIGHT / 2.0);
+        ctx.fillText(this.label(), this.x + this.width / 2 - textmetrics.width / 2, this.y + this.height / 2 + LINEHEIGHT / 2);
     }
 
     shade(renderer, ctx, color, alpha='0.6') {
@@ -779,7 +844,7 @@ class Reduce extends Node {
 
         let far_label = this.label().substring(4, this.label().indexOf(','));
         drawAdaptiveText(ctx, renderer, far_label,
-            this.label(), this.x, this.y - this.height * 0.2,
+            this.label(), this.x + this.width / 2, this.y + this.height * 0.3,
             this.width, this.height,
             SCOPE_LOD);
     }
@@ -809,6 +874,8 @@ class Reduce extends Node {
 }
 
 class NestedSDFG extends Node {
+    static CHILD_PADDING = LINEHEIGHT;
+
     draw(renderer, ctx, mousepos) {
         if (this.data.node.attributes.is_collapsed) {
             let topleft = this.topleft();
@@ -825,7 +892,7 @@ class NestedSDFG extends Node {
             ctx.fillStyle = this.getCssProperty(renderer, '--node-foreground-color');
             let label = this.data.node.attributes.label;
             let textmetrics = ctx.measureText(label);
-            ctx.fillText(label, this.x - textmetrics.width / 2.0, this.y + LINEHEIGHT / 4.0);
+            ctx.fillText(label, this.x + this.width / 2 - textmetrics.width / 2.0, this.y + this.height / 2 + LINEHEIGHT / 4.0);
             return;
         }
 
@@ -915,7 +982,7 @@ class LibraryNode extends Node {
         ctx.stroke();
         ctx.fillStyle = this.getCssProperty(renderer, '--node-foreground-color');
         let textw = ctx.measureText(this.label()).width;
-        ctx.fillText(this.label(), this.x - textw / 2, this.y + LINEHEIGHT / 4);
+        ctx.fillText(this.label(), this.x + this.width / 2 - textw / 2, this.y + this.height / 2 + LINEHEIGHT / 4);
     }
 
     shade(renderer, ctx, color, alpha='0.6') {
@@ -945,8 +1012,7 @@ function draw_sdfg(renderer, ctx, sdfg_dagre, mousepos) {
     // Render state machine
     let g = sdfg_dagre;
     if (!ctx.lod || ppp < EDGE_LOD)
-        g.edges().forEach(e => {
-            let edge = g.edge(e);
+        g.edges().forEach(edge => {
             edge.draw(renderer, ctx, mousepos);
             edge.debug_draw(renderer, ctx);
         });
@@ -955,8 +1021,7 @@ function draw_sdfg(renderer, ctx, sdfg_dagre, mousepos) {
     visible_rect = renderer.visible_rect;
 
     // Render each visible state's contents
-    g.nodes().forEach(v => {
-        let node = g.node(v);
+    g.nodes().forEach(node => {
 
         if (ctx.lod && (ppp >= STATE_LOD || node.width / ppp < STATE_LOD)) {
             node.simple_draw(renderer, ctx, mousepos);
@@ -973,8 +1038,7 @@ function draw_sdfg(renderer, ctx, sdfg_dagre, mousepos) {
         let ng = node.data.graph;
 
         if (!node.data.state.attributes.is_collapsed && ng) {
-            ng.nodes().forEach(v => {
-                let n = ng.node(v);
+            ng.nodes().forEach(n => {
 
                 if (ctx.lod && !n.intersect(visible_rect.x, visible_rect.y, visible_rect.w, visible_rect.h))
                     return;
@@ -997,8 +1061,7 @@ function draw_sdfg(renderer, ctx, sdfg_dagre, mousepos) {
             });
             if (ctx.lod && ppp >= EDGE_LOD)
                 return;
-            ng.edges().forEach(e => {
-                let edge = ng.edge(e);
+            ng.edges().forEach(edge => {
                 if (ctx.lod && !edge.intersect(visible_rect.x, visible_rect.y, visible_rect.w, visible_rect.h))
                     return;
                 edge.draw(renderer, ctx, mousepos);
