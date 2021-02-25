@@ -13,11 +13,12 @@ var __extends = (this && this.__extends) || (function () {
 })();
 import { Graphics } from "pixi.js";
 import SimpleShape from "./simpleShape";
+import Color from "./color";
 var Rectangle = /** @class */ (function (_super) {
     __extends(Rectangle, _super);
     function Rectangle(reference, x, y, width, height, backgroundColor, borderColor) {
-        if (backgroundColor === void 0) { backgroundColor = 0xFFFFFF; }
-        if (borderColor === void 0) { borderColor = 0x000000; }
+        if (backgroundColor === void 0) { backgroundColor = new Color(255, 255, 255); }
+        if (borderColor === void 0) { borderColor = new Color(0, 0, 0); }
         var _this = _super.call(this, reference, x, y, width, height) || this;
         _this._backgroundColor = backgroundColor;
         _this._borderColor = borderColor;
@@ -25,8 +26,8 @@ var Rectangle = /** @class */ (function (_super) {
     }
     Rectangle.prototype.render = function (container) {
         var rectangle = new Graphics();
-        rectangle.lineStyle(1, this._borderColor, 1);
-        rectangle.beginFill(this._backgroundColor);
+        rectangle.lineStyle(1, this._borderColor.hex(), this._borderColor.alpha);
+        rectangle.beginFill(this._backgroundColor.hex(), this._backgroundColor.alpha);
         rectangle.drawRect(0, 0, this._width, this._height);
         rectangle.endFill();
         rectangle.x = this._x;

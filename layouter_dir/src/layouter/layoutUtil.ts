@@ -56,6 +56,25 @@ export default class LayoutUtil {
         }
     }
 
+    static vectorLength(vector: Point) {
+        return Math.sqrt(vector.x * vector.x + vector.y * vector.y);
+    }
+
+    static scaleVector(scalar: number, vector: Point) {
+        return {
+            x: scalar * vector.x,
+            y: scalar * vector.y,
+        }
+    }
+
+    static normalizeVector(vector: Point) {
+        const length = Math.sqrt(vector.x * vector.x + vector.y * vector.y);
+        return {
+            x: vector.x / length,
+            y: vector.y / length,
+        };
+    }
+
     static boxesIntersect(boxA: BoundingBox, boxB: BoundingBox): boolean {
         return (boxA.x < boxB.x + boxB.width)
             && (boxA.x + boxA.width > boxB.x)

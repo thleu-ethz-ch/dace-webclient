@@ -26,6 +26,7 @@ export default abstract class SdfgNode {
     public height: number = null;
 
     public childGraph: SdfgGraph = null;
+    public isCollapsed: boolean = false;
 
     protected _label: string = null;
     protected _labelSize: Size = null;

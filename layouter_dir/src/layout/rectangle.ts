@@ -1,11 +1,12 @@
 import {Container, Graphics} from "pixi.js";
 import SimpleShape from "./simpleShape";
+import Color from "./color";
 
 export default class Rectangle extends SimpleShape {
-    private readonly _backgroundColor: number;
-    private readonly _borderColor: number;
+    private readonly _backgroundColor: Color;
+    private readonly _borderColor: Color;
 
-    constructor(reference: object, x: number, y: number, width: number, height: number, backgroundColor = 0xFFFFFF, borderColor = 0x000000) {
+    constructor(reference: object, x: number, y: number, width: number, height: number, backgroundColor = new Color(255, 255, 255), borderColor = new Color(0, 0, 0)) {
         super(reference, x, y, width, height);
         this._backgroundColor = backgroundColor;
         this._borderColor = borderColor;
@@ -13,8 +14,8 @@ export default class Rectangle extends SimpleShape {
 
     render(container: Container) {
         const rectangle = new Graphics();
-        rectangle.lineStyle(1, this._borderColor, 1);
-        rectangle.beginFill(this._backgroundColor);
+        rectangle.lineStyle(1, this._borderColor.hex(), this._borderColor.alpha);
+        rectangle.beginFill(this._backgroundColor.hex(), this._backgroundColor.alpha);
         rectangle.drawRect(0, 0, this._width, this._height);
         rectangle.endFill();
         rectangle.x = this._x;

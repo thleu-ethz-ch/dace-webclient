@@ -38,6 +38,14 @@ var Renderer = /** @class */ (function () {
             app.renderer.render(app.stage);
         }
         update();*/
+        var nodes = [
+            { x: 10 },
+            { x: 20 },
+            { x: 30 },
+            { x: 50 },
+            { x: 40 }
+        ];
+        delete nodes[0];
         this._viewport.drag().pinch().wheel().decelerate();
     }
     Renderer.prototype.show = function (layouter, name) {

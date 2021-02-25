@@ -50,6 +50,14 @@ export default class Renderer {
         }
         update();*/
 
+        const nodes = [
+            { x: 10 },
+            { x: 20 },
+            { x: 30 },
+            { x: 50 },
+            { x: 40 }
+        ];
+        delete nodes[0];
         this._viewport.drag().pinch().wheel().decelerate();
     }
 

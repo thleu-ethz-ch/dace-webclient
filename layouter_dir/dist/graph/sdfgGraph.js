@@ -33,7 +33,7 @@ var SdfgGraph = /** @class */ (function () {
         }
         edge.id = id;
         edge.graph = this;
-        this._edges.push(edge);
+        this._edges[id] = edge;
         this._inEdges[edge.dst].push(id);
         this._outEdges[edge.src].push(id);
         return id;
@@ -96,7 +96,9 @@ var SdfgGraph = /** @class */ (function () {
             });
         });
         _.forEach(this.edges(), function (edge) {
-            shapes.push(edge.shape());
+            _.forEach(edge.shapes(), function (shape) {
+                shapes.push(shape);
+            });
         });
         return shapes;
     };

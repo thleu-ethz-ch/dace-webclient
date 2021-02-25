@@ -17,6 +17,7 @@ var SdfgNode = /** @class */ (function () {
         this.width = null;
         this.height = null;
         this.childGraph = null;
+        this.isCollapsed = false;
         this._label = null;
         this._labelSize = null;
         this._label = label;

@@ -5,10 +5,11 @@ import MapEntry from "../graph/mapEntry";
 import MapExit from "../graph/mapExit";
 import AccessNode from "../graph/accessNode";
 import Tasklet from "../graph/tasklet";
-import SdfgEdge from "../graph/sdfgEdge";
 import NestedSdfg from "../graph/nestedSdfg";
 import MapNode from "../graph/mapNode";
 import LibraryNode from "../graph/libraryNode";
+import Memlet from "../graph/memlet";
+import InterstateEdge from "../graph/interstateEdge";
 var Parser = /** @class */ (function () {
     function Parser() {
     }
@@ -19,7 +20,8 @@ var Parser = /** @class */ (function () {
             _this.addNode(graph, jsonNode);
         });
         _.forEach(json.edges, function (jsonEdge) {
-            graph.addEdge(new SdfgEdge(graph, jsonEdge.src, jsonEdge.dst, jsonEdge));
+            var edge = new (_this.classForType(jsonEdge.attributes.data.type))(graph, jsonEdge.src, jsonEdge.dst, jsonEdge.src_connector, jsonEdge.dst_connector, jsonEdge.attributes.data.attributes);
+            graph.addEdge(edge);
         });
         //this.contractMaps(graph);
         return graph;
@@ -54,9 +56,11 @@ var Parser = /** @class */ (function () {
             "NestedSDFG": NestedSdfg,
             "SDFGState": SdfgState,
             "Tasklet": Tasklet,
+            "Memlet": Memlet,
+            "InterstateEdge": InterstateEdge,
         };
         if (!types.hasOwnProperty(type)) {
-            throw new Error("Unknown node type: " + type);
+            throw new Error("Unknown node or edge type: " + type);
         }
         return types[type];
     };

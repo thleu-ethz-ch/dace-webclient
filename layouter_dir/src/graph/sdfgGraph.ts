@@ -44,7 +44,7 @@ export default class SdfgGraph {
         }
         edge.id = id;
         edge.graph = this;
-        this._edges.push(edge);
+        this._edges[id] = edge;
         this._inEdges[edge.dst].push(id);
         this._outEdges[edge.src].push(id);
         return id;
@@ -117,7 +117,9 @@ export default class SdfgGraph {
             });
         });
         _.forEach(this.edges(), (edge) => {
-            shapes.push(edge.shape());
+            _.forEach(edge.shapes(), (shape) => {
+                shapes.push(shape);
+            });
         });
         return shapes;
     }

@@ -14,6 +14,7 @@ var __extends = (this && this.__extends) || (function () {
 import * as _ from "lodash";
 import SdfgNode from "./sdfgNode";
 import Rectangle from "../layout/rectangle";
+import Color from "../layout/color";
 var SdfgState = /** @class */ (function (_super) {
     __extends(SdfgState, _super);
     function SdfgState() {
@@ -25,7 +26,7 @@ var SdfgState = /** @class */ (function (_super) {
         ], _super.prototype.shapes.call(this));
     };
     SdfgState.CHILD_PADDING = 20;
-    SdfgState.BACKGROUND_COLOR = 0xDEEBF7;
+    SdfgState.BACKGROUND_COLOR = new Color(0xDE, 0xEB, 0xF7);
     return SdfgState;
 }(SdfgNode));
 export default SdfgState;

@@ -10,6 +10,9 @@ import NestedSdfg from "../graph/nestedSdfg";
 import SdfgNode from "../graph/sdfgNode";
 import MapNode from "../graph/mapNode";
 import LibraryNode from "../graph/libraryNode";
+import Memlet from "../graph/memlet";
+import InterstateEdge from "../graph/interstateEdge";
+import LayoutUtil from "../layouter/layoutUtil";
 
 export default class Parser {
     static parse(json): SdfgGraph {
@@ -18,10 +21,10 @@ export default class Parser {
             this.addNode(graph, jsonNode);
         });
         _.forEach(json.edges, (jsonEdge) => {
-            graph.addEdge(new SdfgEdge(graph, jsonEdge.src, jsonEdge.dst, jsonEdge));
+            const edge = new (this.classForType(jsonEdge.attributes.data.type))(graph, jsonEdge.src, jsonEdge.dst, jsonEdge.src_connector, jsonEdge.dst_connector, jsonEdge.attributes.data.attributes);
+            graph.addEdge(edge);
         });
         //this.contractMaps(graph);
-
         return graph;
     }
 
@@ -60,9 +63,11 @@ export default class Parser {
             "NestedSDFG": NestedSdfg,
             "SDFGState": SdfgState,
             "Tasklet": Tasklet,
+            "Memlet": Memlet,
+            "InterstateEdge": InterstateEdge,
         }
         if (!types.hasOwnProperty(type)) {
-            throw new Error("Unknown node type: " + type);
+            throw new Error("Unknown node or edge type: " + type);
         }
         return types[type];
     }

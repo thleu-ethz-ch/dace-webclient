@@ -852,8 +852,13 @@ function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list, omit_access_node
 
     function postlayout_sdfg(g, sdfg) {
         sdfg.nodes.forEach((sdfg_state) => {
+            const stateNode = g.node(sdfg_state.id);
+            if (stateNode.childGraph === null) {
+                // ignore collapsed states
+                return;
+            }
             sdfg_state.nodes.forEach(function (node, id) {
-                let gnode = g.node(sdfg_state.id).childGraph.node(id);
+                let gnode = stateNode.childGraph.node(id);
                 if (!gnode || (omit_access_nodes && gnode instanceof AccessNode)) {
                     // ignore nodes that should not be drawn
                     return;
@@ -911,15 +916,15 @@ function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list, omit_access_node
                 }
 
                 // recursively process nested sdfgs
-                if (node.type === "NestedSDFG") {
+                if (node.type === "NestedSDFG" && !node.attributes.is_collapsed) {
                     postlayout_sdfg(gnode.childGraph, node.attributes.sdfg);
                 }
             });
 
             sdfg_state.edges.forEach(function (edge, id) {
-                edge = check_and_redirect_edge(edge, g.node(sdfg_state.id).childGraph.drawn_nodes, sdfg_state);
+                edge = check_and_redirect_edge(edge, stateNode.childGraph.drawn_nodes, sdfg_state);
                 if (!edge) return;
-                let gedge = g.node(sdfg_state.id).childGraph.edge(id);
+                let gedge = stateNode.childGraph.edge(id);
                 if (!gedge || (omit_access_nodes && gedge.data.attributes.shortcut === false
                     || !omit_access_nodes && gedge.data.attributes.shortcut)) {
                     // if access nodes omitted, don't draw non-shortcut edges and vice versa
@@ -929,7 +934,7 @@ function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list, omit_access_node
                 // Reposition first and last points according to connectors
                 let src_conn = null, dst_conn = null;
                 if (edge.src_connector) {
-                    let src_node = g.node(sdfg_state.id).childGraph.node(edge.src);
+                    let src_node = stateNode.childGraph.node(edge.src);
                     let cindex = -1;
                     for (let i = 0; i < src_node.out_connectors.length; i++) {
                         if (src_node.out_connectors[i].data.name == edge.src_connector) {
@@ -944,7 +949,7 @@ function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list, omit_access_node
                     }
                 }
                 if (edge.dst_connector) {
-                    let dst_node = g.node(sdfg_state.id).childGraph.node(edge.dst);
+                    let dst_node = stateNode.childGraph.node(edge.dst);
                     let cindex = -1;
                     for (let i = 0; i < dst_node.in_connectors.length; i++) {
                         if (dst_node.in_connectors[i].data.name == edge.dst_connector) {
@@ -1054,7 +1059,7 @@ function get_state_graph(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, om
         node.attributes.layout.label = node.label;
 
         // Recursively add nested SDFGs
-        if (node.type === "NestedSDFG") {
+        if (node.type === "NestedSDFG" && !node.attributes.is_collapsed) {
             nested_g = get_sdfg_graph(ctx, node.attributes.sdfg, sdfg_list, state_parent_list, omit_access_nodes);
         }
 
@@ -1656,7 +1661,6 @@ class SDFGRenderer {
             elements = this.graph.nodes();
 
         let bb = boundingBox(elements);
-        console.log(bb);
         this.canvas_manager.set_view(bb, true);
 
         this.draw_async();
@@ -1958,7 +1962,7 @@ class SDFGRenderer {
                             func('nodes', { sdfg: sdfg_name, sdfg_id: sdfg_id, state: state.id, id: node.id }, node);
 
                             // If nested SDFG, traverse recursively
-                            if (node.data.node.type === "NestedSDFG")
+                            if (node.data.node.type === "NestedSDFG" && !node.data.node.attributes.is_collapsed)
                                 traverse_recursive(node.data.graph,
                                     node.data.node.attributes.sdfg.attributes.name,
                                     node.data.node.attributes.sdfg.sdfg_list_id);
