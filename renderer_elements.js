@@ -7,8 +7,8 @@ class SDFGElement {
         this.id = elem_id;
         this.parent_id = parent_id;
         this.sdfg = sdfg;
-        this.in_connectors = [];
-        this.out_connectors = [];
+        this.inConnectors = [];
+        this.outConnectors = [];
 
         // Indicate special drawing conditions based on interactions.
         this.selected = false;
@@ -16,6 +16,13 @@ class SDFGElement {
         this.hovered = false;
 
         this.childGraph = elem.graph;
+
+        this.scopeEntry = null;
+        this.scopeExit = null;
+        if (elem.node) {
+            this.scopeEntry = elem.node.scope_entry ? parseInt(elem.node.scope_entry) : null;
+            this.scopeExit = elem.node.scope_exit ? parseInt(elem.node.scope_exit) : null;
+        }
 
         this.set_layout();
     }
@@ -486,6 +493,10 @@ class Edge extends SDFGElement {
         return super.label();
     }
 
+    labelSize() {
+
+    }
+
     intersect(x, y, w = 0, h = 0) {
         // First, check bounding box
         if (!super.intersect(x, y, w, h))
@@ -525,6 +536,13 @@ class Edge extends SDFGElement {
 }
 
 class Connector extends SDFGElement {
+    constructor(elem, elem_id, sdfg, parent_id = null) {
+        super(elem, elem_id, sdfg, parent_id);
+        this.name = elem.name;
+        this.width = LINEHEIGHT;
+        this.height = LINEHEIGHT;
+    }
+
     draw(renderer, ctx, mousepos) {
         let scope_connector = (this.data.name.startsWith("IN_") || this.data.name.startsWith("OUT_"));
         let topleft = this.topleft();
@@ -1050,11 +1068,11 @@ function draw_sdfg(renderer, ctx, sdfg_dagre, mousepos) {
 
                 n.draw(renderer, ctx, mousepos);
                 n.debug_draw(renderer, ctx);
-                n.in_connectors.forEach(c => {
+                n.inConnectors.forEach(c => {
                     c.draw(renderer, ctx, mousepos);
                     c.debug_draw(renderer, ctx);
                 });
-                n.out_connectors.forEach(c => {
+                n.outConnectors.forEach(c => {
                     c.draw(renderer, ctx, mousepos);
                     c.debug_draw(renderer, ctx);
                 });
@@ -1161,16 +1179,16 @@ function drawAdaptiveText(ctx, renderer, far_text, close_text,
 }
 
 function drawHexagon(ctx, x, y, w, h, offset) {
-    let topleft = { x: x - w / 2.0, y: y - h / 2.0 };
+    const centerY = y + h / 2;
     let hexseg = h / 3.0;
     ctx.beginPath();
-    ctx.moveTo(topleft.x, y);
-    ctx.lineTo(topleft.x + hexseg, topleft.y);
-    ctx.lineTo(topleft.x + w - hexseg, topleft.y);
-    ctx.lineTo(topleft.x + w, y);
-    ctx.lineTo(topleft.x + w - hexseg, topleft.y + h);
-    ctx.lineTo(topleft.x + hexseg, topleft.y + h);
-    ctx.lineTo(topleft.x, y);
+    ctx.moveTo(x, centerY);
+    ctx.lineTo(x + hexseg, y);
+    ctx.lineTo(x + w - hexseg, y);
+    ctx.lineTo(x + w, centerY);
+    ctx.lineTo(x + w - hexseg, y + h);
+    ctx.lineTo(x + hexseg, y + h);
+    ctx.lineTo(x, centerY);
     ctx.closePath();
 }
 

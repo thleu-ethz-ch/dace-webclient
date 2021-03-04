@@ -1,1 +1,0 @@
-//# sourceMappingURL=ellipsoid.js.map

@@ -1,15 +1,15 @@
 import * as _ from "lodash";
 import dagre from "dagre";
-import LayoutUtil from "./layoutUtil";
-import SdfgEdge from "../graph/sdfgEdge";
-import SdfgGraph from "../graph/sdfgGraph";
-import SdfgNode from "../graph/sdfgNode";
+import Box from "../geometry/box";
+import LayoutEdge from "../layoutGraph/layoutEdge";
+import LayoutGraph from "../layoutGraph/layoutGraph";
+import LayoutNode from "../layoutGraph/layoutNode";
 import RecursiveLayouter from "./recursiveLayouter";
 
 export default class DagreLayouter extends RecursiveLayouter {
     public static EDGE_LABEL_OFFSET = 3;
 
-    layoutSizedGraph(graph: SdfgGraph, withLabels: boolean = false): void {
+    layoutSizedGraph(graph: LayoutGraph, withLabels: boolean = false): void {
         // create dagre graph
         const dagreGraph = new dagre.graphlib.Graph({multigraph: true});
         dagreGraph.setGraph(this.graphOptions(withLabels));
@@ -17,16 +17,16 @@ export default class DagreLayouter extends RecursiveLayouter {
             return {};
         });
 
-        _.forEach(graph.nodes(), (node: SdfgNode) => {
+        _.forEach(graph.nodes(), (node: LayoutNode) => {
             dagreGraph.setNode(node.id, node.size());
         });
 
-        _.forEach(graph.edges(), (edge: SdfgEdge) => {
+        _.forEach(graph.edges(), (edge: LayoutEdge) => {
             const edgeOptions: any = {};
             if (withLabels) {
                 edgeOptions.labelpos = "r";
                 edgeOptions.labeloffset = DagreLayouter.EDGE_LABEL_OFFSET;
-                _.assign(edgeOptions, edge.labelSize());
+                _.assign(edgeOptions, edge.labelSize);
             }
             dagreGraph.setEdge(edge.src, edge.dst, edgeOptions, edge.id);
         });
@@ -35,17 +35,16 @@ export default class DagreLayouter extends RecursiveLayouter {
         dagre.layout(dagreGraph);
 
         // store layout information in nodes
-        _.forEach(graph.nodes(), (node: SdfgNode) => {
+        _.forEach(graph.nodes(), (node: LayoutNode) => {
             const dagreNode = dagreGraph.node(node.id);
-            const cornerBox = LayoutUtil.centerToCorner(dagreNode);
-            node.setPosition(cornerBox);
+            const box = new Box(dagreNode.x, dagreNode.y, dagreNode.width, dagreNode.height, true);
+            node.setPosition(box.topLeft());
         });
-        _.forEach(graph.edges(), (edge: SdfgEdge) => {
+        _.forEach(graph.edges(), (edge: LayoutEdge) => {
             const dagreEdge = dagreGraph.edge(edge.src, edge.dst, edge.id);
             edge.points = dagreEdge.points;
-            edge.updateBoundingBox();
             if (withLabels) {
-                const labelSize = edge.labelSize();
+                const labelSize = edge.labelSize;
                 if (labelSize) {
                     edge.labelX = dagreEdge.x - labelSize.width / 2 + DagreLayouter.EDGE_LABEL_OFFSET;
                     edge.labelY = dagreEdge.y - labelSize.height / 2;
@@ -55,9 +54,12 @@ export default class DagreLayouter extends RecursiveLayouter {
     }
 
     graphOptions(withLabels) {
-        if (withLabels) {
-            return {edgesep: 30};
+        const options = {
+            ranksep: this._options.targetEdgeLength,
         }
-        return {};
+        if (withLabels) {
+            options['edgesep'] = 30;
+        }
+        return options;
     }
 }

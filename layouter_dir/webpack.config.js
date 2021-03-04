@@ -2,7 +2,10 @@ const path = require('path');
 
 module.exports = {
     mode: 'development',
-    entry: './src/index.js',
+    entry: {
+        layoutLib: './src/layoutLib.js',
+        renderLib: './src/renderLib.js',
+    },
     module: {
         rules: [
             {
@@ -16,8 +19,9 @@ module.exports = {
         extensions: ['.ts', '.js'],
     },
     output: {
-        library: 'sdfglib',
-        filename: 'sdfg.js',
+        library: '[name]',
+        libraryTarget: 'assign-properties',
+        filename: '[name].js',
         path: path.resolve(__dirname, 'dist'),
     },
 };

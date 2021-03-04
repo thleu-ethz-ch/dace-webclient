@@ -57,13 +57,11 @@ function recursively_find_graph(graph, graph_id, ns_node=undefined) {
             graph: undefined,
             node: undefined,
         };
-        graph.nodes().forEach((state_id) => {
-            const state = graph.node(state_id);
-            state.data.graph.nodes().forEach((node_id) => {
-                const node = state.data.graph.node(node_id);
+        graph.nodes().forEach((state) => {
+            state.data.graph.nodes().forEach(node => {
                 if (node instanceof NestedSDFG) {
                     const search_graph = recursively_find_graph(
-                        node.data.graph, graph_id, node
+                        node.data.graph, graph.id, node
                     );
                     if (search_graph.graph !== undefined) {
                         result = search_graph;
@@ -323,7 +321,7 @@ function traverse_sdfg_scopes(sdfg, func, post_subscope_func=null) {
                     if (state !== undefined && state.scope_dict[-1] !== undefined)
                         scopes_recursive(node.data.graph, state.scope_dict[-1]);
                     else // No scope_dict, traverse all nodes as a flat hierarchy
-                        scopes_recursive(node.data.graph, node.data.graph.nodes());
+                        scopes_recursive(node.data.graph, node.data.graph.nodes().map(node => node.id));
                 }
             }
             
@@ -333,7 +331,7 @@ function traverse_sdfg_scopes(sdfg, func, post_subscope_func=null) {
             processed_nodes.add(node.id.toString());
         }
     }
-    scopes_recursive(sdfg, sdfg.nodes());
+    scopes_recursive(sdfg, sdfg.nodes().map(node => node.id));
 }
 
 /**

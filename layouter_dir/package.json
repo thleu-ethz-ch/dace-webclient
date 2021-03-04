@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "layouter and renderer",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "echo \\\"Error: no graphs specified\\\" && exit 1",
     "build": "webpack --config webpack.config.js"
   },
   "author": "Thomas Leu",
@@ -17,6 +17,7 @@
   "dependencies": {
     "@types/lodash": "^4.14.168",
     "dagre": "^0.8.5",
+    "node-fetch": "^2.6.1",
     "pixi-viewport": "^4.18.1",
     "pixi.js": "^5.3.7"
   }

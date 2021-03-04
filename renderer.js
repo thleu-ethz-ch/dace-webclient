@@ -304,11 +304,11 @@ class CanvasManager {
 
         if (parent_graph && !(el instanceof Edge)) {
             // Find all the edges connected to the moving node
-            parent_graph.outEdges(el.id).forEach(edge_id => {
-                out_edges.push(parent_graph.edge(edge_id));
+            parent_graph.outEdges(el.id).forEach(edge => {
+                out_edges.push(edge);
             });
-            parent_graph.inEdges(el.id).forEach(edge_id => {
-                in_edges.push(parent_graph.edge(edge_id));
+            parent_graph.inEdges(el.id).forEach(edge => {
+                in_edges.push(edge);
             });
         }
 
@@ -419,13 +419,13 @@ class CanvasManager {
             node.y += dy;
             if (node.data.node && node.data.node.type === 'NestedSDFG')
                 translate_recursive(node.data.graph);
-            if (node.in_connectors)
-                node.in_connectors.forEach(c => {
+            if (node.inConnectors)
+                node.inConnectors.forEach(c => {
                     c.x += dx;
                     c.y += dy;
                 });
-            if (node.out_connectors)
-                node.out_connectors.forEach(c => {
+            if (node.outConnectors)
+                node.outConnectors.forEach(c => {
                     c.x += dx;
                     c.y += dy;
                 });
@@ -469,40 +469,16 @@ class CanvasManager {
         }
 
         // Move the connected edges along with the element
+        console.log(out_edges);
         out_edges.forEach(edge => {
-            const n = edge.points.length - 1;
-            let moved = false;
-            if (edge.src_connector !== null) {
-                for (let i = 0; i < el.out_connectors.length; i++) {
-                    if (el.out_connectors[i].data.name === edge.src_connector) {
-                        edge.points[0] = dagre.util.intersectRect(el.out_connectors[i], edge.points[1]);
-                        moved = true;
-                        break;
-                    }
-                }
-            }
-            if (!moved) {
-                edge.points[0].x += dx;
-                edge.points[0].y += dy;
-            }
+            edge.points[0].x += dx;
+            edge.points[0].y += dy;
             edge.updateBoundingBox();
         });
         in_edges.forEach(edge => {
             const n = edge.points.length - 1;
-            let moved = false;
-            if (edge.dst_connector !== null) {
-                for (let i = 0; i < el.in_connectors.length; i++) {
-                    if (el.in_connectors[i].data.name === edge.dst_connector) {
-                        edge.points[n] = dagre.util.intersectRect(el.in_connectors[i], edge.points[n-1]);
-                        moved = true;
-                        break;
-                    }
-                }
-            }
-            if (!moved) {
-                edge.points[n].x += dx;
-                edge.points[n].y += dy;
-            }
+            edge.points[n].x += dx;
+            edge.points[n].y += dy;
             edge.updateBoundingBox();
         });
     }
@@ -808,7 +784,7 @@ function calculateNodeSize(sdfg_state, node, ctx) {
 function get_sdfg_graph(ctx, sdfg, sdfg_list, state_parent_list, omit_access_nodes) {
     let STATE_MARGIN = 4 * LINEHEIGHT;
 
-    let g = new sdfglib.SdfgGraph();
+    let g = new layoutLib.RenderGraph();
 
     // layout each state to get its size
     sdfg.nodes.forEach((state) => {
@@ -847,7 +823,7 @@ function get_sdfg_graph(ctx, sdfg, sdfg_list, state_parent_list, omit_access_nod
 function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list, omit_access_nodes) {
     const g = get_sdfg_graph(ctx, sdfg,  sdfg_list, state_parent_list, omit_access_nodes);
 
-    const layouter = new sdfglib.DagreLayouter();
+    const layouter = new layoutLib.layouter.DagreLayouter({connectorSpacing: LINEHEIGHT});
     layouter.layout(g);
 
     function postlayout_sdfg(g, sdfg) {
@@ -864,57 +840,6 @@ function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list, omit_access_node
                     return;
                 }
 
-                // Connector management
-                let SPACING = LINEHEIGHT;
-                let iconn_scoped = [], iconn_unscoped = [], oconn_scoped = [], oconn_unscoped = [];
-                Object.keys(node.attributes.layout.in_connectors).forEach(function (conn) {
-                    let is_scoped = conn.startsWith('IN_') &&
-                        node.attributes.layout.out_connectors.hasOwnProperty('OUT_' + conn.substr(3));
-                    (is_scoped ? iconn_scoped : iconn_unscoped).push(conn);
-                });
-                Object.keys(node.attributes.layout.out_connectors).forEach(function (conn) {
-                    let is_scoped = conn.startsWith('OUT_') &&
-                        node.attributes.layout.in_connectors.hasOwnProperty('IN_' + conn.substr(4));
-                    (is_scoped ? oconn_scoped : oconn_unscoped).push(conn);
-                });
-                let conn_indexes = new Map();
-                for (let i = 0; i < iconn_unscoped.length; ++i) {
-                    let is_left = i < (iconn_unscoped.length - (iconn_unscoped.length > oconn_unscoped.length)) / 2;
-                    conn_indexes.set(iconn_unscoped[i], i + (is_left ? 0 : iconn_scoped.length));
-                }
-                let offset = Math.ceil((iconn_unscoped.length - (iconn_unscoped.length > oconn_unscoped.length)) / 2);
-                for (let i = 0; i < iconn_scoped.length; ++i) {
-                    conn_indexes.set(iconn_scoped[i], i + offset);
-                }
-                for (let i = 0; i < oconn_unscoped.length; ++i) {
-                    let is_left = i < (oconn_unscoped.length - (oconn_unscoped.length > iconn_unscoped.length)) / 2;
-                    conn_indexes.set(oconn_unscoped[i], i + (is_left ? 0 : oconn_scoped.length));
-                }
-                offset = Math.ceil((oconn_unscoped.length - (oconn_unscoped.length > iconn_unscoped.length)) / 2);
-                for (let i = 0; i < oconn_scoped.length; ++i) {
-                    conn_indexes.set(oconn_scoped[i], i + offset);
-                }
-                let diff = iconn_unscoped.length - oconn_unscoped.length;
-                let ispace = (diff % 2 === -1);
-                let ospace = (diff % 2 === 1);
-
-                let iconn_length = (LINEHEIGHT + SPACING) * (iconn_scoped.length + iconn_unscoped.length + ispace) - SPACING;
-                let oconn_length = (LINEHEIGHT + SPACING) * (oconn_scoped.length + oconn_unscoped.length + ospace) - SPACING;
-                let iconn_x = gnode.x + (gnode.width - iconn_length) / 2.0;
-                let oconn_x = gnode.x + (gnode.width - oconn_length) / 2.0;
-                for (let c of gnode.in_connectors) {
-                    c.width = LINEHEIGHT;
-                    c.height = LINEHEIGHT;
-                    c.x = iconn_x + (LINEHEIGHT + SPACING) * conn_indexes.get(c.data.name);
-                    c.y = gnode.y - LINEHEIGHT / 2;
-                }
-                for (let c of gnode.out_connectors) {
-                    c.width = LINEHEIGHT;
-                    c.height = LINEHEIGHT;
-                    c.x = oconn_x + (LINEHEIGHT + SPACING) * conn_indexes.get(c.data.name);
-                    c.y = gnode.y + gnode.height - LINEHEIGHT / 2;
-                }
-
                 // recursively process nested sdfgs
                 if (node.type === "NestedSDFG" && !node.attributes.is_collapsed) {
                     postlayout_sdfg(gnode.childGraph, node.attributes.sdfg);
@@ -929,47 +854,6 @@ function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list, omit_access_node
                     || !omit_access_nodes && gedge.data.attributes.shortcut)) {
                     // if access nodes omitted, don't draw non-shortcut edges and vice versa
                     return;
-                }
-
-                // Reposition first and last points according to connectors
-                let src_conn = null, dst_conn = null;
-                if (edge.src_connector) {
-                    let src_node = stateNode.childGraph.node(edge.src);
-                    let cindex = -1;
-                    for (let i = 0; i < src_node.out_connectors.length; i++) {
-                        if (src_node.out_connectors[i].data.name == edge.src_connector) {
-                            cindex = i;
-                            break;
-                        }
-                    }
-                    if (cindex >= 0) {
-                        src_conn = src_node.out_connectors[cindex];
-                        gedge.points[0].x = src_node.out_connectors[cindex].x + src_conn.width / 2;
-                        gedge.points[0].y = src_node.out_connectors[cindex].y + src_conn.height / 2;
-                    }
-                }
-                if (edge.dst_connector) {
-                    let dst_node = stateNode.childGraph.node(edge.dst);
-                    let cindex = -1;
-                    for (let i = 0; i < dst_node.in_connectors.length; i++) {
-                        if (dst_node.in_connectors[i].data.name == edge.dst_connector) {
-                            cindex = i;
-                            break;
-                        }
-                    }
-                    if (cindex >= 0) {
-                        dst_conn = dst_node.in_connectors[cindex];
-                        gedge.points[gedge.points.length - 1].x = dst_node.in_connectors[cindex].x + dst_conn.width / 2;
-                        gedge.points[gedge.points.length - 1].y = dst_node.in_connectors[cindex].y + dst_conn.height / 2;
-                    }
-                }
-
-                let n = gedge.points.length - 1;
-                if (src_conn !== null) {
-                    gedge.points[0] = sdfglib.LayoutUtil.add(gedge.points[0], sdfglib.LayoutUtil.circleIntersectionOffset(gedge.points[0], gedge.points[1], src_conn.width / 2));
-                }
-                if (dst_conn !== null) {
-                    gedge.points[n] = sdfglib.LayoutUtil.add(gedge.points[n], sdfglib.LayoutUtil.circleIntersectionOffset(gedge.points[n], gedge.points[n - 1], dst_conn.width / 2));
                 }
 
                 /*if (gedge.points.length == 3 && gedge.points[0].x == gedge.points[n].x)
@@ -1022,8 +906,8 @@ function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list, omit_access_node
 }
 
 function get_state_graph(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, omit_access_nodes) {
-    // layout the state as a dagre graph
-    let g = new sdfglib.SdfgGraph();
+    // layout the state as a render graph
+    let g = new layoutLib.RenderGraph();
 
     // Add nodes to the graph. The first argument is the node id. The
     // second is metadata about the node (label, width, height),
@@ -1080,7 +964,7 @@ function get_state_graph(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, om
             conns = Object.keys(node.attributes.layout.in_connectors);
         for (let cname of conns) {
             let conn = new Connector({ name: cname }, i, sdfg, node.id);
-            obj.in_connectors.push(conn);
+            obj.inConnectors.push(conn);
             i += 1;
         }
 
@@ -1092,7 +976,7 @@ function get_state_graph(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, om
             conns = Object.keys(node.attributes.layout.out_connectors);
         for (let cname of conns) {
             let conn = new Connector({ name: cname }, i, sdfg, node.id);
-            obj.out_connectors.push(conn);
+            obj.outConnectors.push(conn);
             i += 1;
         }
 
@@ -1149,8 +1033,8 @@ function get_state_graph(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, om
         if (!edge) return;
         let e = new Edge(edge.attributes.data, id, sdfg, sdfg_state.id);
         edge.attributes.data.edge = e;
-        e.src_connector = edge.src_connector;
-        e.dst_connector = edge.dst_connector;
+        e.srcConnector = edge.src_connector;
+        e.dstConnector = edge.dst_connector;
         e.src = parseInt(edge.src);
         e.dst = parseInt(edge.dst);
         g.addEdge(e, id);
@@ -1188,8 +1072,8 @@ function get_state_graph(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, om
                 // add redirected shortcut edge to graph
                 let edge_id = sdfg_state.edges.length - 1;
                 let shortcut_edge = new Edge(deepCopy(redirected_e.attributes.data), edge_id, sdfg, sdfg_state.id);
-                shortcut_edge.src_connector = redirected_e.src_connector;
-                shortcut_edge.dst_connector = redirected_e.dst_connector;
+                shortcut_edge.srcConnector = redirected_e.src_connector;
+                shortcut_edge.dstConnector = redirected_e.dst_connector;
                 shortcut_edge.data.attributes.shortcut = true;
 
                 shortcut_edge.src = redirected_e.src;
@@ -1962,20 +1846,21 @@ class SDFGRenderer {
                             func('nodes', { sdfg: sdfg_name, sdfg_id: sdfg_id, state: state.id, id: node.id }, node);
 
                             // If nested SDFG, traverse recursively
-                            if (node.data.node.type === "NestedSDFG" && !node.data.node.attributes.is_collapsed)
+                            if (node.data.node.type === "NestedSDFG" && !node.data.node.attributes.is_collapsed) {
                                 traverse_recursive(node.data.graph,
                                     node.data.node.attributes.sdfg.attributes.name,
                                     node.data.node.attributes.sdfg.sdfg_list_id);
+                            }
                         }
                         // Connectors
-                        node.in_connectors.forEach((c, i) => {
+                        node.inConnectors.forEach((c, i) => {
                             if (c.intersect(x, y, w, h))
                                 func('connectors', {
                                     sdfg: sdfg_name, sdfg_id: sdfg_id, state: state.id, node: node.id,
                                     connector: i, conntype: "in"
                                 }, c);
                         });
-                        node.out_connectors.forEach((c, i) => {
+                        node.outConnectors.forEach((c, i) => {
                             if (c.intersect(x, y, w, h))
                                 func('connectors', {
                                     sdfg: sdfg_name, sdfg_id: sdfg_id, state: state.id, node: node.id,
@@ -2018,7 +1903,7 @@ class SDFGRenderer {
                     func('nodes', { sdfg: sdfg, state: state_id, id: node_id }, node);
 
                     // If nested SDFG, traverse recursively
-                    if (node.type === "NestedSDFG")
+                    if (node.type === "NestedSDFG" && !node.data.node.attributes.is_collapsed)
                         traverse_recursive(node.attributes.sdfg);
                 });
 
@@ -2058,17 +1943,17 @@ class SDFGRenderer {
                     func('nodes', { sdfg: sdfg_name, state: state.id, id: node.id, graph: ng }, node, node.intersect(x, y, w, h));
 
                     // If nested SDFG, traverse recursively
-                    if (node.data.node.type === "NestedSDFG")
+                    if (node.data.node.type === "NestedSDFG" && !node.data.node.attributes.is_collapsed)
                         traverse_recursive(node.data.graph, node.data.node.attributes.sdfg.attributes.name);
 
                     // Connectors
-                    node.in_connectors.forEach((c, i) => {
+                    node.inConnectors.forEach((c, i) => {
                         func('connectors', {
                             sdfg: sdfg_name, state: state.id, node: node.id,
                             connector: i, conntype: "in", graph: ng
                         }, c, c.intersect(x, y, w, h));
                     });
-                    node.out_connectors.forEach((c, i) => {
+                    node.outConnectors.forEach((c, i) => {
                         func('connectors', {
                             sdfg: sdfg_name, state: state.id, node: node.id,
                             connector: i, conntype: "out", graph: ng
