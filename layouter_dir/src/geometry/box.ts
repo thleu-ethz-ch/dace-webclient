@@ -26,6 +26,14 @@ export default class Box {
         return new Vector(this.x + this.width / 2, this.y + this.height / 2);
     }
 
+    topCenter(): Vector {
+        return new Vector(this.x + this.width / 2, this.y);
+    }
+
+    bottomCenter(): Vector {
+        return new Vector(this.x + this.width / 2, this.y + this.height);
+    }
+
     size(): Size {
         return {
             width: this.width,
