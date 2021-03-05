@@ -44,7 +44,7 @@ export default class DagreLayouter extends RecursiveLayouter {
             const dagreEdge = dagreGraph.edge(edge.src, edge.dst, edge.id);
             edge.points = dagreEdge.points;
             // move edges without connectors to an invisible connector in the center of the node
-            if (edge.src !== edge.dst) {
+            if (!graph.mayHaveCycles) {
                 if (edge.srcConnector === null) {
                     edge.points[0] = edge.graph.node(edge.src).boundingBox().bottomCenter();
                 }
