@@ -10,6 +10,7 @@ export default class LayoutConnector {
     public readonly diameter: number;
 
     public isScoped: boolean = false;
+    public counterpart: LayoutConnector = null;
 
     // position is relative to node
     public x = null;
@@ -27,14 +28,18 @@ export default class LayoutConnector {
             const matchingConnectorIndex = _.map(node.outConnectors, "name").indexOf("OUT_" + name.substr(3));
             if (matchingConnectorIndex > -1) {
                 this.isScoped = true;
-                node.outConnectors[matchingConnectorIndex].isScoped = true;
+                this.counterpart = node.outConnectors[matchingConnectorIndex];
+                this.counterpart.isScoped = true;
+                this.counterpart.counterpart = this;
             }
         }
         if (name.startsWith("OUT_")) {
             const matchingConnectorIndex = _.map(node.inConnectors, "name").indexOf("IN_" + name.substr(4));
             if (matchingConnectorIndex > -1) {
                 this.isScoped = true;
-                node.inConnectors[matchingConnectorIndex].isScoped = true;
+                this.counterpart = node.inConnectors[matchingConnectorIndex];
+                this.counterpart.isScoped = true;
+                this.counterpart.counterpart = this;
             }
         }
     }

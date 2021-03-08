@@ -1,3 +1,6 @@
+/**
+ * Inspired by https://github.com/mrdoob/three.js/
+ */
 export default class Vector {
     public x: number;
     public y: number;
@@ -16,7 +19,7 @@ export default class Vector {
     }
 
     angle(): number {
-        return Math.atan2(this.y, this.x);
+        return (Math.atan2(this.y, this.x) + 2 * Math.PI) % (2 * Math.PI);
     }
 
     normalize() {
@@ -30,9 +33,13 @@ export default class Vector {
         return otherVector.angle() - this.angle();
     }
 
+    absoluteAngleTo(otherVector: Vector) {
+        return Math.abs(this.angleTo(otherVector));
+    }
+
     acuteAngleTo(otherVector: Vector) {
-        const angle = this.angleTo(otherVector);
-        return Math.min(angle, Math.PI - angle);
+        const absAngle = this.absoluteAngleTo(otherVector);
+        return Math.min(absAngle, Math.PI - absAngle);
     }
 
     multiplyScalar(scalar: number): Vector {

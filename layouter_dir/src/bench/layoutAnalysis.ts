@@ -45,6 +45,9 @@ export default class LayoutAnalysis {
         });
     }
 
+    /**
+     * Returns the total number of pairwise segment crossings in the graph.
+     */
     segmentCrossings() {
         let counter = 0;
         for (let i = 0; i < this._segments.length; ++i) {
@@ -57,12 +60,24 @@ export default class LayoutAnalysis {
         return counter;
     }
 
-    segmentCrossingsWithAngles() {
+    /**
+     * Returns the cost for segment crossings in the graph.
+     * For every pairwise crossing, the cost is between 1 and 2 depending on the crossing angle.
+     * Orthogonal crossings have a cost of 1, almost parallel segments a cost very close to 2.
+     * @param K Determines the shape of the crossing angle cost function. Must be in the interval (0, π/2).
+     *        When close to 0, the function is close to linear. When close to π/2, the function is close to a step
+     *        function where everything below 45 degrees gets maximal malus and anything above none.
+     */
+    segmentCrossingsWithAngles(K: number = 1) {
         let cost = 0;
+        const tanK = Math.tan(K);
+        const tanK4Pi = 4 * tanK / Math.PI;
         for (let i = 0; i < this._segments.length; ++i) {
             for (let j = i + 1; j < this._segments.length; ++j) {
                 if (this._segments[i].intersects(this._segments[j])) {
-                    cost += (1 + 1 - Math.sin(this._segments[i].vector().acuteAngleTo(this._segments[j].vector())));
+                    const angle = this._segments[i].vector().acuteAngleTo(this._segments[j].vector());
+                    const angleCost = (1 + Math.atan(tanK - tanK4Pi * angle)) / 2;
+                    cost += 1 + angleCost;
                 }
             }
         }
@@ -218,13 +233,16 @@ export default class LayoutAnalysis {
     }
 
     cost(breakdown: boolean = false) {
-        const weightedCrossings = this._options.weightCrossings * this.segmentCrossingsWithAngles();
-        const weightedBends = this._options.weightBends * this.bends();
-        const weightedLengths = this._options.weightLengths * this.edgeLengths();
+        const crossings = this.segmentCrossingsWithAngles();
+        const bends = this.bends();
+        const lengths = this.edgeLengths();
+        const weightedCrossings = this._options.weightCrossings * crossings;
+        const weightedBends = this._options.weightBends * bends;
+        const weightedLengths = this._options.weightLengths * lengths;
         if (breakdown) {
-            console.log("Crossings: " + this._options.weightCrossings + " * " + this.segmentCrossingsWithAngles().toFixed(2) + " = " + weightedCrossings.toFixed(2));
-            console.log("Bends: " + this._options.weightBends + " * " + this.bends().toFixed(2) + " = " + weightedBends.toFixed(2));
-            console.log("Lengths: " + this._options.weightLengths + " * " + this.edgeLengths().toFixed(2) + " = " + weightedLengths.toFixed(2));
+            console.log("Crossings: " + this._options.weightCrossings + " * " + crossings.toFixed(2) + " = " + weightedCrossings.toFixed(2));
+            console.log("Bends: " + this._options.weightBends + " * " + bends.toFixed(2) + " = " + weightedBends.toFixed(2));
+            console.log("Lengths: " + this._options.weightLengths + " * " + lengths.toFixed(2) + " = " + weightedLengths.toFixed(2));
         }
         return weightedCrossings + weightedBends + weightedLengths;
     }

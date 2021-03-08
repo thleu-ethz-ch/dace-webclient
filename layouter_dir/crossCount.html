@@ -1,0 +1,56 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cross Count</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+        }
+
+    </style>
+    <script src="./dist/crossCount.js"></script>
+    <script>
+        window.addEventListener("load", function () {
+            const CrossCount = crossCount.CrossCount;
+            CrossCount.initGpu();
+            const numRuns = 100;
+            const densities = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+            const ns = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
+
+            /*_.forEach(ns, n => {
+                _.forEach(densities, density => {
+                    const timesEfficient = [];
+                    const timesGpu = [];
+                    for (let run = 0; run < numRuns; ++run) {
+                        const edges = _.shuffle(CrossCount.buildGraph(n, 0.5));
+                        let start = Date.now();
+                        const crossingsEfficient = CrossCount.countEfficient(n, n, _.cloneDeep(edges));
+                        let stop = Date.now();
+                        timesEfficient.push(stop - start);
+                        start = Date.now();
+                        const crossingsGpu = CrossCount.countGpu(n, n, _.cloneDeep(edges));
+                        if (crossingsEfficient !== crossingsGpu) {
+                            console.log("BAD!", edges, crossingsEfficient, crossingsGpu);
+                        }
+                        stop = Date.now();
+                        timesGpu.push(stop - start);
+                    }
+                    console.log("n = " + n + "; density = " + density);
+                    console.log("Efficient method: " + _.sortBy(timesEfficient)[numRuns / 2] + "ms");
+                    console.log("GPU method: " + _.sortBy(timesGpu)[numRuns / 2] + "ms");
+                });
+            });*/
+            console.log(CrossCount.test());
+        });
+    </script>
+</head>
+<body></body>
+</html>

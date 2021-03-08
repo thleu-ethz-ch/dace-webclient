@@ -5,6 +5,8 @@ import RenderEdge from "./renderEdge";
 import RenderNode from "./renderNode";
 
 export default class RenderGraph extends Graph<RenderNode, RenderEdge> {
+    public layoutGraph = null;
+
     boundingBox(): Box {
         let minX = Number.POSITIVE_INFINITY;
         let maxX = Number.NEGATIVE_INFINITY;

@@ -813,6 +813,8 @@ function get_sdfg_graph(ctx, sdfg, sdfg_list, state_parent_list, omit_access_nod
         const edge_obj = new Edge(edge.attributes.data, id, sdfg);
         edge_obj.src = parseInt(edge.src);
         edge_obj.dst = parseInt(edge.dst);
+        edge_obj.srcConnector = null;
+        edge_obj.dstConnector = null;
         g.addEdge(edge_obj, id);
     });
 
@@ -1033,8 +1035,8 @@ function get_state_graph(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, om
         if (!edge) return;
         let e = new Edge(edge.attributes.data, id, sdfg, sdfg_state.id);
         edge.attributes.data.edge = e;
-        e.srcConnector = edge.src_connector;
-        e.dstConnector = edge.dst_connector;
+        e.srcConnector = edge.src_connector || null;
+        e.dstConnector = edge.dst_connector || null;
         e.src = parseInt(edge.src);
         e.dst = parseInt(edge.dst);
         g.addEdge(e, id);
@@ -1072,8 +1074,8 @@ function get_state_graph(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list, om
                 // add redirected shortcut edge to graph
                 let edge_id = sdfg_state.edges.length - 1;
                 let shortcut_edge = new Edge(deepCopy(redirected_e.attributes.data), edge_id, sdfg, sdfg_state.id);
-                shortcut_edge.srcConnector = redirected_e.src_connector;
-                shortcut_edge.dstConnector = redirected_e.dst_connector;
+                shortcut_edge.srcConnector = redirected_e.src_connector || null;
+                shortcut_edge.dstConnector = redirected_e.dst_connector || null;
                 shortcut_edge.data.attributes.shortcut = true;
 
                 shortcut_edge.src = redirected_e.src;

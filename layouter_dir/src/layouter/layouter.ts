@@ -7,6 +7,14 @@ import RenderConnector from "../renderGraph/renderConnector";
 import RenderEdge from "../renderGraph/renderEdge";
 import RenderGraph from "../renderGraph/renderGraph";
 import RenderNode from "../renderGraph/renderNode";
+import Graph from "../graph/graph";
+import Edge from "../graph/edge";
+import Node from "../graph/node";
+import OrderGraph from "../order/orderGraph";
+import OrderGroup from "../order/orderGroup";
+import OrderEdge from "../order/orderEdge";
+import OrderNode from "../order/orderNode";
+import add = PIXI.groupD8.add;
 
 export default abstract class Layouter {
     protected _options: any;
@@ -16,6 +24,8 @@ export default abstract class Layouter {
             connectorSpacing: 10,
             targetEdgeLength: 50,
             withLabels: false,
+            bundle: true,
+            minimizeConnectorCrossings: true,
         });
     }
 
@@ -37,8 +47,12 @@ export default abstract class Layouter {
         outputSubgraph(0, layoutGraph);
 
         this.doLayout(layoutGraph);
-        this.placeConnectors(layoutGraph);
-        this.matchEdgesToConnectors(layoutGraph);
+        if (this._options['minimizeConnectorCrossings']) {
+            this._placeConnectorsHeuristically(renderGraph);
+        } else {
+            this._placeConnectorsCenter(layoutGraph);
+        }
+        this._matchEdgesToConnectors(layoutGraph);
         this._copyLayoutInfo(layoutGraph, renderGraph);
 
         return layoutGraph;
@@ -46,10 +60,315 @@ export default abstract class Layouter {
 
     protected abstract doLayout(graph: LayoutGraph): void;
 
+    private _moveConnectors(graph: Graph<Node<any, any>, Edge<any, any>>): void {
+
+    }
+
+    private _placeConnectorsHeuristically(graph: RenderGraph): void {
+        _.forEach(graph.allGraphs(), (renderGraph: RenderGraph) => {
+            const inConnectorsByNode = new Map();
+            const outConnectorsByNode = new Map();
+            const connectorGraph =  new OrderGraph();
+            const connectorIdMap = new Map();
+
+            // add nodes with connectors
+            _.forEach(renderGraph.nodes(), (node: RenderNode) => {
+                inConnectorsByNode.set(node.layoutNode, []);
+                outConnectorsByNode.set(node.layoutNode, []);
+                let hasScopedConnectors = false;
+                _.forEach(node.inConnectors, (connector: RenderConnector) => {
+                    hasScopedConnectors ||= (node.layoutNode.connector("IN", connector.name).isScoped);
+                });
+                if (hasScopedConnectors) {
+                    // create one group for all connectors
+                    const group = new OrderGroup({node: node, type: "ALL"});
+                    connectorGraph.addGroup(group);
+                    _.forEach(node.inConnectors, (connector: RenderConnector) => {
+                        const isScoped = node.layoutNode.connector("IN", connector.name).isScoped
+                        const orderNode = new OrderNode({type: isScoped ? "ALL" : "IN", name: connector.name});
+                        group.addNode(orderNode);
+                        connectorIdMap.set(node.id + "IN" + connector.name, orderNode.id);
+                        if (isScoped) {
+                            connectorIdMap.set(node.id + "OUTOUT_" + connector.name.substr(3), orderNode.id);
+                        }
+                    });
+                    _.forEach(node.outConnectors, (connector: RenderConnector) => {
+                        if (!node.layoutNode.connector("OUT", connector.name).isScoped) {
+                            const orderNode = new OrderNode({type: "OUT", name: connector.name});
+                            group.addNode(orderNode);
+                            connectorIdMap.set(node.id + "OUT" + connector.name, orderNode.id);
+                        }
+                    });
+                } else {
+                    // create separate groups for in-connectors and out-connectors
+                    if (node.inConnectors.length > 0) {
+                        const group = new OrderGroup({node: node, type: "IN"});
+                        connectorGraph.addGroup(group);
+                        _.forEach(node.inConnectors, (connector: RenderConnector) => {
+                            const orderNode = new OrderNode({type: "IN", name: connector.name});
+                            group.addNode(orderNode);
+                            connectorIdMap.set(node.id + "IN" + connector.name, orderNode.id);
+                        });
+                    }
+                    if (node.outConnectors.length > 0) {
+                        const group = new OrderGroup({node: node, type: "OUT"});
+                        connectorGraph.addGroup(group);
+                        _.forEach(node.outConnectors, (connector: RenderConnector) => {
+                            const orderNode = new OrderNode({type: "OUT", name: connector.name});
+                            group.addNode(orderNode);
+                            connectorIdMap.set(node.id + "OUT" + connector.name, orderNode.id);
+                        });
+                    }
+                }
+            });
+
+            // add edges between connectors (nodes)
+            _.forEach(renderGraph.edges(), (edge: RenderEdge) => {
+                if (edge.srcConnector !== null && edge.dstConnector !== null) {
+                    const srcId = connectorIdMap.get(edge.src + "OUT" + edge.srcConnector);
+                    const dstId = connectorIdMap.get(edge.dst + "IN" + edge.dstConnector);
+                    connectorGraph.addEdge(new OrderEdge(srcId, dstId));
+                }
+            });
+
+            // add edges between nodes (groups)
+            const addedEdges = new Set();
+            _.forEach(connectorGraph.edges(), (edge: OrderEdge) => {
+                const srcGroup = connectorGraph.node(edge.src).group;
+                const dstGroup = connectorGraph.node(edge.dst).group;
+                const id = srcGroup.id + "_" + dstGroup.id;
+                if (!addedEdges.has(id)) {
+                    connectorGraph.addEdge(new OrderEdge(srcGroup.id, dstGroup.id, "GROUP"));
+                    addedEdges.add(id);
+                }
+            });
+
+            // add non-connector nodes on top (dominating)
+            _.forEach(connectorGraph.sourceGroups(), (source: OrderGroup) => {
+                if (source.reference.type === "OUT") {
+                    return;
+                }
+                const orderGroup = new OrderGroup(null, true);
+                connectorGraph.addGroup(orderGroup);
+                connectorGraph.addEdge(new OrderEdge(orderGroup.id, source.id, "GROUP"));
+                const sortedEdges = _.sortBy(renderGraph.inEdges(source.reference.node.id), (edge: RenderEdge) => {
+                    return edge.layoutEdge.points[edge.layoutEdge.points.length - 2].x;
+                });
+                _.forEach(sortedEdges, (edge: RenderEdge) => {
+                    const orderNode = new OrderNode(null);
+                    orderGroup.addNode(orderNode);
+                    const dstId = connectorIdMap.get(edge.dst + "IN" + edge.dstConnector);
+                    connectorGraph.addEdge(new OrderEdge(orderNode.id, dstId));
+                });
+            });
+            // add non-connector nodes on bottom (dominated)
+            _.forEach(connectorGraph.sinkGroups(), (sink: OrderGroup) => {
+                if (sink.reference.type === "IN") {
+                    return;
+                }
+                const orderGroup = new OrderGroup(null, true);
+                connectorGraph.addGroup(orderGroup);
+                connectorGraph.addEdge(new OrderEdge(sink.id, orderGroup.id, "GROUP"));
+                const sortedEdges = _.sortBy(renderGraph.outEdges(sink.reference.node.id), (edge: RenderEdge) => {
+                    return edge.layoutEdge.points[1].x;
+                });
+                _.forEach(sortedEdges, (edge: RenderEdge) => {
+                    const orderNode = new OrderNode(edge.id);
+                    orderGroup.addNode(orderNode);
+                    const srcId = connectorIdMap.get(edge.src + "OUT" + edge.srcConnector);
+                    connectorGraph.addEdge(new OrderEdge(srcId, orderNode.id));
+                });
+            });
+
+            _.forEach(connectorGraph.components(), (connectorGraph: OrderGraph) => {
+                if (connectorGraph.groups().length > 0) {
+                    connectorGraph.order();
+                    _.forEach(connectorGraph.groups(), group => {
+                        if (group.reference !== null) {
+                            const layoutNode = <LayoutNode>group.reference.node.layoutNode;
+                            if (group.reference.type === "ALL") {
+                                _.forEach(group.order, pos => {
+                                    const connectorType = group.nodes[pos].reference.type;
+                                    if (connectorType === "ALL" || connectorType === "IN") {
+                                        const inConnector = layoutNode.connector("IN", group.nodes[pos].reference.name);
+                                        inConnectorsByNode.get(layoutNode).push(inConnector);
+                                        if (connectorType === "ALL") {
+                                            const outConnector = layoutNode.connector("OUT", "OUT_" + group.nodes[pos].reference.name.substr("3"));
+                                            outConnectorsByNode.get(layoutNode).push(outConnector);
+                                        }
+                                    } else {
+                                        const outConnector = layoutNode.connector("OUT", group.nodes[pos].reference.name);
+                                        outConnectorsByNode.get(layoutNode).push(outConnector);
+                                    }
+                                });
+                            } else if (group.reference.type === "IN") {
+                                _.forEach(group.order, pos => {
+                                    const inConnector = layoutNode.connector("IN", group.nodes[pos].reference.name);
+                                    inConnectorsByNode.get(layoutNode).push(inConnector);
+                                });
+                            } else {
+                                _.forEach(group.order, pos => {
+                                    const outConnector = layoutNode.connector("OUT", group.nodes[pos].reference.name);
+                                    outConnectorsByNode.get(layoutNode).push(outConnector);
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+
+            // assign x coordinates to connectors (also y, but those are trivial)
+            _.forEach(renderGraph.nodes(), (renderNode: RenderNode) => {
+                const layoutNode = renderNode.layoutNode;
+                const inConnectors = inConnectorsByNode.get(layoutNode) || [];
+                const outConnectors = outConnectorsByNode.get(layoutNode) || [];
+                if (inConnectors.length + outConnectors.length === 0) {
+                    return; // skip nodes with no connectors
+                }
+                const inPositions = new Map();
+                const outPositions = new Map();
+                const inNeighborXSum = [];
+                const outNeighborXSum = [];
+                const inNeighborCount = [];
+                const outNeighborCount = [];
+                _.forEach(inConnectors, (connector, pos) => {
+                    inPositions.set(connector.name, pos);
+                    inNeighborXSum[pos] = 0;
+                    inNeighborCount[pos] = 0;
+                });
+                _.forEach(outConnectors, (connector, pos) => {
+                    outPositions.set(connector.name, pos);
+                    outNeighborXSum[pos] = 0;
+                    outNeighborCount[pos] = 0;
+                });
+                // gather values to calculate mean neighbor value
+                if (inConnectors.length > 0) {
+                    _.forEach(renderGraph.inEdges(renderNode.id), (renderEdge: RenderEdge) => {
+                        const layoutEdge = renderEdge.layoutEdge;
+                        const connectorPos = inPositions.get(layoutEdge.dstConnector);
+                        inNeighborXSum[connectorPos] += layoutEdge.points[layoutEdge.points.length - 2].x;
+                        inNeighborCount[connectorPos]++;
+                    });
+                }
+                if (outConnectors.length > 0) {
+                    _.forEach(renderGraph.outEdges(renderNode.id), (renderEdge: RenderEdge) => {
+                        const layoutEdge = renderEdge.layoutEdge;
+                        const connectorPos = outPositions.get(layoutEdge.srcConnector);
+                        outNeighborXSum[connectorPos] += layoutEdge.points[1].x;
+                        outNeighborCount[connectorPos]++;
+                    });
+                }
+                _.forEach(inConnectors, (connector, pos) => {
+                    if (connector.isScoped) {
+                        const outConnector = layoutNode.connector("OUT", "OUT_" + connector.name.substr(3));
+                        const outPos = outPositions.get(outConnector.name);
+                        const inSum = inNeighborXSum[pos];
+                        const inCount = inNeighborCount[pos];
+                        inNeighborXSum[pos] += outNeighborXSum[outPos];
+                        inNeighborCount[pos] += outNeighborCount[outPos];
+                        outNeighborXSum[outPos] += inSum;
+                        outNeighborCount[outPos] += inCount;
+                    }
+                });
+
+                const inX = [];
+                const outX = [];
+                const inIdealX = [];
+                const outIdealX = [];
+                const inForce = [];
+                const outForce = [];
+                const inFixed = [];
+                const outFixed = [];
+                const SPACE = this._options['connectorSpacing'];
+                const firstConnector = inConnectors[0] || outConnectors[0];
+                const CW = firstConnector.width;
+                const leftBoundary = layoutNode.x + SPACE;
+                const rightBoundary = layoutNode.x + layoutNode.width - SPACE - CW;
+                const inMinX = [];
+                const outMinX = [];
+                const inY = layoutNode.y - CW / 2;
+                const outY = layoutNode.y + layoutNode.height - CW / 2;
+                let absMinX = leftBoundary;
+                let minX = leftBoundary;
+                let maxX = rightBoundary - (inConnectors.length - 1) * (CW + SPACE);
+                _.forEach(inConnectors, (connector: LayoutConnector, pos: number) => {
+                    inIdealX[pos] = inNeighborXSum[pos] / inNeighborCount[pos];
+                    inX[pos] = Math.max(minX, Math.min(maxX, inIdealX[pos]));
+                    inForce[pos] = inIdealX[pos] - inX[pos];
+                    connector.setPosition(inX[pos], inY);
+                    minX = inX[pos] + (CW + SPACE);
+                    absMinX += (CW + SPACE);
+                    maxX += (CW + SPACE);
+                });
+                minX = leftBoundary;
+                absMinX = [leftBoundary];
+                maxX = rightBoundary - (outConnectors.length - 1) * (CW + SPACE);
+                let leftMostMovable = 0;
+                _.forEach(outConnectors, (connector: LayoutConnector, pos: number) => {
+                    if (connector.isScoped) {
+                        outX[pos] = inX[inPositions.get(connector.counterpart.name)];
+                        absMinX[pos] = outX[pos];
+                    } else {
+                        outIdealX[pos] = outNeighborXSum[pos] / outNeighborCount[pos];
+                        outX[pos] = Math.max(minX, Math.min(maxX, outIdealX[pos]));
+                        console.log(connector.name, outX[pos], outIdealX[pos], outNeighborXSum[pos], outNeighborCount[pos]);
+                        outForce[pos] = outIdealX[pos] - outX[pos];
+                        while (outX[pos] > absMinX[pos] && outForce[pos] < 0) {
+                            let maxMove = outX[pos] - absMinX[pos];
+                            console.log("wanna move left by " + maxMove)
+                            let negativeCharged = 0;
+                            let forceSum = 0;
+                            for (let i = leftMostMovable; i <= pos; ++i) {
+                                forceSum += outForce[i];
+                                if (outForce[i] < 0) {
+                                    negativeCharged++;
+                                    maxMove = Math.min(outForce[i], maxMove);
+                                }
+                            }
+                            const positiveCharged = pos - leftMostMovable + 1 - negativeCharged;
+                            if (forceSum >= 0) {
+                                throw new Error("I thought this would not happen :(");
+                            }
+                            if (positiveCharged >= negativeCharged || forceSum >= 0) {
+                                console.log("not enough drive");
+                                break;
+                            }
+                            // move whole group as far to the left as possible
+                            for (let i = leftMostMovable; i <= pos; ++i) {
+                                outX[i] -= maxMove;
+                                outForce[i] = outIdealX[i] - outX[i];
+                                if (outX[i] === absMinX[i]) {
+                                    leftMostMovable = i + 1;
+                                    absMinX[i + 1] = absMinX[i] + (CW + SPACE);
+                                }
+                            }
+                        }
+                    }
+                    if (outX[pos] === absMinX[pos]) {
+                        leftMostMovable = pos + 1;
+                    }
+                    minX = outX[pos] + (CW + SPACE);
+                    absMinX[pos + 1] = absMinX[pos] + (CW + SPACE);
+                    maxX += (CW + SPACE);
+                });
+                _.forEach(outConnectors, (connector: LayoutConnector, pos: number) => {
+                    connector.setPosition(outX[pos], outY);
+                });
+
+                    // TODO: delete inX, outX, inMinX, outMinX, inFixed, outFixed ?
+                // TODO: use new stored counterpart for scoped connectors instead of replacing IN_ and OUT_
+                /*const minX = graph.layoutGraph.node(node
+                console.log(connectors);*/
+            });
+            //console.log(connectorGraph);
+        });
+        //this._placeConnectorsCenter(graph.layoutGraph);
+    }
+
     /**
      * Places the scoped connectors in the middle and the unscoped evenly on both sides.
      */
-    protected placeConnectors(graph: LayoutGraph): void {
+    private _placeConnectorsCenter(graph: LayoutGraph): void {
         _.forEach(graph.allNodes(), (node: LayoutNode) => {
             const inConnectorsScoped = _.filter(node.inConnectors, connector => connector.isScoped);
             const inConnectorsUnscoped = _.filter(node.inConnectors, connector => !connector.isScoped);
@@ -104,7 +423,7 @@ export default abstract class Layouter {
         });
     }
 
-    protected matchEdgesToConnectors(layoutGraph: LayoutGraph): void {
+    private _matchEdgesToConnectors(layoutGraph: LayoutGraph): void {
         _.forEach(layoutGraph.allEdges(), (edge: LayoutEdge) => {
             if (edge.srcConnector !== null) {
                 const srcNode = <LayoutNode>edge.graph.node(edge.src);
@@ -145,7 +464,7 @@ export default abstract class Layouter {
     private createLayoutGraph(renderGraph: RenderGraph): LayoutGraph {
         const transformSubgraph = (renderGraph: RenderGraph): LayoutGraph => {
             let mayHaveCycles = true;
-            if (renderGraph.parentNode !== null && renderGraph.parentNode.type() !== "NestedSDFG") {
+            if (renderGraph.parentNode === null || renderGraph.parentNode.type() !== "NestedSDFG") {
                 mayHaveCycles = false;
             }
             const layoutGraph = new LayoutGraph(mayHaveCycles);
@@ -254,6 +573,7 @@ export default abstract class Layouter {
                     node.layoutNode.setChildGraph(transformSubgraph(node.childGraph));
                 }
             });
+            renderGraph.layoutGraph = layoutGraph;
             return layoutGraph;
         }
         const layoutGraph = transformSubgraph(renderGraph);
@@ -287,6 +607,9 @@ export default abstract class Layouter {
             _.assign(edge, _.pick(edge.layoutEdge, ['points']));
             edge.updateBoundingBox();
             delete edge.layoutEdge;
+        });
+        _.forEach(renderGraph.allGraphs(), (graph: RenderGraph) => {
+            delete graph.layoutGraph;
         });
     }
 

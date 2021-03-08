@@ -5,16 +5,19 @@ import Node from "./node";
 export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any, any>> {
     public parentNode: NodeT = null;
 
-    protected readonly _nodes: Array<NodeT>;
-    protected readonly _edges: Array<EdgeT>;
-    protected readonly _outEdges: Array<Array<number>>;
-    protected readonly _inEdges: Array<Array<number>>;
+    protected _nodes: Array<NodeT>;
+    protected _edges: Array<EdgeT>;
+    protected _outEdges: Array<Array<number>>;
+    protected _inEdges: Array<Array<number>>;
 
     public constructor() {
-        this._nodes = [];
-        this._edges = [];
-        this._outEdges = [];
-        this._inEdges = [];
+        this._init();
+    }
+
+    cloneEmpty() {
+        const clone = _.clone(this);
+        clone._init();
+        return clone;
     }
 
     addNode(node: NodeT, id: number = null): number {
@@ -102,6 +105,22 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return allEdges;
     }
 
+    allGraphs(): Array<this> {
+        const allGraphs = [this];
+
+        const addSubgraphs = (graph: this) => {
+            _.forEach(graph.nodes(), (node: NodeT) => {
+                if (node.childGraph !== null) {
+                    allGraphs.push(node.childGraph);
+                    addSubgraphs(node.childGraph);
+                }
+            });
+        };
+        addSubgraphs(this);
+
+        return allGraphs;
+    }
+
     outEdges(id: number): Array<EdgeT> {
         return _.map(this._outEdges[id], edgeId => this.edge(edgeId));
     }
@@ -110,7 +129,110 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return _.map(this._inEdges[id], edgeId => this.edge(edgeId));
     }
 
-    elements(): Array<any> {
-        return [].concat(this.nodes(), this.edges());
+    clear() {
+        this._init();
+    }
+
+    toposort(): Array<NodeT> {
+        const sortedNodes = [];
+        const predecessors = new Array(this._nodes.length);
+        const queue = [];
+        let queuePointer = 0;
+        _.forEach(this._nodes, (node: NodeT, i: number) => {
+            if (node === undefined) {
+                return; // skip deleted nodes
+            }
+            const numInEdges = this.inEdges(node.id).length;
+            predecessors[i] = numInEdges;
+            if (numInEdges === 0) {
+                queue.push(node);
+            }
+        });
+        while (queuePointer < queue.length) {
+            const node = queue[queuePointer++];
+            sortedNodes.push(node);
+            _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
+                predecessors[edge.dst]--;
+                if (predecessors[edge.dst] === 0) {
+                    queue.push(this.node(edge.dst));
+                }
+            });
+        }
+        return sortedNodes;
+    }
+
+    sources(): Array<NodeT> {
+        return _.filter(this.nodes(), (node: NodeT) => {
+            return (this.inEdges(node.id).length === 0);
+        });
+    }
+
+    sinks(): Array<NodeT> {
+        return _.filter(this.nodes(), (node: NodeT) => {
+            return (this.outEdges(node.id).length === 0);
+        });
+    }
+
+    /**
+     * Returns an array of graphs where each graph is one connected component.
+     * Fields of nodes and edges are cloned shallowly. IDs are preserved.
+     */
+    components(): Array<this> {
+        const nodes = this.nodes();
+        if (nodes.length === 0) {
+            return [];
+        }
+        const componentNumbers = _.fill(new Array(this._nodes.length), null);
+        let currentNumber = 0;
+        _.forEach(nodes, (node: NodeT) => {
+            if (componentNumbers[node.id] !== null) {
+                return;
+            }
+            componentNumbers[node.id] = currentNumber;
+            const queue = [node];
+            let queuePointer = 0;
+            while (queuePointer < queue.length) {
+                const node = queue[queuePointer++];
+                _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
+                    if (componentNumbers[edge.dst] === null) {
+                        componentNumbers[edge.dst] = currentNumber;
+                        queue.push(this.node(edge.dst));
+                    }
+                });
+                _.forEach(this.inEdges(node.id), (edge: EdgeT) => {
+                    if (componentNumbers[edge.src] === null) {
+                        componentNumbers[edge.src] = currentNumber;
+                        queue.push(this.node(edge.src));
+                    }
+                });
+            }
+            currentNumber++;
+        });
+        const components = [];
+        // create component graphs
+        for (let i = 0; i < currentNumber; ++i) {
+            components.push(this.cloneEmpty());
+        }
+        // add nodes
+        _.forEach(nodes, (node: NodeT) => {
+            const componentId = componentNumbers[node.id];
+            components[componentId].addNode(_.clone(node), node.id);
+        });
+        // add edges
+        _.forEach(nodes, (node: NodeT) => {
+            _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
+                const componentId = componentNumbers[node.id];
+                components[componentId].addEdge(_.clone(edge), edge.id);
+            });
+        });
+
+        return components;
+    }
+
+    private _init() {
+        this._nodes = [];
+        this._edges = [];
+        this._outEdges = [];
+        this._inEdges = [];
     }
 }
