@@ -7,14 +7,12 @@ import RenderConnector from "../renderGraph/renderConnector";
 import RenderEdge from "../renderGraph/renderEdge";
 import RenderGraph from "../renderGraph/renderGraph";
 import RenderNode from "../renderGraph/renderNode";
-import Graph from "../graph/graph";
-import Edge from "../graph/edge";
-import Node from "../graph/node";
 import OrderGraph from "../order/orderGraph";
 import OrderGroup from "../order/orderGroup";
 import OrderEdge from "../order/orderEdge";
 import OrderNode from "../order/orderNode";
 import Vector from "../geometry/vector";
+
 true
 export default abstract class Layouter {
     protected _options: any;
@@ -204,13 +202,11 @@ export default abstract class Layouter {
                             }
                         }
                     });
-                    //console.log("start assigning coordinates");
                     // assign x coordinates to connectors (also y, but those are trivial)
                     _.forEach(connectorGraph.orderedGroups(), (connectorGroup: OrderGroup) => {
                         if (connectorGroup.reference === null) {
                             return;
                         }
-                        //console.log(connectorGroup.reference.node.label(), connectorGroup.reference.type);
                         const renderNode = connectorGroup.reference.node;
                         const layoutNode = renderNode.layoutNode;
                         const inConnectors = inConnectorsByNode.get(layoutNode) || [];
@@ -316,6 +312,9 @@ export default abstract class Layouter {
                                         absMinX[i + 1] = absMinX[i] + (CW + SPACE);
                                     }
                                 }
+                                if (positiveCharged === negativeCharged) {
+                                    break;
+                                }
                             }
                             if (inX[pos] === absMinX[pos]) {
                                 leftMostMovable = pos + 1;
@@ -334,18 +333,13 @@ export default abstract class Layouter {
                                 absMinX[pos] = outX[pos];
                             } else {
                                 outIdealX[pos] = outNeighborXSum[pos] / outNeighborCount[pos] - CW / 2;
-                                //console.log("outIdealX", outIdealX[pos]);
                                 outX[pos] = Math.max(minX, Math.min(maxX, outIdealX[pos]));
-                                //console.log("outX", outX[pos]);
                                 outForce[pos] = outIdealX[pos] - outX[pos];
-                                //console.log("absMinX", absMinX[pos]);
                                 while (outX[pos] > absMinX[pos] && outForce[pos] < 0) {
-                                    //console.log("wanna move");
                                     let maxMove = outX[pos] - absMinX[pos];
                                     let negativeCharged = 0;
                                     let forceSum = 0;
                                     for (let i = leftMostMovable; i <= pos; ++i) {
-                                        //console.log("forceSum += " + outForce[i])
                                         forceSum += outForce[i];
                                         if (outForce[i] < 0) {
                                             negativeCharged++;
@@ -354,7 +348,6 @@ export default abstract class Layouter {
                                     }
                                     const positiveCharged = pos - leftMostMovable + 1 - negativeCharged;
                                     if (forceSum >= 0) {
-                                        //console.log("forceSum positive", forceSum);
                                         break;
                                     }
                                     if (positiveCharged > negativeCharged) {
@@ -364,7 +357,6 @@ export default abstract class Layouter {
                                     if (positiveCharged === negativeCharged) {
                                         move = Math.min(-0.5 * forceSum, maxMove);
                                     }
-                                    //console.log("move", move);
                                     // move whole group as far to the left as possible
                                     for (let i = leftMostMovable; i <= pos; ++i) {
                                         outX[i] -= move;
@@ -373,6 +365,9 @@ export default abstract class Layouter {
                                             leftMostMovable = i + 1;
                                             absMinX[i + 1] = absMinX[i] + (CW + SPACE);
                                         }
+                                    }
+                                    if (positiveCharged === negativeCharged) {
+                                        break;
                                     }
                                 }
                             }

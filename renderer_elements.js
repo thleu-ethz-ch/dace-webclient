@@ -1,6 +1,8 @@
 // Copyright 2019-2020 ETH Zurich and the DaCe authors. All rights reserved.
 
 class SDFGElement {
+    connectorPadding = 10;
+
     // Parent ID is the state ID, if relevant
     constructor(elem, elem_id, sdfg, parent_id = null) {
         this.data = elem;
@@ -661,6 +663,8 @@ class AccessNode extends Node {
 }
 
 class ScopeNode extends Node {
+    connectorPadding = 40;
+
     draw(renderer, ctx, mousepos) {
         let draw_shape;
         if (this.data.node.attributes.is_collapsed) {
