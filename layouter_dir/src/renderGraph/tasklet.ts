@@ -1,5 +1,5 @@
 import RenderNode from "./renderNode";
 
 export default class Tasklet extends RenderNode {
-    // empty
+    public connectorPadding: number = 17;
 }

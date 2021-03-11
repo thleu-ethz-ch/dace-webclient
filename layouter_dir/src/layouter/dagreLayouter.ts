@@ -26,39 +26,22 @@ export default class DagreLayouter extends RecursiveLayouter {
             generalEdgeOptions.labelpos = "c";
             generalEdgeOptions.labeloffset = DagreLayouter.EDGE_LABEL_OFFSET;
         }
-        if (this._options['bundle']) {
-            const bundledEdges = new Map();
-            _.forEach(graph.edges(), (edge: LayoutEdge) => {
-                if (edge.srcConnector === null || edge.dstConnector === null) {
-                    const key = edge.src + "_" + edge.dst;
-                    if (!bundledEdges.has(key)) {
-                        bundledEdges.set(key, {weight: 1});
-                    } else {
-                        bundledEdges.get(key).weight++;
-                    }
-                } else {
-                    const edgeOptions = _.assign({}, generalEdgeOptions);
-                    if (this._options['withLabels']) {
-                        _.assign(edgeOptions, edge.labelSize);
-                    }
-                    dagreGraph.setEdge(edge.src, edge.dst, edgeOptions, edge.id);
+        _.forEach(graph.edges(), (edge: LayoutEdge) => {
+            const edgeOptions = _.assign({}, generalEdgeOptions);
+            if (this._options['withLabels']) {
+                _.assign(edgeOptions, edge.labelSize);
+            }
+            let edgeId: any = edge.id;
+            if (edge.bundle !== null) {
+                const connector = edge.srcConnector || edge.dstConnector;
+                if (edge.bundle.connectors[0] !== connector) {
+                    return; // only add the edge with the first connector
                 }
-            });
-            bundledEdges.forEach((value, key) => {
-                const srcDst = key.split("_");
-                const edgeOptions = _.assign({}, generalEdgeOptions);
-                edgeOptions['weight'] = value.weight;
-                dagreGraph.setEdge(srcDst[0], srcDst[1], edgeOptions, key);
-            });
-        } else {
-            _.forEach(graph.edges(), (edge: LayoutEdge) => {
-                const edgeOptions = _.assign({}, generalEdgeOptions);
-                if (this._options['withLabels']) {
-                    _.assign(edgeOptions, edge.labelSize);
-                }
-                dagreGraph.setEdge(edge.src, edge.dst, edgeOptions, edge.id);
-            });
-        }
+                edgeOptions.weight = edge.bundle.weight;
+                edgeId = edge.src + "_" + edge.dst;
+            }
+            dagreGraph.setEdge(edge.src, edge.dst, edgeOptions, edgeId);
+        });
 
         // call dagre layouter
         dagre.layout(dagreGraph);
@@ -70,32 +53,31 @@ export default class DagreLayouter extends RecursiveLayouter {
             node.setPosition(box.topLeft());
         });
         _.forEach(graph.edges(), (edge: LayoutEdge) => {
-            if (this._options['bundle']) {
-                let edgeId: any = edge.id;
-                if (edge.srcConnector === null || edge.dstConnector === null) {
-                    edgeId = edge.src + "_" + edge.dst;
+            let edgeId: any = edge.id;
+            if (edge.bundle !== null) {
+                edgeId = edge.src + "_" + edge.dst;
+            }
+            const dagreEdge = dagreGraph.edge(edge.src, edge.dst, edgeId);
+
+            // commented out: duplicate points to prevent curved edges
+            /*if (dagreEdge.weight > 1) {
+                if (edge.srcConnector === null) {
+                    const penultimate = edge.points.length - 2;
+                    edge.points.splice(penultimate, 0, _.clone(edge.points[penultimate]));
+                } else {
+                    edge.points.splice(1, 0, _.clone(edge.points[1]));
                 }
-                const dagreEdge = dagreGraph.edge(edge.src, edge.dst, edgeId);
-                edge.points = _.cloneDeep(dagreEdge.points);
-                if (dagreEdge.weight > 1) {
-                    if (edge.srcConnector === null) {
-                        const penultimate = edge.points.length - 2;
-                        edge.points.splice(penultimate, 0, _.clone(edge.points[penultimate]));
-                    } else {
-                        edge.points.splice(1, 0, _.clone(edge.points[1]));
-                    }
-                }
-            } else {
-                const dagreEdge = dagreGraph.edge(edge.src, edge.dst, edge.id);
-                edge.points = dagreEdge.points;
-                if (this._options['withLabels']) {
-                    const labelSize = edge.labelSize;
-                    if (labelSize) {
-                        edge.labelX = dagreEdge.x - labelSize.width / 2 + DagreLayouter.EDGE_LABEL_OFFSET;
-                        edge.labelY = dagreEdge.y - labelSize.height / 2;
-                    }
+            }*/
+
+            edge.points = _.cloneDeep(dagreEdge.points);
+            if (this._options['withLabels']) {
+                const labelSize = edge.labelSize;
+                if (labelSize) {
+                    edge.labelX = dagreEdge.x - labelSize.width / 2 + DagreLayouter.EDGE_LABEL_OFFSET;
+                    edge.labelY = dagreEdge.y - labelSize.height / 2;
                 }
             }
+
             // move edges without connectors to an invisible connector in the center of the node
             if (!graph.mayHaveCycles) {
                 if (edge.srcConnector === null) {

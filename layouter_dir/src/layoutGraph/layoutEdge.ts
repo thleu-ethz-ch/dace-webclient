@@ -15,6 +15,7 @@ export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
     public points: Array<Vector> = [];
     public labelX: number = null;
     public labelY: number = null;
+    public bundle: any = null;
 
     constructor(src: number, dst: number, srcConnector: string = null, dstConnector: string = null, labelSize: Size = null) {
         super(src, dst);
@@ -57,7 +58,7 @@ export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
             const deltaYPrev = end.y - start.y;
             const deltaXNext = this.points[i].x - end.x;
             const deltaYNext = this.points[i].y - end.y;
-            if (deltaXPrev * deltaYNext === deltaXNext * deltaYPrev) {
+            if (Math.abs(deltaXPrev * deltaYNext - deltaXNext * deltaYPrev) < 1e-10) {
                 end = _.clone(this.points[i]);
             } else {
                 segments.push(new Segment(start, end));

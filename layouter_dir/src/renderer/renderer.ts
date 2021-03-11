@@ -118,28 +118,25 @@ export default class Renderer {
     }
 
     private _labelSize(node: RenderNode): Size {
-        const constructor = <typeof RenderNode>node.constructor;
-        const textBox = (new Text(0, 0, node.label(), constructor.LABEL_FONT_SIZE)).boundingBox();
+        const textBox = (new Text(0, 0, node.label(), node.labelFontSize)).boundingBox();
         return {
-            width: textBox.width + 2 * constructor.LABEL_PADDING_X,
-            height: textBox.height + 2 * constructor.LABEL_PADDING_Y,
+            width: textBox.width + 2 * node.labelPaddingX,
+            height: textBox.height + 2 * node.labelPaddingY,
         }
     }
 
     private _edgeLabelSize(edge: RenderEdge): Size {
-        const constructor = <typeof RenderEdge>this.constructor;
-        return (new Text(0, 0, edge.label(), constructor.LABEL_FONT_SIZE)).boundingBox().size();
+        return (new Text(0, 0, edge.label(), edge.labelFontSize)).boundingBox().size();
     }
 
     /**
      * Adds an offset to center the label within the node (if necessary).
      */
     private _labelPosition(node: RenderNode): Vector {
-        const constructor = <typeof RenderNode>node.constructor;
         const labelSize = this._labelSize(node);
         const labelBox = new Box(
-            node.x + constructor.LABEL_PADDING_X,
-            node.y + constructor.LABEL_PADDING_Y,
+            node.x + node.labelPaddingX,
+            node.y + node.labelPaddingY,
             labelSize.width,
             labelSize.height,
         );
@@ -214,7 +211,7 @@ export default class Renderer {
             const labelBackground = new Rectangle(null, edge.labelX - 3, edge.labelY - 3, labelSize.width + 6, labelSize.height + 6, new Color(255, 255, 255, 0.8), Color.TRANSPARENT);
             labelBackground.zIndex = 2;
             shapes.push(labelBackground);
-            shapes.push(new Text(edge.labelX, edge.labelY, edge.label(), RenderEdge.LABEL_FONT_SIZE, 0x666666));
+            shapes.push(new Text(edge.labelX, edge.labelY, edge.label(), edge.labelFontSize, 0x666666));
         }
         return shapes;
     }

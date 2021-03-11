@@ -189,7 +189,7 @@ class SDFG extends SDFGElement {
 }
 
 class State extends SDFGElement {
-    static CHILD_PADDING = 4 * LINEHEIGHT;
+    childPadding = 4 * LINEHEIGHT;
 
     draw(renderer, ctx, mousepos) {
         let topleft = this.topleft();
@@ -892,7 +892,7 @@ class Reduce extends Node {
 }
 
 class NestedSDFG extends Node {
-    static CHILD_PADDING = LINEHEIGHT;
+    childPadding = LINEHEIGHT;
 
     draw(renderer, ctx, mousepos) {
         if (this.data.node.attributes.is_collapsed) {

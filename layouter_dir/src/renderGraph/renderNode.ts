@@ -9,10 +9,11 @@ import RenderGraph from "./renderGraph";
 import Size from "../geometry/size";
 
 export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
-    public static CHILD_PADDING = 0;
-    public static LABEL_PADDING_X = 10;
-    public static LABEL_PADDING_Y = 10;
-    public static LABEL_FONT_SIZE = 12;
+    public readonly childPadding: number = 0;
+    public readonly labelPaddingX: number = 10;
+    public readonly labelPaddingY: number = 10;
+    public readonly labelFontSize: number = 12;
+    public readonly connectorPadding: number = 10;
 
     public id: number = null;
     public graph: RenderGraph = null;
@@ -83,6 +84,7 @@ export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
      */
     connectorsWidth(): number {
         const numConnectors = Math.max(this.inConnectors.length, this.outConnectors.length);
-        return numConnectors * RenderConnector.DIAMETER + (numConnectors - 1) * RenderConnector.MARGIN + 2 * RenderConnector.PADDING;
+        return numConnectors * (RenderConnector.DIAMETER + RenderConnector.MARGIN) - RenderConnector.MARGIN
+            + 2 * this.connectorPadding;
     }
 }

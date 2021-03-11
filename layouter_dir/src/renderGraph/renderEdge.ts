@@ -9,7 +9,7 @@ import Text from "../shapes/text";
 import Vector from "../geometry/vector";
 
 export default abstract class RenderEdge extends Edge<RenderGraph, RenderNode> {
-    public static LABEL_FONT_SIZE = 10;
+    public labelFontSize: number = 10;
 
     public srcConnector: string = null;
     public dstConnector: string = null;

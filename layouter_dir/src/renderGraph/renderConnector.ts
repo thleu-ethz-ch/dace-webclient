@@ -2,7 +2,6 @@ import RenderNode from "./renderNode";
 
 export default class RenderConnector {
     public static DIAMETER = 10;
-    public static PADDING = 20;
     public static MARGIN = 10;
 
     public name: string;

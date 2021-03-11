@@ -46,6 +46,10 @@ export default class OrderGraph {
         return this._levelGraph.nodes();
     }
 
+    public orderedGroups() {
+        return this._levelGraph.toposort();
+    }
+
     public edges() {
         return this._edgeGraph.edges();
     }
