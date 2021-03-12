@@ -12,6 +12,7 @@ import OrderGroup from "../order/orderGroup";
 import OrderEdge from "../order/orderEdge";
 import OrderNode from "../order/orderNode";
 import Vector from "../geometry/vector";
+import Segment from "../geometry/segment";
 
 true
 export default abstract class Layouter {
@@ -24,8 +25,9 @@ export default abstract class Layouter {
             withLabels: false,
             bundle: true,
             minimizeConnectorCrossings: true,
+            maximizeAngles: true,
         });
-    }false
+    }
 
     public getOptionsForAnalysis(): object {
         return _.pick(this._options, ['targetEdgeLength']);
@@ -44,6 +46,9 @@ export default abstract class Layouter {
         } else {
             this._placeConnectorsCenter(layoutGraph);
             this._matchEdgesToConnectors(layoutGraph);
+        }
+        if (this._options['maximizeAngles']) {
+            this._maximizeAngles(layoutGraph);
         }
         this._copyLayoutInfo(layoutGraph, renderGraph);
 
@@ -287,6 +292,7 @@ export default abstract class Layouter {
                                 let forceSum = 0;
                                 for (let i = leftMostMovable; i <= pos; ++i) {
                                     forceSum += inForce[i];
+                                    maxMove = Math.min(maxMove, inX[i] - absMinX[i]);
                                     if (inForce[i] < 0) {
                                         negativeCharged++;
                                         maxMove = Math.min(maxMove, -inForce[i]);
@@ -306,6 +312,9 @@ export default abstract class Layouter {
                                 // move whole group as far to the left as possible
                                 for (let i = leftMostMovable; i <= pos; ++i) {
                                     inX[i] -= move;
+                                    if (inX[i] < absMinX[i]) {
+                                        throw new Error("inX[i] = " + inX[i] + "; absMinX[i] = " + absMinX[i])
+                                    }
                                     inForce[i] = inIdealX[i] - inX[i];
                                     if (inX[i] === absMinX[i]) {
                                         leftMostMovable = i + 1;
@@ -322,6 +331,9 @@ export default abstract class Layouter {
                             minX = inX[pos] + (CW + SPACE);
                             absMinX[pos + 1] = absMinX[pos] + (CW + SPACE);
                             maxX += (CW + SPACE);
+                            if (inX[pos] < leftBoundary) {
+                                throw new Error("Boundary breach");
+                            }
                         });
                         minX = leftBoundary;
                         absMinX = [leftBoundary];
@@ -383,7 +395,7 @@ export default abstract class Layouter {
                             const edgeInPos = connector.position().add(new Vector(connector.width / 2, 0));
                             _.forEach(renderGraph.inEdges(renderNode.id), (edge: RenderEdge) => {
                                 if (edge.dstConnector === connector.name) {
-                                    edge.layoutEdge.points[edge.layoutEdge.points.length - 1] = edgeInPos;
+                                    edge.layoutEdge.points[edge.layoutEdge.points.length - 1] = _.clone(edgeInPos);
                                 }
                                 let bundled = false;
                                 const points = edge.layoutEdge.points;
@@ -412,7 +424,7 @@ export default abstract class Layouter {
                             const edgeOutPos = connector.position().add(new Vector(connector.width / 2, connector.width));
                             _.forEach(renderGraph.outEdges(renderNode.id), (edge: RenderEdge) => {
                                 if (edge.srcConnector === connector.name) {
-                                    edge.layoutEdge.points[0] = edgeOutPos;
+                                    edge.layoutEdge.points[0] = _.clone(edgeOutPos);
                                 }
                                 let bundled = false;
                                 const points = edge.layoutEdge.points;
@@ -667,6 +679,130 @@ export default abstract class Layouter {
         return layoutGraph;
     }
 
+    private _createBundles(layoutGraph: LayoutGraph): void
+    {
+        _.forEach(layoutGraph.allGraphs(), (graph: LayoutGraph) => {
+            const bundles = new Map();
+            _.forEach(graph.edges(), (edge: LayoutEdge) => {
+                if ((edge.srcConnector !== null || edge.dstConnector !== null) && (edge.srcConnector === null || edge.dstConnector === null)) {
+                    const key = edge.src + "_" + edge.dst;
+                    const connector = edge.srcConnector || edge.dstConnector;
+                    if (!bundles.has(key)) {
+                        const bundle = {weight: 1, connectors: [connector]};
+                        bundles.set(key, bundle);
+                        edge.bundle = bundle;
+                    } else {
+                        const bundle = bundles.get(key);
+                        bundle.weight++;
+                        bundle.connectors.push(connector);
+                        edge.bundle = bundle;
+                    }
+                }
+            });
+        });
+    }
+
+    private _maximizeAngles(layoutGraph: LayoutGraph) {
+        const segments = [];
+        const endpoints = [];
+        let segmentId = 0;
+        _.forEach(layoutGraph.allEdges(), (edge: LayoutEdge) => {
+            if (edge.graph.mayHaveCycles) {
+                return; // skip state graph edges
+            }
+            _.forEach(edge.rawSegments(), (segment: Segment) => {
+                endpoints.push([segment.start, segmentId]);
+                endpoints.push([segment.end, segmentId]);
+                segments[segmentId++] = segment;
+            });
+        });
+        const intersections = [[], []];
+        const dimensions = ["x", "y"];
+        _.forEach(dimensions, (dimension, i) => {
+            const pointsSorted = _.sortBy(endpoints, ([point, segmentId]) => {
+                return point[dimension];
+            });
+            const openSegments: Set<number> = new Set();
+            _.forEach(pointsSorted, ([point, segmentId]) => {
+                if (openSegments.has(segmentId)) {
+                    openSegments.delete(segmentId);
+                } else {
+                    openSegments.forEach((otherSegmentId) => {
+                        let key = Math.min(segmentId, otherSegmentId) + "_" + Math.max(segmentId, otherSegmentId);
+                        intersections[i].push(key)
+                    });
+                    openSegments.add(segmentId);
+                }
+            });
+        });
+        const crossings = _.intersection(intersections[0], intersections[1]);
+        const forces = [];
+        _.forEach(crossings, key => {
+            const ids = key.split("_");
+            const segmentA = segments[ids[0]];
+            const segmentB = segments[ids[1]];
+            const vectorA = segmentA.vector();
+            const vectorB = segmentB.vector();
+            if (vectorA.x === 0 || vectorB.x === 0 || Math.sign(vectorA.x) !== -Math.sign(vectorB.x)) {
+                return; // only consider "head-on" crossings -> <-
+            }
+            const y1y2 = vectorA.y * vectorB.y;
+            const x1x2 = vectorA.x * vectorB.x;
+            const b = vectorA.y + vectorB.y;
+            const force = (-b + Math.sqrt(b * b - 4 * (y1y2 + x1x2))) / 2;
+            const t = (segmentA.start.x - segmentB.start.x) / (vectorB.x - vectorA.x);
+            const intersectionY = segmentA.start.y + t * vectorA.y;
+            forces.push([intersectionY, force]);
+        });
+        const sortedForces = _.sortBy(forces, ([intersectionY, force]) => intersectionY);
+        const points = [];
+        const oldTops = new Map();
+        _.forEach(layoutGraph.allNodes(), (node: LayoutNode) => {
+            points.push([node.y, "NODE", node, "TOP"]);
+            points.push([node.y + node.height, "NODE", node, "BOTTOM"]);
+            oldTops.set(node, node.y);
+        });
+        _.forEach(layoutGraph.allEdges(), (edge: LayoutEdge) => {
+            _.forEach(edge.points, (point: Vector, i: number) => {
+                points.push([point.y, "EDGE", edge, i]);
+            });
+        });
+        const pointsSorted = _.sortBy(points, ([pointY, type, object, position]) => pointY);
+        let forcePointer = 0;
+        let totalForce = 0;
+        const movedSet = new Set();
+        _.forEach(pointsSorted, ([pointY, type, object, position]) => {
+            let forceSum = 0;
+            let forceCount = 0;
+            while (forcePointer < sortedForces.length && sortedForces[forcePointer][0] < pointY) {
+                forceSum += sortedForces[forcePointer][1];
+                forceCount++;
+                forcePointer++;
+            }
+            if (forceCount > 0) {
+                totalForce += forceSum / forceCount;
+            }
+            if (type === "NODE") {
+                if (position === "TOP") {
+                    object.translateWithoutChildren(0, totalForce);
+                } else { // "BOTTOM"
+                    const oldHeight = object.height;
+                    object.height += totalForce + oldTops.get(object) - object.y; // new_height = old_height + totalForce + old_top - new_top
+                    const heightDiff = object.height - oldHeight;
+                    _.forEach(object.outConnectors, (connector: LayoutConnector) => {
+                        connector.y += heightDiff;
+                    });
+                }
+            } else { // "EDGE"
+                if (movedSet.has(object.points[position])) {
+                    throw new Error("MOVE TWICE");
+                }
+                movedSet.add(object.points[position]);
+                object.points[position].y += totalForce;
+            }
+        });
+    }
+
     private _copyLayoutInfo(layoutGraph: LayoutGraph, renderGraph: RenderGraph) {
         _.forEach(renderGraph.allNodes(), (node: RenderNode) => {
             _.assign(node, node.layoutNode.boundingBox());
@@ -689,28 +825,6 @@ export default abstract class Layouter {
         });
     }
 
-    private _createBundles(layoutGraph: LayoutGraph): void
-    {
-        _.forEach(layoutGraph.allGraphs(), (graph: LayoutGraph) => {
-            const bundles = new Map();
-            _.forEach(graph.edges(), (edge: LayoutEdge) => {
-                if ((edge.srcConnector !== null || edge.dstConnector !== null) && (edge.srcConnector === null || edge.dstConnector === null)) {
-                    const key = edge.src + "_" + edge.dst;
-                    const connector = edge.srcConnector || edge.dstConnector;
-                    if (!bundles.has(key)) {
-                        const bundle = {weight: 1, connectors: [connector]};
-                        bundles.set(key, bundle);
-                        edge.bundle = bundle;
-                    } else {
-                        const bundle = bundles.get(key);
-                        bundle.weight++;
-                        bundle.connectors.push(connector);
-                        edge.bundle = bundle;
-                    }
-                }
-            });
-        });
 
-    }
 
 }

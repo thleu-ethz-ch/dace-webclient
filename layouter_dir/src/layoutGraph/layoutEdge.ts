@@ -49,6 +49,14 @@ export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
         return new Box(minX, minY, maxX - minX, maxY - minY);
     }
 
+    rawSegments(): Array<Segment> {
+        const segments = [];
+        for (let i = 1; i < this.points.length; ++i) {
+            segments.push(new Segment(_.clone(this.points[i - 1]), _.clone(this.points[i])));
+        }
+        return segments;
+    }
+
     segments(): Array<Segment> {
         const segments = [];
         let start = _.clone(this.points[0]);
@@ -69,6 +77,5 @@ export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
         segments.push(new Segment(start, end));
         return segments;
     }
-
 
 }

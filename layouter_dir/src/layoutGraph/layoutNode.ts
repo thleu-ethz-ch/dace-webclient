@@ -65,6 +65,17 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         });
     }
 
+    translateWithoutChildren(x: number, y: number) {
+        this.x += x;
+        this.y += y;
+        _.forEach(this.inConnectors, (connector: LayoutConnector) => {
+            connector.translate(x, y);
+        });
+        _.forEach(this.outConnectors, (connector: LayoutConnector) => {
+            connector.translate(x, y);
+        });
+    }
+
     setPosition(position: Vector) {
         const prevX = this.x || 0;
         const prevY = this.y || 0;
