@@ -21,6 +21,11 @@ import DownwardTrapezoid from "../shapes/downwardTrapezoid";
 import Size from "../geometry/size";
 import Vector from "../geometry/vector";
 import Box from "../geometry/box";
+import OrderGraph from "../order/orderGraph";
+import OrderGroup from "../order/orderGroup";
+import OrderRank from "../order/orderRank";
+import OrderNode from "../order/orderNode";
+import Edge from "../graph/edge";
 
 export default class Renderer {
     private readonly _viewport;
@@ -42,6 +47,37 @@ export default class Renderer {
             interaction: app.renderer.plugins.interaction, // the interaction module is important for wheel to work properly when renderer.view is placed or scaled
         });
         app.stage.addChild(this._viewport);
+
+
+        /*const orderGraph = new OrderGraph();
+        const rank1 = new OrderRank(true);
+        const rank2 = new OrderRank(true);
+        const group1 = new OrderGroup("Group 1", true);
+        const group2 = new OrderGroup("Group 2", true);
+        const group3 = new OrderGroup("Group 3");
+        const node11 = new OrderNode("1.1");
+        const node12 = new OrderNode("1.2");
+        const node21 = new OrderNode("2.1");
+        const node22 = new OrderNode("2.2");
+        const node31 = new OrderNode("3.1");
+        const node32 = new OrderNode("3.2");
+        orderGraph.addRank(rank1);
+        orderGraph.addRank(rank2);
+        rank1.addGroup(group1);
+        rank1.addGroup(group2);
+        rank2.addGroup(group3);
+        group1.addNode(node11);
+        group1.addNode(node12);
+        group2.addNode(node21);
+        group2.addNode(node22);
+        group3.addNode(node31);
+        group3.addNode(node32);
+        orderGraph.addEdge(new Edge(node11.id, node32.id));
+        orderGraph.addEdge(new Edge(node12.id, node32.id));
+        orderGraph.addEdge(new Edge(node21.id, node32.id));
+        orderGraph.addEdge(new Edge(node22.id, node31.id));
+        orderGraph.order();
+        console.log(orderGraph);*/
 
         /*this._viewport.interactive = true;
         this._viewport.on('mousemove', _.throttle((e) => {

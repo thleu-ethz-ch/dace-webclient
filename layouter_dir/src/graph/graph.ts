@@ -52,6 +52,26 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return this._edges[id];
     }
 
+    hasEdge(srcId: number, dstId: number): boolean {
+        const numOutEdges = this._outEdges[srcId].length;
+        for (let i = 0; i < numOutEdges; ++i) {
+            if (this._edges[this._outEdges[srcId][i]].dst === dstId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    edgeBetween(srcId: number, dstId: number): EdgeT {
+        const numOutEdges = this._outEdges[srcId].length;
+        for (let i = 0; i < numOutEdges; ++i) {
+            if (this._edges[this._outEdges[srcId][i]].dst === dstId) {
+                return this._edges[this._outEdges[srcId][i]];
+            }
+        }
+        return undefined;
+    }
+
     removeNode(id: number): void {
         this._nodes[id] = null;
     }
@@ -65,6 +85,10 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
 
     nodes(): Array<NodeT> {
         return _.compact(this._nodes);
+    }
+
+    maxId(): number {
+        return this._nodes.length - 1;
     }
 
     allNodes(): Array<NodeT> {

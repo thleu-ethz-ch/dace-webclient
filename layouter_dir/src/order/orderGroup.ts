@@ -3,15 +3,17 @@ import Node from "../graph/node";
 import OrderEdge from "./orderEdge";
 import OrderGraph from "./orderGraph";
 import OrderNode from "./orderNode";
+import OrderRank from "./orderRank";
+import Edge from "../graph/edge";
 
-export default class OrderGroup extends Node<Graph<any, any>, OrderEdge>
+export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
 {
     public readonly reference: any;
     public readonly isFixed: boolean;
     public readonly nodes: Array<OrderNode> = [];
 
     public order: Array<number>;
-    public orderGraph: OrderGraph;
+    public rank: OrderRank;
 
     constructor(reference: any, isFixed: boolean = false) {
         super();
@@ -22,6 +24,6 @@ export default class OrderGroup extends Node<Graph<any, any>, OrderEdge>
     addNode(node: OrderNode): number {
         this.nodes.push(node);
         node.group = this;
-        return this.orderGraph.addNode(node);
+        return this.rank.orderGraph.addNode(node);
     }
 }

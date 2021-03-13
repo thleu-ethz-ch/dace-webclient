@@ -13,6 +13,7 @@ import OrderEdge from "../order/orderEdge";
 import OrderNode from "../order/orderNode";
 import Vector from "../geometry/vector";
 import Segment from "../geometry/segment";
+import Edge from "../graph/edge";
 
 true
 export default abstract class Layouter {
@@ -23,9 +24,9 @@ export default abstract class Layouter {
             connectorSpacing: 10,
             targetEdgeLength: 50,
             withLabels: false,
-            bundle: true,
+            bundle: false,
             minimizeConnectorCrossings: true,
-            maximizeAngles: true,
+            maximizeAngles: false,
         });
     }
 
@@ -59,7 +60,44 @@ export default abstract class Layouter {
 
     private _placeConnectorsHeuristically(graph: RenderGraph): void {
         _.forEach(graph.allGraphs(), (renderGraph: RenderGraph) => {
-            const inConnectorsByNode = new Map();
+            _.forEach(renderGraph.components(), (component: RenderGraph) => {
+                // restore rank structure
+                let rankByNode = new Array(component.maxId());
+                const firstNode = component.nodes()[0];
+                rankByNode[firstNode.id] = 0;
+                const queue = [firstNode];
+                let queuePointer = 0;
+                let minRank = 0;
+                let maxRank = 0;
+                while (queuePointer < queue.length) {
+                    const node = queue[queuePointer++];
+                    _.forEach(component.inEdges(node.id), (edge: RenderEdge) => {
+                        if (rankByNode[edge.src] === undefined) {
+                            rankByNode[edge.src] = rankByNode[node.id] - (edge.layoutEdge.points.length - 1) / 2;
+                            minRank = Math.min(minRank, rankByNode[edge.src]);
+                            maxRank = Math.max(maxRank, rankByNode[edge.src]);
+                            queue[queuePointer++] = component.node(edge.src);
+                        }
+                    });
+                    _.forEach(component.outEdges(node.id), (edge: RenderEdge) => {
+                        if (rankByNode[edge.dst] === undefined) {
+                            rankByNode[edge.dst] = rankByNode[node.id] + (edge.layoutEdge.points.length - 1) / 2;
+                            minRank = Math.min(minRank, rankByNode[edge.dst]);
+                            maxRank = Math.max(maxRank, rankByNode[edge.dst]);
+                            queue[queuePointer++] = component.node(edge.dst);
+                        }
+                    });
+                }
+                const ranks = _.fill(new Array(maxRank - minRank + 1), []);
+                console.log("component", component);
+                console.log("rankByNode", rankByNode);
+                /*_.forEach(component.nodes(), (node => {
+                    console.log(rankByNode[node.id], minRank, ranks);
+                    ranks[rankByNode[node.id] - minRank].push([node.layoutNode.x, "NODE", node]);
+                }));*/
+                console.log(ranks);
+            });
+            /*const inConnectorsByNode = new Map();
             const outConnectorsByNode = new Map();
             const connectorGraph =  new OrderGraph();
             const connectorIdMap = new Map();
@@ -124,18 +162,6 @@ export default abstract class Layouter {
                 }
             });
 
-            // add edges between nodes (groups)
-            const addedEdges = new Set();
-            _.forEach(connectorGraph.edges(), (edge: OrderEdge) => {
-                const srcGroup = connectorGraph.node(edge.src).group;
-                const dstGroup = connectorGraph.node(edge.dst).group;
-                const id = srcGroup.id + "_" + dstGroup.id;
-                if (!addedEdges.has(id)) {
-                    connectorGraph.addEdge(new OrderEdge(srcGroup.id, dstGroup.id, "GROUP"));
-                    addedEdges.add(id);
-                }
-            });
-
             // add non-connector nodes on top (dominating)
             _.forEach(connectorGraph.sourceGroups(), (source: OrderGroup) => {
                 if (source.reference.type === "OUT") {
@@ -143,7 +169,7 @@ export default abstract class Layouter {
                 }
                 const orderGroup = new OrderGroup(null, true);
                 connectorGraph.addGroup(orderGroup);
-                connectorGraph.addEdge(new OrderEdge(orderGroup.id, source.id, "GROUP"));
+                connectorGraph.addEdge(new Edge(orderGroup.id, source.id));
                 const sortedEdges = _.sortBy(renderGraph.inEdges(source.reference.node.id), (edge: RenderEdge) => {
                     return edge.layoutEdge.points[edge.layoutEdge.points.length - 3].x;
                 });
@@ -151,7 +177,7 @@ export default abstract class Layouter {
                     const orderNode = new OrderNode(null);
                     orderGroup.addNode(orderNode);
                     const dstId = connectorIdMap.get(edge.dst + "IN" + edge.dstConnector);
-                    connectorGraph.addEdge(new OrderEdge(orderNode.id, dstId));
+                    connectorGraph.addEdge(new Edge(orderNode.id, dstId));
                 });
             });
             // add non-connector nodes on bottom (dominated)
@@ -161,7 +187,7 @@ export default abstract class Layouter {
                 }
                 const orderGroup = new OrderGroup(null, true);
                 connectorGraph.addGroup(orderGroup);
-                connectorGraph.addEdge(new OrderEdge(sink.id, orderGroup.id, "GROUP"));
+                connectorGraph.addEdge(new Edge(sink.id, orderGroup.id));
                 const sortedEdges = _.sortBy(renderGraph.outEdges(sink.reference.node.id), (edge: RenderEdge) => {
                     return edge.layoutEdge.points[2].x;
                 });
@@ -175,6 +201,20 @@ export default abstract class Layouter {
 
             _.forEach(connectorGraph.components(), (connectorGraph: OrderGraph) => {
                 if (connectorGraph.groups().length > 0) {
+
+
+                    console.log();
+                    console.log();
+                    _.forEach(connectorGraph.orderedGroups(), (group: OrderGroup) => {
+                        if (group.reference === null) {
+                            console.log("INPUT / OUTPUT");
+                        } else {
+                            console.log(group.reference.type, group.reference.node.label());
+                        }
+                    });
+
+
+
                     connectorGraph.order();
                     _.forEach(connectorGraph.groups(), group => {
                         if (group.reference !== null) {
@@ -449,8 +489,9 @@ export default abstract class Layouter {
                         });
                     });
                 }
-            });
+            });*/
         });
+        this._placeConnectorsCenter(graph.layoutGraph);
     }
 
     /**
