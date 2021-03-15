@@ -31,6 +31,7 @@ export default class LayoutConnector {
                 this.counterpart = node.outConnectors[matchingConnectorIndex];
                 this.counterpart.isScoped = true;
                 this.counterpart.counterpart = this;
+                this.node.hasScopedConnectors = true;
             }
         }
         if (name.startsWith("OUT_")) {
@@ -40,6 +41,7 @@ export default class LayoutConnector {
                 this.counterpart = node.inConnectors[matchingConnectorIndex];
                 this.counterpart.isScoped = true;
                 this.counterpart.counterpart = this;
+                this.node.hasScopedConnectors = true;
             }
         }
     }

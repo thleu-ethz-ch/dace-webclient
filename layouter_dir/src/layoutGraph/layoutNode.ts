@@ -19,6 +19,9 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public width: number = null;
     public height: number = null;
 
+    public rank: number = 0;
+    public hasScopedConnectors: boolean = false;
+
     public readonly padding: number = 0;
 
     public label;

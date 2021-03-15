@@ -27,6 +27,7 @@ export default abstract class Layouter {
             bundle: false,
             minimizeConnectorCrossings: true,
             maximizeAngles: false,
+            alignInAndOut: false
         });
     }
 
@@ -60,43 +61,6 @@ export default abstract class Layouter {
 
     private _placeConnectorsHeuristically(graph: RenderGraph): void {
         _.forEach(graph.allGraphs(), (renderGraph: RenderGraph) => {
-            _.forEach(renderGraph.components(), (component: RenderGraph) => {
-                // restore rank structure
-                let rankByNode = new Array(component.maxId());
-                const firstNode = component.nodes()[0];
-                rankByNode[firstNode.id] = 0;
-                const queue = [firstNode];
-                let queuePointer = 0;
-                let minRank = 0;
-                let maxRank = 0;
-                while (queuePointer < queue.length) {
-                    const node = queue[queuePointer++];
-                    _.forEach(component.inEdges(node.id), (edge: RenderEdge) => {
-                        if (rankByNode[edge.src] === undefined) {
-                            rankByNode[edge.src] = rankByNode[node.id] - (edge.layoutEdge.points.length - 1) / 2;
-                            minRank = Math.min(minRank, rankByNode[edge.src]);
-                            maxRank = Math.max(maxRank, rankByNode[edge.src]);
-                            queue[queuePointer++] = component.node(edge.src);
-                        }
-                    });
-                    _.forEach(component.outEdges(node.id), (edge: RenderEdge) => {
-                        if (rankByNode[edge.dst] === undefined) {
-                            rankByNode[edge.dst] = rankByNode[node.id] + (edge.layoutEdge.points.length - 1) / 2;
-                            minRank = Math.min(minRank, rankByNode[edge.dst]);
-                            maxRank = Math.max(maxRank, rankByNode[edge.dst]);
-                            queue[queuePointer++] = component.node(edge.dst);
-                        }
-                    });
-                }
-                const ranks = _.fill(new Array(maxRank - minRank + 1), []);
-                console.log("component", component);
-                console.log("rankByNode", rankByNode);
-                /*_.forEach(component.nodes(), (node => {
-                    console.log(rankByNode[node.id], minRank, ranks);
-                    ranks[rankByNode[node.id] - minRank].push([node.layoutNode.x, "NODE", node]);
-                }));*/
-                console.log(ranks);
-            });
             /*const inConnectorsByNode = new Map();
             const outConnectorsByNode = new Map();
             const connectorGraph =  new OrderGraph();

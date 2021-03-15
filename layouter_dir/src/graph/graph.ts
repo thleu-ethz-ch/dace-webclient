@@ -201,7 +201,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
      * Returns an array of graphs where each graph is one connected component.
      * Fields of nodes and edges are cloned shallowly. IDs are preserved.
      */
-    components(): Array<this> {
+    components(): Array<Graph<NodeT, EdgeT>> {
         const nodes = this.nodes();
         if (nodes.length === 0) {
             return [];
@@ -240,13 +240,15 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         // add nodes
         _.forEach(nodes, (node: NodeT) => {
             const componentId = componentNumbers[node.id];
-            components[componentId].addNode(_.clone(node), node.id);
+            components[componentId].addNode(node, node.id);
+            node.graph = this;
         });
         // add edges
         _.forEach(nodes, (node: NodeT) => {
             _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
                 const componentId = componentNumbers[node.id];
-                components[componentId].addEdge(_.clone(edge), edge.id);
+                components[componentId].addEdge(edge, edge.id);
+                edge.graph = this;
             });
         });
 

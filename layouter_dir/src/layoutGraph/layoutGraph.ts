@@ -9,6 +9,12 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
     public exitNode: LayoutNode = null;
     public readonly mayHaveCycles: boolean;
 
+    public minRank = 0;
+    public maxRank = 0;
+    public numRanks = 0;
+
+    private _components: Array<Graph<LayoutNode, LayoutEdge>> = null;
+
     constructor(mayHaveCycles: boolean = false) {
         super();
         this.mayHaveCycles = mayHaveCycles;
@@ -43,5 +49,17 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
             maxY = Math.max(maxY, box.y + box.height);
         });
         return new Box(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    components(): Array<Graph<LayoutNode, LayoutEdge>> {
+        if (this._components === null) {
+            this._components = super.components();
+        }
+        return this._components;
+    }
+
+    invalidateComponents(): void
+    {
+        this._components = null;
     }
 }
