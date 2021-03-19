@@ -29,6 +29,14 @@ export default class Vector {
         return this;
     }
 
+    setLength(length: number) {
+        const prevLength = this.length();
+        const factor = length / prevLength;
+        this.x *= factor;
+        this.y *= factor;
+        return this;
+    }
+
     angleTo(otherVector: Vector) {
         return otherVector.angle() - this.angle();
     }

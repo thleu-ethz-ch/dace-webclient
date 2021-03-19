@@ -33,9 +33,8 @@ export default abstract class Shape {
     intersects(otherShape: Shape) {
         return this.boundingBox().intersects(otherShape.boundingBox());
     }
-
     abstract boundingBox(): Box;
 
-    abstract render(container: any): void;
+    abstract render(container: any, crossings: Map<string, Array<[Vector, number]>>): void;
 
 }

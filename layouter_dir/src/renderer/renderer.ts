@@ -31,9 +31,12 @@ import SdfgState from "../renderGraph/sdfgState";
 import AccessNode from "../renderGraph/accessNode";
 import NestedSdfg from "../renderGraph/nestedSdfg";
 import Memlet from "../renderGraph/memlet";
+import LayoutGraph from "../layoutGraph/layoutGraph";
+import Segment from "../geometry/segment";
 
 export default class Renderer {
     private readonly _viewport;
+    private _crossings = new Map();
 
     constructor(domContainer) {
         const app = new PIXI.Application({
@@ -175,6 +178,43 @@ export default class Renderer {
             this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);
             /*this._viewport.moveCenter(6997.541591078397, 16317.334381731042);
             this._viewport.setZoom(1, true);*/
+
+            _.forEach(layout.allGraphs(), (subgraph: LayoutGraph) => {
+                const edges = subgraph.edges();
+                for (let i = 0; i < edges.length; ++i) {
+                    const segmentsI = edges[i].segments();
+                    for (let j = i + 1; j < edges.length; ++j) {
+                        const segmentsJ = edges[j].segments();
+                        _.forEach(segmentsI, (segmentI: Segment) => {
+                            _.forEach(segmentsJ, (segmentJ: Segment) => {
+                                if (segmentI.intersects(segmentJ)) {
+                                    const angleI = Math.abs(Math.PI / 2 - segmentI.vector().angle());
+                                    const angleJ = Math.abs(Math.PI / 2 - segmentJ.vector().angle());
+                                    let key;
+                                    let angle;
+                                    if (angleI > angleJ) {
+                                        key = segmentI.start.x + "_" + segmentI.start.y + "_" + segmentI.end.x + "_" + segmentI.end.y;
+                                        angle = angleJ;
+                                    } else {
+                                        key = segmentJ.start.x + "_" + segmentJ.start.y + "_" + segmentJ.end.x + "_" + segmentJ.end.y;
+                                        angle = angleI;
+                                    }
+                                    let segCrossings;
+                                    if (this._crossings.has(key)) {
+                                        segCrossings = this._crossings.get(key);
+                                    } else {
+                                        segCrossings = [];
+                                        this._crossings.set(key, segCrossings);
+                                    }
+                                    segCrossings.push([segmentI.intersectionPoint(segmentJ), angle]);
+                                }
+                            });
+                        });
+                    }
+                }
+            });
+
+
             this.render(graph);
         });
     }
@@ -185,9 +225,9 @@ export default class Renderer {
      */
     render(graph: RenderGraph) {
         const shapes = this._getShapesForGraph(graph);
-
+        console.log(this._crossings);
         _.forEach(shapes, (shape) => {
-            shape.render(this._viewport);
+            shape.render(this._viewport, this._crossings);
         });
     }
 

@@ -22,6 +22,23 @@ export default class Segment {
         return startSide !== endSide;
     }
 
+    intersectionPoint(other: Segment): Vector {
+        // adapted from https://en.wikipedia.org/wiki/Line%E2%80%93line_intersection
+        const x1 = this.start.x;
+        const x2 = this.end.x;
+        const x3 = other.start.x;
+        const x4 = other.end.x;
+        const y1 = this.start.y;
+        const y2 = this.end.y;
+        const y3 = other.start.y;
+        const y4 = other.end.y;
+        const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / ((x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4));
+        return new Vector(
+            x1 + t * (x2 - x1),
+            y1 + t * (y2 - y1)
+        );
+    }
+
     intersectsBox(box: Box): boolean {
         if (!this.boundingBox().intersects(box)) {
             return false;
