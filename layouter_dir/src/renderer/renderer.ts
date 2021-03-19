@@ -26,6 +26,11 @@ import OrderGroup from "../order/orderGroup";
 import OrderRank from "../order/orderRank";
 import OrderNode from "../order/orderNode";
 import Edge from "../graph/edge";
+import Polygon from "../shapes/polygon";
+import SdfgState from "../renderGraph/sdfgState";
+import AccessNode from "../renderGraph/accessNode";
+import NestedSdfg from "../renderGraph/nestedSdfg";
+import Memlet from "../renderGraph/memlet";
 
 export default class Renderer {
     private readonly _viewport;
@@ -109,6 +114,37 @@ export default class Renderer {
 
     show(layouter: Layouter, name: string) {
         Loader.load(name).then((graph) => {
+            /*graph = new RenderGraph();
+            const outerState = new SdfgState("SDFGState", "outerState");
+            const topAccessNode = new AccessNode("AccessNode", "topAccessNode");
+            const bottomAccessNode = new AccessNode("AccessNode", "bottomAccessNode");
+            const sideAccessNode = new AccessNode("AccessNode", "sideAccessNode");
+            const nestedSdfg = new NestedSdfg("NestedSDFG", "nestedSdfg");
+            nestedSdfg.setConnectors(["nestedIn1", "nestedIn2"], ["nestedOut"]);
+            const innerState = new SdfgState("SDFGState", "innerState");
+            const innerNodeTop = new AccessNode("AccessNode", "innerNodeTop");
+            const innerNodeBottom = new AccessNode("AccessNode", "innerNodeBottom");
+            graph.addNode(outerState);
+            const outerStateGraph = new RenderGraph();
+            outerState.setChildGraph(outerStateGraph);
+            outerStateGraph.addNode(topAccessNode);
+            outerStateGraph.addNode(sideAccessNode);
+            outerStateGraph.addNode(nestedSdfg);
+            outerStateGraph.addNode(bottomAccessNode);
+            outerStateGraph.addEdge(new Memlet(topAccessNode.id, nestedSdfg.id, null, "nestedIn1", {}));
+            outerStateGraph.addEdge(new Memlet(topAccessNode.id, nestedSdfg.id, null, "nestedIn2", {}));
+            outerStateGraph.addEdge(new Memlet(topAccessNode.id, bottomAccessNode.id, null, null, {}));
+            outerStateGraph.addEdge(new Memlet(sideAccessNode.id, bottomAccessNode.id, null, null, {}));
+            outerStateGraph.addEdge(new Memlet(nestedSdfg.id, bottomAccessNode.id, "nestedOut", null, {}));
+            const innerSdfgGraph = new RenderGraph();
+            nestedSdfg.setChildGraph(innerSdfgGraph);
+            innerSdfgGraph.addNode(innerState);
+            const innerStateGraph = new RenderGraph();
+            innerState.setChildGraph(innerStateGraph);
+            innerStateGraph.addNode(innerNodeTop);
+            innerStateGraph.addNode(innerNodeBottom);
+            innerStateGraph.addEdge(new Memlet(innerNodeTop.id, innerNodeBottom.id, null, null, {}));*/
+
             // set node sizes
             _.forEach(graph.allNodes(), (node: RenderNode) => {
                 node.updateSize(this._labelSize(node));
@@ -133,12 +169,12 @@ export default class Renderer {
 
             // center and fit the graph in the viewport
             const box = graph.boundingBox();
+            console.log("Total size: " + box.width.toFixed(0) +  "x" + box.height.toFixed(0));
 
             this._viewport.moveCorner((box.width - this._viewport.worldWidth) / 2, (box.height - this._viewport.worldHeight) / 2);
             this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);
             /*this._viewport.moveCenter(6997.541591078397, 16317.334381731042);
             this._viewport.setZoom(1, true);*/
-
             this.render(graph);
         });
     }
@@ -148,7 +184,9 @@ export default class Renderer {
      * @param graph Graph with layout information for all nodes and edges (x, y, width, height).
      */
     render(graph: RenderGraph) {
-        _.forEach(this._getShapesForGraph(graph), (shape) => {
+        const shapes = this._getShapesForGraph(graph);
+
+        _.forEach(shapes, (shape) => {
             shape.render(this._viewport);
         });
     }

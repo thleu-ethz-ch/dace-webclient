@@ -26,9 +26,9 @@ export default class OrderRank extends Node<Graph<any, any>, Edge<any, any>>
         return groups;
     }
 
-    addGroup(group: OrderGroup): number {
+    addGroup(group: OrderGroup, id: number = null): number {
         group.rank = this;
         this.groups.push(group);
-        return this.orderGraph.addGroup(group);
+        return this.orderGraph.addGroup(group, id);
     }
 }

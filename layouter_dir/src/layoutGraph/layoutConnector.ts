@@ -6,6 +6,7 @@ import Size from "../geometry/size";
 
 export default class LayoutConnector {
     public readonly node: LayoutNode;
+    public readonly type: "IN" | "OUT";
     public readonly name: string;
     public readonly diameter: number;
 
@@ -18,8 +19,9 @@ export default class LayoutConnector {
     public readonly width;
     public readonly height;
 
-    constructor(node: LayoutNode, name: string, diameter: number) {
+    constructor(node: LayoutNode, type: "IN" | "OUT", name: string, diameter: number) {
         this.node = node;
+        this.type = type;
         this.name = name;
         this.diameter = diameter;
         this.width = diameter;

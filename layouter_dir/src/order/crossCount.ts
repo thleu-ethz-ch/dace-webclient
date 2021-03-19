@@ -17,7 +17,7 @@ export class CrossCount {
 
     static countEfficient(numNorth: number, numSouth: number, edges: Array<[number, number]>): number {
         // build south sequence
-        const southSequence = _.map(_.sortBy(edges, edge => edge[0] * numNorth + edge[1]), edge => edge[1]);
+        const southSequence = _.map(_.sortBy(edges, edge => edge[0] * numSouth + edge[1]), edge => edge[1]);
 
         // build the accumulator tree
         let firstIndex = 1;

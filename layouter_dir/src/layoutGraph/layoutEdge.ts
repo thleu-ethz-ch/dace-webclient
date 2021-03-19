@@ -8,14 +8,15 @@ import Size from "../geometry/size";
 import Vector from "../geometry/vector";
 
 export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
-    public readonly srcConnector: string;
-    public readonly dstConnector: string;
     public readonly labelSize: Size = null;
 
+    public srcConnector: string;
+    public dstConnector: string;
     public points: Array<Vector> = [];
     public labelX: number = null;
     public labelY: number = null;
     public bundle: any = null;
+    public isInverted: boolean = false;
 
     constructor(src: number, dst: number, srcConnector: string = null, dstConnector: string = null, labelSize: Size = null) {
         super(src, dst);

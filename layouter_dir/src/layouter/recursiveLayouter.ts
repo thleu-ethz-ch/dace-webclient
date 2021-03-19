@@ -7,6 +7,8 @@ export default abstract class RecursiveLayouter extends Layouter {
     doLayout(graph: LayoutGraph, withLabels: boolean = false) {
         this.setNodeSizes(graph, withLabels);
         this.layoutSizedGraph(graph, withLabels);
+        this._placeConnectorsCenter(graph);
+        this._matchEdgesToConnectors(graph);
     }
 
     setNodeSizes(graph: LayoutGraph, withLabels: boolean = false) {

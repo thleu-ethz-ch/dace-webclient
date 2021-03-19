@@ -25,7 +25,7 @@ export default abstract class Layouter {
             targetEdgeLength: 50,
             withLabels: false,
             bundle: false,
-            minimizeConnectorCrossings: true,
+            minimizeConnectorCrossings: false,
             maximizeAngles: false,
             alignInAndOut: false
         });
@@ -43,12 +43,12 @@ export default abstract class Layouter {
         }
 
         this.doLayout(layoutGraph);
-        if (this._options['minimizeConnectorCrossings']) {
+        /*if (this._options['minimizeConnectorCrossings']) {
             this._placeConnectorsHeuristically(renderGraph);
         } else {
             this._placeConnectorsCenter(layoutGraph);
             this._matchEdgesToConnectors(layoutGraph);
-        }
+        }*/
         if (this._options['maximizeAngles']) {
             this._maximizeAngles(layoutGraph);
         }
@@ -461,7 +461,7 @@ export default abstract class Layouter {
     /**
      * Places the scoped connectors in the middle and the unscoped evenly on both sides.
      */
-    private _placeConnectorsCenter(graph: LayoutGraph): void {
+    protected _placeConnectorsCenter(graph: LayoutGraph): void {
         _.forEach(graph.allNodes(), (node: LayoutNode) => {
             const inConnectorsScoped = _.filter(node.inConnectors, connector => connector.isScoped);
             const inConnectorsUnscoped = _.filter(node.inConnectors, connector => !connector.isScoped);
@@ -516,7 +516,7 @@ export default abstract class Layouter {
         });
     }
 
-    private _matchEdgesToConnectors(layoutGraph: LayoutGraph): void {
+    protected _matchEdgesToConnectors(layoutGraph: LayoutGraph): void {
         _.forEach(layoutGraph.allEdges(), (edge: LayoutEdge) => {
             if (edge.srcConnector !== null) {
                 const srcNode = <LayoutNode>edge.graph.node(edge.src);
@@ -565,6 +565,9 @@ export default abstract class Layouter {
             // add nodes and create groups for scopes (maps etc.)
             const createLayoutNode = (node: RenderNode) => {
                 const layoutNode = new LayoutNode(node.size(), node.childPadding);
+                if (node.type() === "AccessNode") {
+                    layoutNode.isAccessNode = true;
+                }
                 _.forEach(node.inConnectors, (connector: RenderConnector) => {
                     layoutNode.addConnector("IN", connector.name, connector.width);
                 });
@@ -572,7 +575,7 @@ export default abstract class Layouter {
                     layoutNode.addConnector("OUT", connector.name, connector.width);
                 });
                 node.layoutNode = layoutNode;
-                layoutNode.label = node.type() + " " + node.id; // for debugging
+                layoutNode.label = node.type() + " " + node.id + " (" + node.label() + ")"; // for debugging
                 return layoutNode;
             };
 
@@ -817,6 +820,7 @@ export default abstract class Layouter {
             _.forEach(_.concat(node.outConnectors), (connector: RenderConnector) => {
                 _.assign(connector, node.layoutNode.connector("OUT", connector.name).boundingBox());
             });
+
             delete node.layoutGraph;
             delete node.layoutNode;
         });

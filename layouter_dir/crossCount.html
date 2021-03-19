@@ -48,7 +48,27 @@
                     console.log("GPU method: " + _.sortBy(timesGpu)[numRuns / 2] + "ms");
                 });
             });*/
-            console.log(CrossCount.test());
+
+            const edges = [
+                [
+                    0,
+                    5,
+                ],
+                [
+                    1,
+                    1,
+                ],
+                [
+                    1,
+                    0,
+                ],
+                [
+                    2,
+                    6,
+                ]
+            ];
+            console.log(CrossCount.countEfficient(3, 7, edges));
+
         });
     </script>
 </head>

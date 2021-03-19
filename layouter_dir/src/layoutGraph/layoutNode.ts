@@ -11,16 +11,19 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     private readonly _inConnectors: Map<string, LayoutConnector> = new Map();
     private readonly _outConnectors: Map<string, LayoutConnector> = new Map();
 
-    public readonly inConnectors: Array<LayoutConnector> = [];
-    public readonly outConnectors: Array<LayoutConnector> = [];
+    public inConnectors: Array<LayoutConnector> = [];
+    public outConnectors: Array<LayoutConnector> = [];
 
     public x: number = null;
     public y: number = null;
     public width: number = null;
     public height: number = null;
 
-    public rank: number = 0;
+    public isAccessNode: boolean = false;
     public hasScopedConnectors: boolean = false;
+    public rank: number = null; // global rank (level) of the node
+    public index: number = 0; // index of the node, when indexes is set, it should eventually be the max index
+    public indexes: Array<number> = []; // when the node spans multiple ranks, index within each rank
 
     public readonly padding: number = 0;
 
@@ -44,7 +47,7 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     }
 
     addConnector(type: "IN" | "OUT", name: string, diameter: number) {
-        const connector = new LayoutConnector(this, name, diameter);
+        const connector = new LayoutConnector(this, type, name, diameter);
         if (type === "IN") {
             this._inConnectors.set(name, connector);
             this.inConnectors.push(connector);
@@ -113,6 +116,13 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
 
     boundingBox(): Box {
         return new Box(this.x, this.y, this.width, this.height);
+    }
+
+    updateRank(newRank: number) {
+        if (this.rank !== null && this.childGraph !== null && this.rank !== newRank) {
+            this.childGraph.updateRank(newRank);
+        }
+        this.rank = newRank;
     }
 
 }

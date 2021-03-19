@@ -93,7 +93,7 @@ export default class DagreLayouter extends RecursiveLayouter {
     graphOptions() {
         const options = {
             ranksep: this._options.targetEdgeLength,
-            nodesep: 30,
+            nodesep: this._options.targetEdgeLength,
         }
         if (this._options['withLabels']) {
             options['edgesep'] = 30;

@@ -1,6 +1,7 @@
 import * as _ from "lodash";
 import Edge from "./edge";
 import Node from "./node";
+import Component from "./component";
 
 export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any, any>> {
     public parentNode: NodeT = null;
@@ -9,6 +10,8 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
     protected _edges: Array<EdgeT>;
     protected _outEdges: Array<Array<number>>;
     protected _inEdges: Array<Array<number>>;
+
+    private _components;
 
     public constructor() {
         this._init();
@@ -29,6 +32,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         this._nodes[id] = node;
         this._outEdges[id] = [];
         this._inEdges[id] = [];
+        this._components = null;
         return id;
     }
 
@@ -41,7 +45,19 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         this._edges[id] = edge;
         this._outEdges[edge.src].push(id);
         this._inEdges[edge.dst].push(id);
+        this._components = null;
         return id;
+    }
+
+    invertEdge(edgeId: number): void {
+        const edge = this._edges[edgeId];
+        _.pull(this._outEdges[edge.src], edgeId);
+        _.pull(this._inEdges[edge.dst], edgeId);
+        const tmpSrc = edge.src;
+        edge.src = edge.dst;
+        edge.dst = tmpSrc;
+        this._outEdges[edge.src].push(edgeId);
+        this._inEdges[edge.dst].push(edgeId);
     }
 
     node(id: number): NodeT {
@@ -73,14 +89,16 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
     }
 
     removeNode(id: number): void {
-        this._nodes[id] = null;
+        this._nodes[id] = undefined;
+        this._components = null;
     }
 
     removeEdge(id: number): void {
         const edge = this.edge(id);
         _.pull(this._outEdges[edge.src], id);
         _.pull(this._inEdges[edge.dst], id);
-        this._edges[id] = null;
+        this._edges[id] = undefined;
+        this._components = null;
     }
 
     nodes(): Array<NodeT> {
@@ -197,62 +215,62 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         });
     }
 
-    /**
-     * Returns an array of graphs where each graph is one connected component.
-     * Fields of nodes and edges are cloned shallowly. IDs are preserved.
-     */
-    components(): Array<Graph<NodeT, EdgeT>> {
-        const nodes = this.nodes();
-        if (nodes.length === 0) {
-            return [];
-        }
-        const componentNumbers = _.fill(new Array(this._nodes.length), null);
-        let currentNumber = 0;
-        _.forEach(nodes, (node: NodeT) => {
-            if (componentNumbers[node.id] !== null) {
-                return;
+    components(): Array<Component<NodeT, EdgeT>> {
+        //if (this._components === null) {
+            const nodes = this.nodes();
+            if (nodes.length === 0) {
+                return [];
             }
-            componentNumbers[node.id] = currentNumber;
-            const queue = [node];
-            let queuePointer = 0;
-            while (queuePointer < queue.length) {
-                const node = queue[queuePointer++];
-                _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
-                    if (componentNumbers[edge.dst] === null) {
-                        componentNumbers[edge.dst] = currentNumber;
-                        queue.push(this.node(edge.dst));
-                    }
-                });
-                _.forEach(this.inEdges(node.id), (edge: EdgeT) => {
-                    if (componentNumbers[edge.src] === null) {
-                        componentNumbers[edge.src] = currentNumber;
-                        queue.push(this.node(edge.src));
-                    }
-                });
-            }
-            currentNumber++;
-        });
-        const components = [];
-        // create component graphs
-        for (let i = 0; i < currentNumber; ++i) {
-            components.push(this.cloneEmpty());
-        }
-        // add nodes
-        _.forEach(nodes, (node: NodeT) => {
-            const componentId = componentNumbers[node.id];
-            components[componentId].addNode(node, node.id);
-            node.graph = this;
-        });
-        // add edges
-        _.forEach(nodes, (node: NodeT) => {
-            _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
-                const componentId = componentNumbers[node.id];
-                components[componentId].addEdge(edge, edge.id);
-                edge.graph = this;
+            const componentNumbers = _.fill(new Array(this._nodes.length), null);
+            let currentNumber = 0;
+            _.forEach(nodes, (node: NodeT) => {
+                if (componentNumbers[node.id] !== null) {
+                    return;
+                }
+                componentNumbers[node.id] = currentNumber;
+                const queue = [node];
+                let queuePointer = 0;
+                while (queuePointer < queue.length) {
+                    const node = queue[queuePointer++];
+                    _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
+                        if (componentNumbers[edge.dst] === null) {
+                            componentNumbers[edge.dst] = currentNumber;
+                            queue.push(this.node(edge.dst));
+                        }
+                    });
+                    _.forEach(this.inEdges(node.id), (edge: EdgeT) => {
+                        if (componentNumbers[edge.src] === null) {
+                            componentNumbers[edge.src] = currentNumber;
+                            queue.push(this.node(edge.src));
+                        }
+                    });
+                }
+                currentNumber++;
             });
-        });
 
-        return components;
+            this._components = [];
+            // create component graphs
+            for (let i = 0; i < currentNumber; ++i) {
+                this._components.push(this._createComponent());
+            }
+            // add nodes
+            _.forEach(nodes, (node: NodeT) => {
+                const componentId = componentNumbers[node.id];
+                this._components[componentId].addNode(node.id);
+            });
+            // add edges
+            _.forEach(nodes, (node: NodeT) => {
+                _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
+                    const componentId = componentNumbers[node.id];
+                    this._components[componentId].addEdge(edge.id);
+                });
+            });
+        //}
+        return this._components;
+    }
+
+    protected _createComponent(): Component<NodeT, EdgeT> {
+        return new Component(this);
     }
 
     private _init() {
@@ -260,5 +278,6 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         this._edges = [];
         this._outEdges = [];
         this._inEdges = [];
+        this._components = null;
     }
 }
