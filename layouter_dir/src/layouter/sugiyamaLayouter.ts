@@ -414,14 +414,6 @@ export default class SugiyamaLayouter extends Layouter
                 let componentX = nextComponentX;
                 const ranks = component.ranks();
 
-                // assign minimum x to every leftmost node on a rank
-                for (let r = 0; r < ranks.length; ++r) {
-                    ranks[r][0].x = componentX;
-                    if (ranks[r][0].childGraph !== null && r === ranks[r][0].rank - component.minRank()) {
-                        assignX(ranks[r][0].childGraph, ranks[r][0].x + ranks[r][0].padding);
-                    }
-                }
-
                 // create dependency graph from left to right
                 const depGraph = new Graph<any, any>();
                 for (let r = 0; r < ranks.length; ++r) {
@@ -438,15 +430,13 @@ export default class SugiyamaLayouter extends Layouter
                 // assign minimum x to all nodes based on their left neighbor(s)
                 _.forEach(depGraph.toposort(), (depNode: Node<any, any>) => {
                     const layoutNode = subgraph.node(depNode.id);
-                    let left = 0;
+                    let left = componentX - this._options["targetEdgeLength"];
                     _.forEach(depGraph.inEdges(depNode.id), (inEdge: Edge<any, any>) => {
                         const leftNode = subgraph.node(inEdge.src);
                         Assert.assertNumber(leftNode.x, "invalid x for left node");
                         left = Math.max(left, leftNode.x + leftNode.width);
                     });
-                    if (left === 0) {
-                        return; // leftmost node already assigned
-                    }
+
                     layoutNode.x = left + this._options["targetEdgeLength"];
                     if (layoutNode.childGraph !== null) {
                         assignX(layoutNode.childGraph, layoutNode.x + layoutNode.padding);

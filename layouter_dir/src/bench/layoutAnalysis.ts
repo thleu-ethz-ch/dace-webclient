@@ -127,6 +127,9 @@ export default class LayoutAnalysis {
             const edge = this._edges[i];
             for (let j = 0; j < this._nodes.length; ++j) {
                 const node = this._nodes[j];
+                if (node.childGraph !== null && node.childGraph.entryNode !== null) {
+                    continue;
+                }
                 if (this._edgeIntersectsNode(edge, node) && !this._edgeParents.get(edge).has(node)) {
                     console.log("node overlaps edge", node, edge);
                     return false;
