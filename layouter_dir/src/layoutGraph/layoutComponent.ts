@@ -84,10 +84,7 @@ export default class LayoutComponent extends Component<LayoutNode, LayoutEdge>
         this._maxRank = Number.NEGATIVE_INFINITY;
         _.forEach(this.nodes(), node => {
             this._minRank = Math.min(this._minRank, node.rank);
-            this._maxRank = Math.max(this._maxRank, node.rank);
-            if (node.childGraph !== null) {
-                this._maxRank = Math.max(this._maxRank, node.childGraph.maxRank);
-            }
+            this._maxRank = Math.max(this._maxRank, node.rank + node.rankSpan - 1);
         });
     }
 

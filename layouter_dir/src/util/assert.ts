@@ -6,7 +6,11 @@ export default class Assert
         console.assert(!_.some(_.map(collection, predicate)), message, _.filter(collection, predicate));
     }
 
-    static assertNumber(input, message) {
+    static assertNumber(input: any, message: string) {
         console.assert(typeof input === "number" && !isNaN(input), message, input);
+    }
+
+    static assert(predicate: boolean, message: string) {
+        console.assert(predicate, message);
     }
 }

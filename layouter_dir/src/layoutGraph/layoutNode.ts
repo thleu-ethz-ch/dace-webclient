@@ -22,6 +22,7 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public isAccessNode: boolean = false;
     public hasScopedConnectors: boolean = false;
     public rank: number = null; // global rank (level) of the node
+    public rankSpan: number = 1;
     public index: number = 0; // index of the node, when indexes is set, it should eventually be the max index
     public indexes: Array<number> = []; // when the node spans multiple ranks, index within each rank
 

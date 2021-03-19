@@ -16,6 +16,7 @@ import Vector from "../geometry/vector";
 import Assert from "../util/assert";
 import Graph from "../graph/graph";
 import Node from "../graph/node";
+import * as PriorityQueue from "priorityqueuejs";
 
 export default class SugiyamaLayouter extends Layouter
 {
@@ -68,164 +69,81 @@ export default class SugiyamaLayouter extends Layouter
 
     }
 
-    private _assignRanks(graph: LayoutGraph, parentRank: number = 0): void {
-        if (graph.isRanked) {
-            return;
-        }
-        graph.minRank = parentRank;
-        graph.maxRank = parentRank;
+    private _assignRanks(graph: LayoutGraph): void {
+        Assert.assert(!graph.isRanked, "graph is ranked more than once");
+
+        graph.minRank = 0;
+        graph.maxRank = 0;
         _.forEach(graph.components(), (component: LayoutComponent) => {
-            const sources = component.sources();
-            const nodesBySource = new Array(sources.length);
-            const sourceByNode = new Array(component.maxId() + 1);
-
-            // do bfs starting from one source at a time and stopping when finding nodes already assigned by other source
-            _.forEach(sources, (source: LayoutNode, s: number) => {
-                nodesBySource[s] = [];
-                const sortedNodes = _.intersection(component.toposort(), component.bfs(source.id));
-
-                for (let n = 0; n < sortedNodes.length; ++n) {
-                    const node = sortedNodes[n];
-
-                    // calculate minimum rank based on all top neighbors
-                    let rank = parentRank;
-                    _.forEach(graph.inEdges(node.id), (inEdge: LayoutEdge) => {
-                        if (sourceByNode[inEdge.src] !== s) {
-                            return;
-                        }
-                        const neighbor = graph.node(inEdge.src);
-                        let next = neighbor.rank + 1;
-                        if (neighbor.childGraph !== null) {
-                            next += neighbor.childGraph.maxRank - neighbor.childGraph.minRank;
-                        }
-                        rank = Math.max(rank, next);
-                    });
-
-                    if (node.rank !== null) {
-                        if (node.rank < rank) {
-                            // update other sources' nodes
-                            const offset = rank - node.rank;
-                            for (let tmpS = 0; tmpS < s; ++tmpS) {
-                                _.forEach(nodesBySource[tmpS], (node: LayoutNode) => {
-                                    node.updateRank(node.rank + offset);
-                                });
-                            }
-                        } else if (node.rank > rank) {
-                            // update this source's nodes
-                            const offset = node.rank - rank;
-                            _.forEach(nodesBySource[s], (node: LayoutNode) => {
-                                node.updateRank(node.rank + offset);
-                            });
-                        }
-                        break;
-                    }
-
-                    node.rank = rank;
-                    nodesBySource[s].push(node);
-                    sourceByNode[node.id] = s;
-                    if (node.childGraph !== null) {
-                        this._assignRanks(node.childGraph, node.rank);
-                    }
+            // first determine the rank span of all nodes
+            _.forEach(component.nodes(), (node: LayoutNode) => {
+                if (node.childGraph !== null) {
+                    this._assignRanks(node.childGraph);
+                    node.rankSpan = node.childGraph.maxRank - node.childGraph.minRank + 1;
                 }
             });
 
-            if (this._options['alignInAndOut']) {
-                _.forEach(sources, (source: LayoutNode) => {
-                    if (source.isAccessNode) {
-                        source.rank = component.minRank();
-                    }
-                });
-                _.forEach(component.sinks(), (sink: LayoutNode) => {
-                    if (sink.isAccessNode) {
-                        sink.rank = component.maxRank();
-                    }
-                });
-            }
-
-            graph.maxRank = Math.max(graph.maxRank, component.maxRank());
-            graph.isRanked = true;
-        });
-    }
-
-
-    private BACKUP2_assignRanks(graph: LayoutGraph, parentRank: number = 0): void {
-        if (graph.isRanked) {
-            return;
-        }
-        graph.minRank = parentRank;
-        graph.maxRank = parentRank;
-
-        _.forEach(graph.components(), (component: LayoutComponent) => {
+            // do some modified version of dijkstra starting from one source at a time,
+            // stop at all nodes that are already ranked by a different source
+            // when no more nodes can be added in the sources subgraph, consolidate the two subgraphs
             const sources = component.sources();
-            const nodesBySource = new Array(sources.length);
             const sourceByNode = new Array(component.maxId() + 1);
+            const rankPerNode = _.fill(new Array(component.maxId() + 1), Number.NEGATIVE_INFINITY);
 
-
-            let maxRank = parentRank;
-
-            const bfs = (source: LayoutNode, s: number) => {
-                nodesBySource[s] = [];
-                const visited = _.fill(new Array(component.maxId() + 1), false);
-                const queue = [];
-                let queuePointer = 0;
-                queue.push(source);
-                while (queuePointer < queue.length) {
-                    const node = queue[queuePointer++];
-                    // calculate minimum rank based on all top neighbors
-                    let rank = parentRank;
-                    _.forEach(graph.inEdges(node.id), (inEdge: LayoutEdge) => {
-                        if (sourceByNode[inEdge.src] !== s) {
-                            return;
-                        }
-                        let neighbor = graph.node(inEdge.src);
-                        let nextRank = neighbor.rank + 1;
-                        if (neighbor.childGraph !== null) {
-                            nextRank += neighbor.childGraph.maxRank - neighbor.childGraph.minRank;
-                        }
-                        rank = Math.max(rank, nextRank);
-                    });
-
-                    if (sourceByNode[node.id] !== undefined && sourceByNode[node.id] !== s) {
-                        if (node.rank < rank) {
-                            // update other sources' nodes
-                            const offset = rank - node.rank;
-
-                            for (let tmpS = 0; tmpS < s; ++tmpS) {
-                                _.forEach(nodesBySource[tmpS], (node: LayoutNode) => {
-                                    node.updateRank(node.rank + offset);
-                                });
-                            }
-                        } else if (rank > node.rank) {
-                            // update this source's nodes
-                            const offset = node.rank - rank;
-                            _.forEach(nodesBySource[s], (node: LayoutNode) => {
-                                node.updateRank(node.rank + offset);
-                            });
-                        }
-                        break;
+            _.forEach(sources, (source: LayoutNode, s: number) => {
+                rankPerNode[source.id] = 0;
+                const nodes = [];
+                const maxDifferences = new Map();
+                const queue = new PriorityQueue((nodeA: [number, LayoutNode], nodeB: [number, LayoutNode]) => {
+                    return nodeB[0] - nodeA[0]; // compares the ranks
+                });
+                queue.enq([0, source]);
+                while (!queue.isEmpty()) {
+                    const [rank, node] = queue.deq();
+                    if (rank < rankPerNode[node.id]) {
+                        continue;
                     }
-                    node.rank = Math.max(node.rank, rank);
-                    maxRank = Math.max(maxRank, rank);
-                    if (node.childGraph !== null) {
-                        if (node.childGraph.isRanked) {
-                            node.childGraph.updateRank(rank);
-                        } else {
-                            this._assignRanks(node.childGraph, rank);
-                        }
-                        maxRank = Math.max(maxRank, rank + node.childGraph.maxRank - node.childGraph.minRank);
-                    }
-                    nodesBySource[s].push(node);
+                    nodes.push(node);
                     sourceByNode[node.id] = s;
                     _.forEach(graph.outEdges(node.id), (outEdge: LayoutEdge) => {
-                        queue.push(graph.node(outEdge.dst));
+                        const nextRank = rankPerNode[node.id] + node.rankSpan;
+                        if (sourceByNode[outEdge.dst] !== undefined && sourceByNode[outEdge.dst] !== s) {
+                            let difference = rankPerNode[outEdge.dst] - nextRank;
+                            if (maxDifferences.has(outEdge.dst)) {
+                                difference = Math.max(maxDifferences.get(outEdge.dst), difference);
+                            }
+                            maxDifferences.set(outEdge.dst, difference);
+                        } else {
+                            const neighbor = graph.node(outEdge.dst);
+                            if (nextRank > rankPerNode[neighbor.id]) {
+                                rankPerNode[neighbor.id] = nextRank;
+                                queue.enq([nextRank, neighbor]);
+                            }
+                        }
                     });
                 }
-            }
+                if (s > 0) {
+                    let minMaxDifference = Number.POSITIVE_INFINITY;
+                    maxDifferences.forEach(diff => {
+                        minMaxDifference = Math.min(minMaxDifference, diff);
+                    });
+                    _.forEach(nodes, (node: LayoutNode) => {
+                        rankPerNode[node.id] += minMaxDifference;
+                    });
+                }
+            });
 
-            // first act like every node would span just one rank
-            // do bfs starting from one source at a time and stopping when finding nodes already assigned by other source
-            _.forEach(sources, (source: LayoutNode, s: number) => {
-                bfs(source, s);
+            let minRank = Number.POSITIVE_INFINITY;
+            let maxRank = Number.NEGATIVE_INFINITY;
+            _.forEach(component.nodes(), (node: LayoutNode) => {
+                const rank = rankPerNode[node.id];
+                Assert.assertNumber(maxRank, "rank is not a valid number");
+                minRank = Math.min(minRank, rank);
+                maxRank = Math.min(maxRank, rank + node.rankSpan - 1);
+            });
+            const difference = 0 - minRank;
+            _.forEach(component.nodes(), (node) => {
+                node.rank = rankPerNode[node.id] + difference;
             });
 
             if (this._options['alignInAndOut']) {
@@ -240,76 +158,23 @@ export default class SugiyamaLayouter extends Layouter
                     }
                 });
             }
-
             graph.maxRank = Math.max(graph.maxRank, component.maxRank());
-            graph.isRanked = true;
         });
-    }
+        graph.isRanked = true;
 
-    private BACKUP_assignRanks(graph: LayoutGraph, parentRank: number = 0): void {
-        graph.minRank = parentRank;
-        graph.maxRank = parentRank;
-        _.forEach(graph.components(), (component: LayoutComponent) => {
-            let componentMaxRank = parentRank;
-            _.forEach(component.toposort(), (node: LayoutNode) => {
-                node.rank = Math.max(node.rank, parentRank);
-                let nextRank = node.rank + 1;
-                if (node.childGraph !== null) {
-                    this._assignRanks(node.childGraph, node.rank);
-                    nextRank += node.childGraph.maxRank - node.childGraph.minRank;
-                }
-                _.forEach(component.outEdges(node.id), (edge: LayoutEdge) => {
-                    const neighbor = component.node(edge.dst);
-                    neighbor.rank = Math.max(neighbor.rank, nextRank);
+        // finally, transform relative ranks to absolute
+        if (graph.parentNode === null) {
+            const transformSubgraph = (subgraph: LayoutGraph, offset: number) => {
+                subgraph.minRank += offset;
+                subgraph.maxRank += offset;
+                _.forEach(subgraph.nodes(), (node: LayoutNode) => {
+                    if (node.childGraph !== null) {
+                        transformSubgraph(node.childGraph, offset + node.rank);
+                    }
+                    node.rank += offset;
                 });
-                componentMaxRank = Math.max(componentMaxRank, nextRank - 1);
-            });
-            graph.maxRank = Math.max(graph.maxRank, componentMaxRank);
-            component.setMinRank(parentRank);
-            component.setMaxRank(componentMaxRank);
-        });
-
-        // sinks are now aligned at top
-
-        if (this._options['alignInAndOut']) {
-            // align outputs at bottom
-            _.forEach(graph.allGraphs(), (subgraph: LayoutGraph) => {
-                _.forEach(subgraph.components(), (component: LayoutComponent) => {
-                    _.forEach(component.sinks(), (sink: LayoutNode) => {
-                        let rank = component.maxRank();
-                        if (sink.childGraph !== null) {
-                            rank -= (sink.childGraph.maxRank - sink.childGraph.minRank);
-                        }
-                        subgraph.node(sink.id).rank = rank;
-                    });
-                });
-            });
-        } else {
-            // move everything down as far as possible
-            _.forEach(graph.allGraphs(), (subgraph: LayoutGraph) => {
-                _.forEach(subgraph.components(), (component: LayoutComponent) => {
-                    let minRank = _.fill(new Array(component.maxId() + 1), Number.POSITIVE_INFINITY);
-                    _.forEachRight(component.sinks(), (node: LayoutNode) => {
-                        minRank[node.id] = node.rank;
-                    });
-
-                    _.forEachRight(component.toposort(), (node: LayoutNode) => {
-                        _.forEach(component.inEdges(node.id), (edge: LayoutEdge) => {
-                            const neighbor = component.node(edge.src);
-                            let nextRank = node.rank - 1;
-                            if (neighbor.childGraph !== null) {
-                                nextRank -= (neighbor.childGraph.maxRank - neighbor.childGraph.minRank);
-                            }
-                            minRank[neighbor.id] = Math.min(minRank[neighbor.id], nextRank);
-                        });
-                    });
-                    _.forEach(component.nodes(), (node: LayoutNode) => {
-                        subgraph.node(node.id).updateRank(minRank[node.id]);
-                    });
-                    component.updateMinMaxRank();
-                });
-            });
-
+            };
+            transformSubgraph(graph, 0);
         }
     }
 

@@ -63,7 +63,7 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
         });
     }
 
-    public bfs(startId: number = null, undirected: boolean = false): Array<NodeT> {
+    public bfs(startId: number = null): Array<NodeT> {
         const nodes = this.nodes();
         if (nodes.length === 0) {
             return [];
@@ -89,14 +89,6 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
                     visited[outEdge.dst] = true;
                 }
             });
-            if (undirected) {
-                _.forEach(this.outEdges(node.id), (outEdge: EdgeT) => {
-                    if (!visited[outEdge.src]) {
-                        queue.push(this._graph.node(outEdge.dst));
-                        visited[outEdge.src] = true;
-                    }
-                });
-            }
         }
         return sortedNodes;
     }
