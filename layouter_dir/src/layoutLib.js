@@ -5,7 +5,7 @@ module.exports = {
     RenderGraph: require('./renderGraph/renderGraph').default,
     layouter: {
         DagreLayouter: require('./layouter/dagreLayouter').default,
-        DagreLayouterFast: require('./layouter/dagreLayouterFast').default,
         MagneticSpringLayouter: require('./layouter/magneticSpringLayouter').default,
+        SugiyamaLayouter: require('./layouter/sugiyamaLayouter').default,
     },
 };

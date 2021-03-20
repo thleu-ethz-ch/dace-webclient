@@ -255,7 +255,7 @@ export default class SugiyamaLayouter extends Layouter
             }
 
             // for nodes spanning multiple ranks*, insert a copy in each rank
-            // add edges with infinite weight between those copies to prevent any crossings
+            // add edges with large weight between those copies to prevent any crossings
             // *scope nodes are excluded here (see above)
             if (node.childGraph !== null) {
                 const orderNode = new OrderNode(null);
@@ -268,6 +268,7 @@ export default class SugiyamaLayouter extends Layouter
                     group.addNode(orderNode);
                     let dstId = orderNode.id;
                     orderGraph.addEdge(new Edge(srcId, dstId, 1000000));
+                    srcId = dstId;
                 }
             }
 
