@@ -44,7 +44,7 @@ export default class DagreLayouter extends RecursiveLayouter {
         });
 
         // call dagre layouter
-        dagre.layout(dagreGraph);
+        dagre.layout(dagreGraph, {debugTiming: true});
 
         // store layout information in layout graph
         _.forEach(graph.nodes(), (node: LayoutNode) => {

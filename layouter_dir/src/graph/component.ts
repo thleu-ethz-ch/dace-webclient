@@ -2,6 +2,7 @@ import Edge from "./edge";
 import Graph from "./graph";
 import Node from "./node";
 import * as _ from "lodash";
+import Assert from "../util/assert";
 
 export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<any, any>>
 {
@@ -30,7 +31,8 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
     public nodes(): Array<NodeT> {
         const nodes = [];
         _.forEach(this._nodeIds, id => {
-            nodes.push(this._graph.node(id));
+            const node = this._graph.node(id)
+            nodes.push(node);
         });
         return nodes;
     }

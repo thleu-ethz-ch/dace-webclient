@@ -2,6 +2,7 @@ import * as _ from "lodash";
 import Edge from "./edge";
 import Node from "./node";
 import Component from "./component";
+import Assert from "../util/assert";
 
 export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any, any>> {
     public parentNode: NodeT = null;
@@ -266,6 +267,15 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
                 });
             });
         //}
+
+        const nodeSet = new Set();
+        _.forEach(this._components, component => {
+            _.forEach(component.nodes(), node => {
+                Assert.assert(!nodeSet.has(node), "NODE IN MULTIPLE COMPONENTS");
+                nodeSet.add(node);
+            });
+        });
+
         return this._components;
     }
 

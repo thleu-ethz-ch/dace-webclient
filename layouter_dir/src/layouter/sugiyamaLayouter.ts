@@ -1,22 +1,20 @@
 import * as _ from "lodash";
+import Assert from "../util/assert";
+import Box from "../geometry/box";
+import Edge from "../graph/edge";
+import Graph from "../graph/graph";
 import Layouter from "./layouter";
+import LayoutConnector from "../layoutGraph/layoutConnector";
+import LayoutComponent from "../layoutGraph/layoutComponent";
+import LayoutEdge from "../layoutGraph/layoutEdge";
 import LayoutGraph from "../layoutGraph/layoutGraph";
 import LayoutNode from "../layoutGraph/layoutNode";
-import LayoutEdge from "../layoutGraph/layoutEdge";
-import OrderRank from "../order/orderRank";
-import OrderGroup from "../order/orderGroup";
-import LayoutConnector from "../layoutGraph/layoutConnector";
-import OrderNode from "../order/orderNode";
-import OrderGraph from "../order/orderGraph";
-import Edge from "../graph/edge";
-import Component from "../graph/component";
-import LayoutComponent from "../layoutGraph/layoutComponent";
-import Box from "../geometry/box";
-import Vector from "../geometry/vector";
-import Assert from "../util/assert";
-import Graph from "../graph/graph";
 import Node from "../graph/node";
-import * as PriorityQueue from "priorityqueuejs";
+import OrderGraph from "../order/orderGraph";
+import OrderGroup from "../order/orderGroup";
+import OrderNode from "../order/orderNode";
+import OrderRank from "../order/orderRank";
+import Vector from "../geometry/vector";
 
 export default class SugiyamaLayouter extends Layouter
 {
@@ -34,9 +32,7 @@ export default class SugiyamaLayouter extends Layouter
         this._addVirtualNodes(graph);
         Assert.assertNone(graph.allEdges(), edge => {
             const srcNode = edge.graph.node(edge.src)
-            let srcRank = srcNode.rank;
-            srcRank += (srcNode.childGraph !== null ? srcNode.childGraph.maxRank - srcNode.childGraph.minRank : 0)
-            return srcRank + 1 !== edge.graph.node(edge.dst).rank;
+            return srcNode.rank + srcNode.rankSpan !== edge.graph.node(edge.dst).rank;
         }, "edge not between neighboring ranks");
 
         this._orderRanks(graph);
@@ -70,8 +66,6 @@ export default class SugiyamaLayouter extends Layouter
     }
 
     private _assignRanks(graph: LayoutGraph): void {
-        Assert.assert(!graph.isRanked, "graph is ranked more than once");
-
         graph.minRank = 0;
         graph.maxRank = 0;
         _.forEach(graph.components(), (component: LayoutComponent) => {
@@ -83,67 +77,72 @@ export default class SugiyamaLayouter extends Layouter
                 }
             });
 
-            // do some modified version of dijkstra starting from one source at a time,
-            // stop at all nodes that are already ranked by a different source
-            // when no more nodes can be added in the sources subgraph, consolidate the two subgraphs
+            // do toposort and allocate each node with one of its ancestor sources
+            const rankPerNode: Array<Map<number, number>> = new Array(component.maxId() + 1);
+            for (let n = 0; n < rankPerNode.length; ++n) {
+                rankPerNode[n] = new Map();
+            }
             const sources = component.sources();
-            const sourceByNode = new Array(component.maxId() + 1);
-            const rankPerNode = _.fill(new Array(component.maxId() + 1), Number.NEGATIVE_INFINITY);
-
+            const nodesBySource = new Array(sources.length);
+            const clusterGraph = new Graph();
             _.forEach(sources, (source: LayoutNode, s: number) => {
-                rankPerNode[source.id] = 0;
-                const nodes = [];
-                const maxDifferences = new Map();
-                const queue = new PriorityQueue((nodeA: [number, LayoutNode], nodeB: [number, LayoutNode]) => {
-                    return nodeB[0] - nodeA[0]; // compares the ranks
-                });
-                queue.enq([0, source]);
-                while (!queue.isEmpty()) {
-                    const [rank, node] = queue.deq();
-                    if (rank < rankPerNode[node.id]) {
-                        continue;
-                    }
-                    nodes.push(node);
-                    sourceByNode[node.id] = s;
-                    _.forEach(graph.outEdges(node.id), (outEdge: LayoutEdge) => {
-                        const nextRank = rankPerNode[node.id] + node.rankSpan;
-                        if (sourceByNode[outEdge.dst] !== undefined && sourceByNode[outEdge.dst] !== s) {
-                            let difference = rankPerNode[outEdge.dst] - nextRank;
-                            if (maxDifferences.has(outEdge.dst)) {
-                                difference = Math.max(maxDifferences.get(outEdge.dst), difference);
-                            }
-                            maxDifferences.set(outEdge.dst, difference);
-                        } else {
-                            const neighbor = graph.node(outEdge.dst);
-                            if (nextRank > rankPerNode[neighbor.id]) {
-                                rankPerNode[neighbor.id] = nextRank;
-                                queue.enq([nextRank, neighbor]);
-                            }
-                        }
-                    });
-                }
-                if (s > 0) {
-                    let minMaxDifference = Number.POSITIVE_INFINITY;
-                    maxDifferences.forEach(diff => {
-                        minMaxDifference = Math.min(minMaxDifference, diff);
-                    });
-                    _.forEach(nodes, (node: LayoutNode) => {
-                        rankPerNode[node.id] += minMaxDifference;
-                    });
-                }
+                nodesBySource[s] = [];
+                rankPerNode[source.id].set(s, 0);
+                clusterGraph.addNode(new Node(), s);
             });
+            _.forEach(component.toposort(), (node) => {
+                let s = null;
+                const sourceRankPairs = [];
+                rankPerNode[node.id].forEach((rankI, sI) => {
+                    sourceRankPairs.push([sI, rankI]);
+                });
+                _.forEach(_.sortBy(sourceRankPairs, "0"), ([sI, rankI]) => {
+                    if (s === null) {
+                        s = sI;
+                        nodesBySource[s].push(node);
+                        node.rank = rankI;
+                    } else {
+                        const weight = node.rank - rankI;
+                        clusterGraph.addEdge(new Edge(s, sI, weight));
+                    }
+                });
+                let nextRank = node.rank + node.rankSpan;
+                _.forEach(graph.outEdges(node.id), (outEdge: LayoutEdge) => {
+                    if (rankPerNode[outEdge.dst].has(s)) {
+                        nextRank = Math.max(nextRank, rankPerNode[outEdge.dst].get(s));
+                    }
+                    rankPerNode[outEdge.dst].set(s, nextRank);
+                });
+            });
+
+            // do toposort on cluster graph to merge clusters
+            const clusterSources = clusterGraph.sources();
+            Assert.assert(clusterSources.length === 1, "more than one cluster sources");
+            const minDifferenceBySource = _.fill(new Array(sources.length), Number.POSITIVE_INFINITY);
+            minDifferenceBySource[clusterSources[0].id] = 0;
+            _.forEach(clusterGraph.toposort(), (clusterNode: Node<any, any>) => {
+                const diff = minDifferenceBySource[clusterNode.id];
+                _.forEach(clusterGraph.outEdges(clusterNode.id), (outEdge: Edge<any, any>) => {
+                    minDifferenceBySource[outEdge.dst] = Math.min(minDifferenceBySource[outEdge.dst], diff + outEdge.weight);
+                });
+            });
+
+            for (let s = 0; s < sources.length; ++s) {
+                _.forEach(nodesBySource[s], (node: LayoutNode) => {
+                    node.rank += minDifferenceBySource[s];
+                });
+            }
 
             let minRank = Number.POSITIVE_INFINITY;
             let maxRank = Number.NEGATIVE_INFINITY;
             _.forEach(component.nodes(), (node: LayoutNode) => {
-                const rank = rankPerNode[node.id];
-                Assert.assertNumber(maxRank, "rank is not a valid number");
-                minRank = Math.min(minRank, rank);
-                maxRank = Math.min(maxRank, rank + node.rankSpan - 1);
+                Assert.assertNumber(node.rank, "rank is not a valid number");
+                minRank = Math.min(minRank, node.rank);
+                maxRank = Math.min(maxRank, node.rank + node.rankSpan - 1);
             });
             const difference = 0 - minRank;
             _.forEach(component.nodes(), (node) => {
-                node.rank = rankPerNode[node.id] + difference;
+                node.rank += difference;
             });
 
             if (this._options['alignInAndOut']) {
@@ -160,7 +159,6 @@ export default class SugiyamaLayouter extends Layouter
             }
             graph.maxRank = Math.max(graph.maxRank, component.maxRank());
         });
-        graph.isRanked = true;
 
         // finally, transform relative ranks to absolute
         if (graph.parentNode === null) {
@@ -191,7 +189,7 @@ export default class SugiyamaLayouter extends Layouter
                 let tmpDstId;
                 const dstConnector = edge.dstConnector;
                 for (let tmpDstRank = srcRank + 1; tmpDstRank < dstNode.rank; ++tmpDstRank) {
-                    const newNode = new LayoutNode({width: 0, height: 0});
+                    const newNode = new LayoutNode({width: 0, height: 0}, 0, true);
                     newNode.rank = tmpDstRank;
                     newNode.label = "virtual";
                     tmpDstId = edge.graph.addNode(newNode);
@@ -211,10 +209,10 @@ export default class SugiyamaLayouter extends Layouter
             }
         });
 
-        // add a virtual node in every child graph
+        // add a virtual node in every empty child graph
         _.forEach(graph.allGraphs(), (subgraph: LayoutGraph) => {
             if (subgraph.nodes().length === 0) {
-                const newNode = new LayoutNode({width: 0, height: 0});
+                const newNode = new LayoutNode({width: 0, height: 0}, 0, true);
                 newNode.rank = subgraph.minRank;
                 newNode.label = "virtual";
                 subgraph.addNode(newNode);
@@ -326,7 +324,6 @@ export default class SugiyamaLayouter extends Layouter
             } else {
                 layoutNode.index = orderGroup.position;
             }
-            //console.log("index/indexes", layoutNode.rank, layoutNode.label, layoutNode.index, layoutNode.indexes);
             const connectors = {"IN": [], "OUT": []};
             _.forEach(orderGroup.orderedNodes(), (orderNode: OrderNode) => {
                 if (orderNode.reference !== null) {
@@ -394,6 +391,16 @@ export default class SugiyamaLayouter extends Layouter
             rankTops[r + 1] = maxBottom + this._options["targetEdgeLength"];
         }
 
+
+        const nodes = new Set();
+        _.forEach(graph.allGraphs(), (subgraph: LayoutGraph) => {
+            _.forEach(subgraph.nodes, (node: LayoutNode) => {
+                Assert.assert(!nodes.has(node), "node in more than one graphs");
+                nodes.add(node);
+            });
+        });
+
+
         // 2. assign x and set size
 
         /**
@@ -401,14 +408,8 @@ export default class SugiyamaLayouter extends Layouter
          * @param subgraph
          * @param offset
          */
-        const assignedSubgraphs = new Set();
         const assignX = (subgraph: LayoutGraph, offset: number) => {
-            if (assignedSubgraphs.has(subgraph)) {
-                return;
-            }
-            assignedSubgraphs.add(subgraph);
             // place components next to each other
-            //console.log("offset", offset);
             let nextComponentX = offset;
             _.forEach(subgraph.components(), (component: LayoutComponent) => {
                 let componentX = nextComponentX;
@@ -449,80 +450,79 @@ export default class SugiyamaLayouter extends Layouter
                         return;
                     }
                     const lastNode = _.last(rank);
-                    //console.log("lastNode", lastNode);
                     nextComponentX = Math.max(nextComponentX, lastNode.x + lastNode.width + this._options["targetEdgeLength"]);
                 });
+            });
+            // assign edges
+            _.forEach(subgraph.edges(), (edge: LayoutEdge) => {
+                const startNode = subgraph.node(edge.src);
+                if (startNode.isVirtual) {
+                    // do not assign points to this edge
+                    return;
+                }
 
-                // assign edges
-                _.forEach(subgraph.edges(), (edge: LayoutEdge) => {
-                    const startNode = subgraph.node(edge.src);
-                    if (startNode.width === 0) {
-                        // start node is virtual, do not assign points to this edge
-                        return;
-                    }
+                const startPos = startNode.boundingBox().bottomCenter();
+                edge.points = [startPos];
 
-                    const startPos = startNode.boundingBox().bottomCenter();
-                    edge.points = [startPos];
+                let startRank = startNode.rank;
+                if (startNode.childGraph !== null) {
+                    startRank += startNode.childGraph.maxRank - startNode.childGraph.minRank;
+                }
+                const startBottom = rankBottoms[startRank];
+                if (startBottom > startPos.y) {
+                    edge.points.push(new Vector(startPos.x, startBottom))
+                }
 
-                    let startRank = startNode.rank;
-                    if (startNode.childGraph !== null) {
-                        startRank += startNode.childGraph.maxRank - startNode.childGraph.minRank;
+                let nextNode = subgraph.node(edge.dst);
+                let tmpEdge = null;
+                while (nextNode.isVirtual) {
+                    const nextPos = nextNode.position();
+                    const nextTop = rankTops[nextNode.rank];
+                    if (nextTop < nextPos.y) {
+                        edge.points.push(new Vector(nextPos.x, nextTop)); // add point above
                     }
-                    const startBottom = rankBottoms[startRank];
-                    if (startBottom > startPos.y) {
-                        edge.points.push(new Vector(startPos.x, startBottom))
-                    }
-
-                    let nextNode = subgraph.node(edge.dst);
-                    let tmpEdge = null;
-                    while (nextNode.width === 0) {
-                        const nextPos = nextNode.position();
-                        const nextTop = rankTops[nextNode.rank];
-                        if (nextTop < nextPos.y) {
-                            edge.points.push(new Vector(nextPos.x, nextTop)); // add point above
-                        }
-                        edge.points.push(nextPos);
-                        edge.points.push(new Vector(nextPos.x, rankBottoms[nextNode.rank])); // add point below
-                        tmpEdge = subgraph.outEdges(nextNode.id)[0];
-                        nextNode = subgraph.node(tmpEdge.dst);
-                    }
-                    const endPos = nextNode.boundingBox().topCenter();
-                    const endTop = rankTops[nextNode.rank];
-                    if (endTop < endPos.y) {
-                        edge.points.push(new Vector(endPos.x, endTop));
-                    }
-                    edge.points.push(endPos);
-                    if (tmpEdge !== null) {
-                        edge.graph.removeEdge(edge.id);
-                        edge.dst = tmpEdge.dst;
-                        edge.dstConnector = tmpEdge.dstConnector;
-                        edge.graph.addEdge(edge, edge.id);
-                    }
-                });
-                // remove virtual nodes and edges
-                _.forEach(subgraph.nodes(), (node: LayoutNode) => {
-                    if (node.width === 0) {
-                        _.forEach(subgraph.inEdges(node.id), (inEdge) => {
-                            subgraph.removeEdge(inEdge.id);
-                        });
-                        _.forEach(subgraph.outEdges(node.id), (outEdge) => {
-                            subgraph.removeEdge(outEdge.id);
-                        });
-                        subgraph.removeNode(node.id);
-                    }
-                });
-
-                // set parent bounding box
-                if (subgraph.parentNode !== null) {
-                    const boundingBox = subgraph.boundingBox();
-                    subgraph.parentNode.setSize({width: boundingBox.width + 2 * subgraph.parentNode.padding, height: boundingBox.height + 2 * subgraph.parentNode.padding});
-                    console.assert(subgraph.parentNode.width >= 0 && subgraph.parentNode.height >= 0, "node has invalid size", subgraph.parentNode);
-                    if (subgraph.entryNode !== null) {
-                        subgraph.entryNode.setWidth(boundingBox.width);
-                        subgraph.exitNode.setWidth(boundingBox.width);
-                    }
+                    edge.points.push(nextPos);
+                    edge.points.push(new Vector(nextPos.x, rankBottoms[nextNode.rank])); // add point below
+                    tmpEdge = subgraph.outEdges(nextNode.id)[0];
+                    nextNode = subgraph.node(tmpEdge.dst);
+                }
+                const endPos = nextNode.boundingBox().topCenter();
+                const endTop = rankTops[nextNode.rank];
+                if (endTop < endPos.y) {
+                    edge.points.push(new Vector(endPos.x, endTop));
+                }
+                edge.points.push(endPos);
+                if (tmpEdge !== null) {
+                    edge.graph.removeEdge(edge.id);
+                    edge.dst = tmpEdge.dst;
+                    edge.dstConnector = tmpEdge.dstConnector;
+                    edge.graph.addEdge(edge, edge.id);
                 }
             });
+
+            // remove virtual nodes and edges
+            _.forEach(subgraph.nodes(), (node: LayoutNode) => {
+                if (node.isVirtual) {
+                    _.forEach(subgraph.inEdges(node.id), (inEdge) => {
+                        subgraph.removeEdge(inEdge.id);
+                    });
+                    _.forEach(subgraph.outEdges(node.id), (outEdge) => {
+                        subgraph.removeEdge(outEdge.id);
+                    });
+                    subgraph.removeNode(node.id);
+                }
+            });
+
+            // set parent bounding box
+            if (subgraph.parentNode !== null) {
+                const boundingBox = subgraph.boundingBox();
+                subgraph.parentNode.setSize({width: boundingBox.width + 2 * subgraph.parentNode.padding, height: boundingBox.height + 2 * subgraph.parentNode.padding});
+                console.assert(subgraph.parentNode.width >= 0 && subgraph.parentNode.height >= 0, "node has invalid size", subgraph.parentNode);
+                if (subgraph.entryNode !== null) {
+                    subgraph.entryNode.setWidth(boundingBox.width);
+                    subgraph.exitNode.setWidth(boundingBox.width);
+                }
+            }
         };
         assignX(graph, 0);
     }

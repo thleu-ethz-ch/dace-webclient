@@ -99,11 +99,9 @@ export default class OrderGraph {
 
     public order(): void {
         const doOrder = (graph: OrderGraph, downward: boolean = true) => {
-            /*console.log();
             console.log();
             console.log();
-            console.log();
-            console.log("ORDERING");*/
+            console.log("ORDERING");
 
             const ranks = graph._rankGraph.toposort();
             const groupOffsets = []; // number of nodes in groups left of this group by group id
@@ -124,11 +122,6 @@ export default class OrderGraph {
             _.forEach(graph._groupGraph.nodes(), (group: OrderGroup) => {
                 _.forEach(group.nodes, (node: OrderNode, nodeIndex) => {
                     nodeIndexes[node.id] = groupOffsets[group.id] + nodeIndex;
-                    try {
-                        //console.log(node.reference.reference.rank, node.reference.reference.label, groupOffsets[group.id] + nodeIndex);
-                    } catch (e) {
-
-                    }
                 });
             });
             const groupOffset = []; // number of nodes in groups left of this group by rank
@@ -181,7 +174,7 @@ export default class OrderGraph {
 
             let improved = ranks.length > 1 ? 2 : 0; // if only one rank, nothing to order
             while (improved > 0) {
-                //console.log("TOTAL CROSSINGS", _.sum(crossings));
+                console.log("TOTAL CROSSINGS", _.sum(crossings));
                 improved--;
                 let firstRank = downward ? 1 : ranks.length - 2;
                 let lastRank = downward ? ranks.length - 1 : 0;

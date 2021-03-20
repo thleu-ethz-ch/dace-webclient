@@ -27,16 +27,18 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public indexes: Array<number> = []; // when the node spans multiple ranks, index within each rank
 
     public readonly padding: number = 0;
+    public readonly isVirtual: boolean = false;
 
     public label;
 
-    constructor(size: Size = null, padding: number = 0) {
+    constructor(size: Size = null, padding: number = 0, isVirtual: boolean = false) {
         super();
         if (size !== null) {
             this.width = size.width;
             this.height = size.height;
         }
         this.padding = padding;
+        this.isVirtual = isVirtual;
     }
 
     connector(type: "IN" | "OUT", name: string): LayoutConnector {

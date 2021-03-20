@@ -12,38 +12,30 @@ export default class LayoutComponent extends Component<LayoutNode, LayoutEdge>
     private _ranks: Array<Array<LayoutNode>> = null;
 
     public minRank(): number {
-        //if (this._minRank === null) {
+        if (this._minRank === null) {
             this.updateMinMaxRank();
-        //}
+        }
         return this._minRank;
     }
 
     public maxRank(): number {
-        //if (this._maxRank === null) {
+        if (this._maxRank === null) {
             this.updateMinMaxRank();
-        //}
+        }
         return this._maxRank;
     }
 
-    public setMinRank(minRank: number) {
-        this._minRank = minRank;
-    }
-
-    public setMaxRank(maxRank: number) {
-        this._maxRank = maxRank;
-    }
-
     public minIndex(): number {
-        //if (this._minIndex === null) {
+        if (this._minIndex === null) {
             this._updateMinMaxIndex();
-        //}
+        }
         return this._minIndex;
     }
 
     public maxIndex(): number {
-        //if (this._minIndex === null) {
+        if (this._minIndex === null) {
             this._updateMinMaxIndex();
-        //}
+        }
         return this._maxIndex;
     }
 

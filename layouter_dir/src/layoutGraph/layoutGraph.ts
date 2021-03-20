@@ -11,8 +11,6 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
     public entryNode: LayoutNode = null;
     public exitNode: LayoutNode = null;
 
-    public isRanked: boolean = false;
-
     public minRank = 0;
     public maxRank = 0;
 

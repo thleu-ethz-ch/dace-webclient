@@ -603,7 +603,7 @@ export default abstract class Layouter {
                     node.layoutNode = entryNode;
                     scopeGraph.entryNode = entryNode;
                     layoutChildren.set(scopeNode, []);
-                    scopeNode.label = "Map"; // for debugging
+                    scopeNode.label = "Map with entry " + entryNode.label; // for debugging
                 }
             });
 
