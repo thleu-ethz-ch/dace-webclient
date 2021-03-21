@@ -199,7 +199,7 @@ export default class OrderGraph {
 
             // count initial crossings
             for (let r = 1; r < ranks.length; ++r) {
-                crossings[r] = countCrossings(order[r], r, "UP");
+                //crossings[r] = countCrossings(order[r], r, "UP");
             }
 
             /*console.log("groupOffset", _.cloneDeep(groupOffset));
