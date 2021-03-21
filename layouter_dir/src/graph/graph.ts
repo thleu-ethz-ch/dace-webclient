@@ -215,7 +215,6 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
 
             if (remainingNodes.size > 0) {
                 const nextNodeId = remainingNodes.values().next().value;
-                console.log(nextNodeId)
                 const nextNode = this.node(nextNodeId); // first remaining node
                 _.forEach(this.inEdges(nextNode.id), (inEdge: EdgeT) => {
                     this.invertEdge(inEdge.id);
