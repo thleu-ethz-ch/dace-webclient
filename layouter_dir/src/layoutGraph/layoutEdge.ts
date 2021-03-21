@@ -16,7 +16,6 @@ export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
     public labelX: number = null;
     public labelY: number = null;
     public bundle: any = null;
-    public isInverted: boolean = false;
 
     constructor(src: number, dst: number, srcConnector: string = null, dstConnector: string = null, labelSize: Size = null) {
         super(src, dst);

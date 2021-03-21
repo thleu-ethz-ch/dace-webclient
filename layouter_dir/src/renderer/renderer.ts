@@ -170,7 +170,7 @@ export default class Renderer {
             // center and fit the graph in the viewport
             const box = graph.boundingBox();
             console.log("Total size: " + box.width.toFixed(0) +  "x" + box.height.toFixed(0));
-            console.log("Segment crossigns: " + layoutAnalysis.segmentCrossings());
+            console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
             this._viewport.moveCorner((box.width - this._viewport.worldWidth) / 2, (box.height - this._viewport.worldHeight) / 2);
             this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);

@@ -149,6 +149,7 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
                 }
             });
         }
+        Assert.assert(this._nodeIds.length === sortedNodes.length, "toposort does not return all nodes");
         return sortedNodes;
     }
 

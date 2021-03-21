@@ -210,7 +210,7 @@ export default class OrderGraph {
             console.log("crossings", _.cloneDeep(crossings));*/
 
             let improved = ranks.length > 1 ? 2 : 0; // if only one rank, nothing to order
-            while (improved) {
+            while (improved > 0) {
                 improved--;
                 //console.log("TOTAL CROSSINGS", _.sum(crossings));
                 let firstRank = downward ? 1 : ranks.length - 2;

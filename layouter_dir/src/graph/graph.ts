@@ -3,6 +3,7 @@ import Edge from "./edge";
 import Node from "./node";
 import Component from "./component";
 import Assert from "../util/assert";
+import LayoutNode from "../layoutGraph/layoutNode";
 
 export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any, any>> {
     public parentNode: NodeT = null;
@@ -176,17 +177,69 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         this._init();
     }
 
+    hasCycle(): boolean {
+        return (this.toposort().length < this.nodes().length);
+    }
+
+    removeCycles(): Array<EdgeT> {
+        const invertedEdges = [];
+        const remainingNodes = new Set();
+        const predecessors = new Array(this._nodes.length);
+        const queue = [];
+        let queuePointer = 0;
+        _.forEach(this._nodes, (node: NodeT) => {
+            if (node === undefined) {
+                return; // skip removed nodes
+            }
+            const numInEdges = this.inEdges(node.id).length;
+            predecessors[node.id] = numInEdges;
+            if (numInEdges === 0) {
+                queue.push(node);
+            } else {
+                remainingNodes.add(node.id);
+            }
+        });
+        while (remainingNodes.size > 0) {
+            // toposort
+            while (queuePointer < queue.length) {
+                const node = queue[queuePointer++];
+                _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
+                    predecessors[edge.dst]--;
+                    if (predecessors[edge.dst] === 0) {
+                        queue.push(this.node(edge.dst));
+                    }
+                });
+            }
+
+            // no nodes without in-edges => either finished or halting before cycle
+
+            if (remainingNodes.size > 0) {
+                const nextNodeId = remainingNodes.values().next().value;
+                console.log(nextNodeId)
+                const nextNode = this.node(nextNodeId); // first remaining node
+                _.forEach(this.inEdges(nextNode.id), (inEdge: EdgeT) => {
+                    this.invertEdge(inEdge.id);
+                    invertedEdges.push(this._edges[inEdge.id]);
+                });
+                remainingNodes.delete(nextNode.id);
+                queue.push(nextNode);
+            }
+        }
+
+        return invertedEdges;
+    }
+
     toposort(): Array<NodeT> {
         const sortedNodes = [];
         const predecessors = new Array(this._nodes.length);
         const queue = [];
         let queuePointer = 0;
-        _.forEach(this._nodes, (node: NodeT, i: number) => {
+        _.forEach(this._nodes, (node: NodeT) => {
             if (node === undefined) {
                 return; // skip deleted nodes
             }
             const numInEdges = this.inEdges(node.id).length;
-            predecessors[i] = numInEdges;
+            predecessors[node.id] = numInEdges;
             if (numInEdges === 0) {
                 queue.push(node);
             }
@@ -250,7 +303,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
             });
 
             this._components = [];
-            // create component graphs
+            // create components
             for (let i = 0; i < currentNumber; ++i) {
                 this._components.push(this._createComponent());
             }
@@ -271,7 +324,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         const nodeSet = new Set();
         _.forEach(this._components, component => {
             _.forEach(component.nodes(), node => {
-                Assert.assert(!nodeSet.has(node), "NODE IN MULTIPLE COMPONENTS");
+                Assert.assert(!nodeSet.has(node), "NODE IN MULTIPLE COMPONENTS", this._components);
                 nodeSet.add(node);
             });
         });
