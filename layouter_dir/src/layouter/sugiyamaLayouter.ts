@@ -45,8 +45,6 @@ export default class SugiyamaLayouter extends Layouter
         Assert.assertNone(graph.allNodes(), node => typeof node.y !== "number" || isNaN(node.y), "invalid y assignment");
         Assert.assertNone(graph.allNodes(), node => typeof node.x !== "number" || isNaN(node.x), "invalid x assignment");
 
-        this._placeConnectors(graph);
-        this._matchEdgesToConnectors(graph);
         this._restoreCycles(graph);
     }
 
@@ -231,6 +229,10 @@ export default class SugiyamaLayouter extends Layouter
         const generalInMap = new Map();
         const generalOutMap = new Map();
 
+        // 1. order nodes
+
+
+
         // add nodes
         const asdf = true;
         if (asdf) {
@@ -368,9 +370,7 @@ export default class SugiyamaLayouter extends Layouter
             } else {
                 dstOrderNodeId = generalInMap.get(dstNode);
             }
-            //let weight = srcNode.graph.entryNode !== null ? 1000 : 1;
-            let weight = 1;
-            orderGraph.addEdge(new Edge(srcOrderNodeId, dstOrderNodeId, weight));
+            orderGraph.addEdge(new Edge(srcOrderNodeId, dstOrderNodeId, 1));
         });
 
         // order
@@ -430,6 +430,13 @@ export default class SugiyamaLayouter extends Layouter
         assignScopeIndexes(graph);
     }
 
+    /**
+     * Assigns coordinates to the nodes, the connectors and the edges.
+     * @param graph
+     * @param offsetX
+     * @param offsetY
+     * @private
+     */
     private _assignCoordinates(graph: LayoutGraph, offsetX: number = 0, offsetY: number = 0) {
         // 1. assign y
         const rankTops = _.fill(new Array(graph.maxRank + 2), Number.POSITIVE_INFINITY);
@@ -459,7 +466,7 @@ export default class SugiyamaLayouter extends Layouter
             rankTops[r + 1] = maxBottom + this._options["targetEdgeLength"];
         }
 
-        // 2. assign x and set size
+        // 2. assign x and set size; assign edge and connector coordinates
 
         /**
          * Also handles edges completely.
@@ -501,6 +508,7 @@ export default class SugiyamaLayouter extends Layouter
                     if (layoutNode.childGraph !== null) {
                         assignX(layoutNode.childGraph, layoutNode.x + layoutNode.padding);
                     }
+                    this._placeConnectors(layoutNode);
                 });
 
                 // find x for next component
@@ -520,7 +528,19 @@ export default class SugiyamaLayouter extends Layouter
                     return;
                 }
 
-                const startPos = startNode.boundingBox().bottomCenter();
+                let startPos = startNode.boundingBox().bottomCenter();
+                if (edge.srcConnector !== null) {
+                    let srcConnector = startNode.connector("OUT", edge.srcConnector);
+                    if (srcConnector === undefined && startNode.childGraph !== null) {
+                        const childGraph = <LayoutGraph>startNode.childGraph;
+                        if (childGraph.exitNode !== null) {
+                            srcConnector = childGraph.exitNode.connector("OUT", edge.srcConnector);
+                        }
+                    }
+                    if (srcConnector !== undefined) {
+                        startPos = srcConnector.position().add(new Vector(srcConnector.diameter / 2, srcConnector.diameter));
+                    }
+                }
                 edge.points = [startPos];
 
                 let startRank = startNode.rank;
@@ -545,7 +565,20 @@ export default class SugiyamaLayouter extends Layouter
                     tmpEdge = subgraph.outEdges(nextNode.id)[0];
                     nextNode = subgraph.node(tmpEdge.dst);
                 }
-                const endPos = nextNode.boundingBox().topCenter();
+
+                let endPos = nextNode.boundingBox().topCenter();
+                if (edge.dstConnector !== null) {
+                    let dstConnector = nextNode.connector("IN", edge.dstConnector);
+                    if (dstConnector === undefined && nextNode.childGraph !== null) {
+                        const childGraph = <LayoutGraph>nextNode.childGraph;
+                        if (childGraph.entryNode !== null) {
+                            dstConnector = childGraph.entryNode.connector("IN", edge.dstConnector);
+                        }
+                    }
+                    if (dstConnector !== undefined) {
+                        endPos = dstConnector.position().add(new Vector(dstConnector.diameter / 2, 0));
+                    }
+                }
                 const endTop = rankTops[nextNode.rank];
                 if (endTop < endPos.y) {
                     edge.points.push(new Vector(endPos.x, endTop));
@@ -597,95 +630,93 @@ export default class SugiyamaLayouter extends Layouter
         });
     }
 
-    private _placeConnectors(graph: LayoutGraph) {
+    private _placeConnectors(node: LayoutNode) {
         const SPACE = this._options['connectorSpacing'];
-        _.forEach(graph.allNodes(), (node: LayoutNode) => {
-            let tmpInConnectors = [];
-            let tmpOutConnectors = [];
-            const firstConnector = node.inConnectors[0] || node.outConnectors[0];
-            if (!firstConnector) {
-                return; // no connectors
-            }
-            const CW = firstConnector.width;
-            const inY = node.y - CW / 2;
-            const outY = node.y + node.height - CW / 2;
-            let inPointer = 0;
-            let outPointer = 0;
-            let x = node.x;
+        let tmpInConnectors = [];
+        let tmpOutConnectors = [];
+        const firstConnector = node.inConnectors[0] || node.outConnectors[0];
+        if (!firstConnector) {
+            return; // no connectors
+        }
+        const CW = firstConnector.width;
+        const inY = node.y - CW / 2;
+        const outY = node.y + node.height - CW / 2;
+        let inPointer = 0;
+        let outPointer = 0;
+        let x = node.x;
 
-            const placeTmpConnectors = (x, tmpInConnectors: Array<LayoutConnector>, tmpOutConnectors: Array<LayoutConnector>) => {
-                let length = Math.max(tmpInConnectors.length, tmpOutConnectors.length) * (CW + SPACE) - SPACE;
-                let inSpace = SPACE;
-                let inOffset = 0;
-                if (tmpInConnectors.length < tmpOutConnectors.length) {
-                    inSpace = (length - (tmpInConnectors.length * CW)) / (tmpInConnectors.length + 1);
-                    inOffset = inSpace;
-                }
-                let outSpace = SPACE;
-                let outOffset = 0;
-                if (tmpOutConnectors.length < tmpInConnectors.length) {
-                    outSpace = (length - (tmpOutConnectors.length * CW)) / (tmpOutConnectors.length + 1);
-                    outOffset = outSpace;
-                }
-                _.forEach(tmpInConnectors, (connector, i) => {
-                    connector.x = x + inOffset + i * (inSpace + CW);
-                    connector.y = inY;
-                });
-                _.forEach(tmpOutConnectors, (connector, i) => {
-                    connector.x = x + outOffset + i * (outSpace + CW);
-                    connector.y = outY;
-                });
-                return x + length + SPACE;
+        const placeTmpConnectors = (x, tmpInConnectors: Array<LayoutConnector>, tmpOutConnectors: Array<LayoutConnector>) => {
+            let length = Math.max(tmpInConnectors.length, tmpOutConnectors.length) * (CW + SPACE) - SPACE;
+            let inSpace = SPACE;
+            let inOffset = 0;
+            if (tmpInConnectors.length < tmpOutConnectors.length) {
+                inSpace = (length - (tmpInConnectors.length * CW)) / (tmpInConnectors.length + 1);
+                inOffset = inSpace;
             }
+            let outSpace = SPACE;
+            let outOffset = 0;
+            if (tmpOutConnectors.length < tmpInConnectors.length) {
+                outSpace = (length - (tmpOutConnectors.length * CW)) / (tmpOutConnectors.length + 1);
+                outOffset = outSpace;
+            }
+            _.forEach(tmpInConnectors, (connector, i) => {
+                connector.x = x + inOffset + i * (inSpace + CW);
+                connector.y = inY;
+            });
+            _.forEach(tmpOutConnectors, (connector, i) => {
+                connector.x = x + outOffset + i * (outSpace + CW);
+                connector.y = outY;
+            });
+            return x + length + SPACE;
+        }
 
-            while (inPointer < node.inConnectors.length || outPointer < node.outConnectors.length) {
-                if (inPointer === node.inConnectors.length) {
-                    tmpOutConnectors.push(node.outConnectors[outPointer++]);
-                } else if(outPointer === node.outConnectors.length) {
-                    tmpInConnectors.push(node.inConnectors[inPointer++]);
-                } else {
-                    let scoped = false;
-                    if (node.inConnectors[inPointer].isScoped) {
-                        scoped = true;
-                        while (!node.outConnectors[outPointer].isScoped) {
-                            tmpOutConnectors.push(node.outConnectors[outPointer++]);
-                        }
-                    } else if (node.outConnectors[outPointer].isScoped) {
-                        scoped = true;
-                        while (!node.inConnectors[inPointer].isScoped) {
-                            tmpInConnectors.push(node.inConnectors[inPointer++]);
-                        }
-                    } else {
-                        tmpInConnectors.push(node.inConnectors[inPointer++]);
+        while (inPointer < node.inConnectors.length || outPointer < node.outConnectors.length) {
+            if (inPointer === node.inConnectors.length) {
+                tmpOutConnectors.push(node.outConnectors[outPointer++]);
+            } else if(outPointer === node.outConnectors.length) {
+                tmpInConnectors.push(node.inConnectors[inPointer++]);
+            } else {
+                let scoped = false;
+                if (node.inConnectors[inPointer].isScoped) {
+                    scoped = true;
+                    while (!node.outConnectors[outPointer].isScoped) {
                         tmpOutConnectors.push(node.outConnectors[outPointer++]);
                     }
-                    if (scoped) {
-                        x = placeTmpConnectors(x, tmpInConnectors, tmpOutConnectors);
-                        let scopedConnectorIn = node.inConnectors[inPointer++];
-                        scopedConnectorIn.x = x;
-                        scopedConnectorIn.y = inY;
-                        let scopedConnectorOut = node.outConnectors[outPointer++];
-                        scopedConnectorOut.x = x;
-                        scopedConnectorOut.y = outY;
-                        x += CW + SPACE;
-                        tmpInConnectors = [];
-                        tmpOutConnectors = [];
+                } else if (node.outConnectors[outPointer].isScoped) {
+                    scoped = true;
+                    while (!node.inConnectors[inPointer].isScoped) {
+                        tmpInConnectors.push(node.inConnectors[inPointer++]);
                     }
+                } else {
+                    tmpInConnectors.push(node.inConnectors[inPointer++]);
+                    tmpOutConnectors.push(node.outConnectors[outPointer++]);
+                }
+                if (scoped) {
+                    x = placeTmpConnectors(x, tmpInConnectors, tmpOutConnectors);
+                    let scopedConnectorIn = node.inConnectors[inPointer++];
+                    scopedConnectorIn.x = x;
+                    scopedConnectorIn.y = inY;
+                    let scopedConnectorOut = node.outConnectors[outPointer++];
+                    scopedConnectorOut.x = x;
+                    scopedConnectorOut.y = outY;
+                    x += CW + SPACE;
+                    tmpInConnectors = [];
+                    tmpOutConnectors = [];
                 }
             }
-            placeTmpConnectors(x, tmpInConnectors, tmpOutConnectors);
-            let auxBox = new Box(
-                node.x,
-                node.y,
-                Math.max(node.inConnectors.length, node.outConnectors.length) * (SPACE + CW) - SPACE,
-                CW
-            ).centerIn(node.boundingBox());
-            _.forEach(node.inConnectors, (connector: LayoutConnector) => {
-                connector.translate(auxBox.x - node.x, 0);
-            });
-            _.forEach(node.outConnectors, (connector: LayoutConnector) => {
-                connector.translate(auxBox.x - node.x, 0);
-            });
+        }
+        placeTmpConnectors(x, tmpInConnectors, tmpOutConnectors);
+        let auxBox = new Box(
+            node.x,
+            node.y,
+            Math.max(node.inConnectors.length, node.outConnectors.length) * (SPACE + CW) - SPACE,
+            CW
+        ).centerIn(node.boundingBox());
+        _.forEach(node.inConnectors, (connector: LayoutConnector) => {
+            connector.translate(auxBox.x - node.x, 0);
+        });
+        _.forEach(node.outConnectors, (connector: LayoutConnector) => {
+            connector.translate(auxBox.x - node.x, 0);
         });
     }
 }

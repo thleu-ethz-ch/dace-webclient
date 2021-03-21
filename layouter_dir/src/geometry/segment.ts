@@ -1,5 +1,6 @@
 import Vector from "./vector";
 import Box from "./box";
+import * as _ from "lodash";
 
 export default class Segment {
     readonly start: Vector;
@@ -12,6 +13,9 @@ export default class Segment {
 
     intersects(other: Segment): boolean {
         if (!this.boundingBox().intersects(other.boundingBox())) {
+            return false;
+        }
+        if (_.isEqual(this.start, other.start) || _.isEqual(this.end, other.end)) {
             return false;
         }
         const deltaX = this.end.x - this.start.x;
