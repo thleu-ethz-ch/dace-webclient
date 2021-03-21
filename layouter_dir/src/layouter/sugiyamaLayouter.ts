@@ -508,7 +508,6 @@ export default class SugiyamaLayouter extends Layouter
                     if (layoutNode.childGraph !== null) {
                         assignX(layoutNode.childGraph, layoutNode.x + layoutNode.padding);
                     }
-                    this._placeConnectors(layoutNode);
                 });
 
                 // find x for next component
@@ -520,7 +519,24 @@ export default class SugiyamaLayouter extends Layouter
                     nextComponentX = Math.max(nextComponentX, lastNode.x + lastNode.width + this._options["targetEdgeLength"]);
                 });
             });
-            // assign edges
+
+            // set parent bounding box
+            if (subgraph.parentNode !== null) {
+                const boundingBox = subgraph.boundingBox();
+                subgraph.parentNode.setSize({width: boundingBox.width + 2 * subgraph.parentNode.padding, height: boundingBox.height + 2 * subgraph.parentNode.padding});
+                console.assert(subgraph.parentNode.width >= 0 && subgraph.parentNode.height >= 0, "node has invalid size", subgraph.parentNode);
+                if (subgraph.entryNode !== null) {
+                    subgraph.entryNode.setWidth(boundingBox.width);
+                    subgraph.exitNode.setWidth(boundingBox.width);
+                }
+            }
+
+            // place connectors
+            _.forEach(subgraph.nodes(), (node: LayoutNode) => {
+                this._placeConnectors(node);
+            });
+
+            // place edges
             _.forEach(subgraph.edges(), (edge: LayoutEdge) => {
                 const startNode = subgraph.node(edge.src);
                 if (startNode.isVirtual) {
@@ -566,6 +582,9 @@ export default class SugiyamaLayouter extends Layouter
                     nextNode = subgraph.node(tmpEdge.dst);
                 }
 
+                if (tmpEdge !== null) {
+                    edge.dstConnector = tmpEdge.dstConnector;
+                }
                 let endPos = nextNode.boundingBox().topCenter();
                 if (edge.dstConnector !== null) {
                     let dstConnector = nextNode.connector("IN", edge.dstConnector);
@@ -604,17 +623,6 @@ export default class SugiyamaLayouter extends Layouter
                     subgraph.removeNode(node.id);
                 }
             });
-
-            // set parent bounding box
-            if (subgraph.parentNode !== null) {
-                const boundingBox = subgraph.boundingBox();
-                subgraph.parentNode.setSize({width: boundingBox.width + 2 * subgraph.parentNode.padding, height: boundingBox.height + 2 * subgraph.parentNode.padding});
-                console.assert(subgraph.parentNode.width >= 0 && subgraph.parentNode.height >= 0, "node has invalid size", subgraph.parentNode);
-                if (subgraph.entryNode !== null) {
-                    subgraph.entryNode.setWidth(boundingBox.width);
-                    subgraph.exitNode.setWidth(boundingBox.width);
-                }
-            }
 
         };
         assignX(graph, 0);

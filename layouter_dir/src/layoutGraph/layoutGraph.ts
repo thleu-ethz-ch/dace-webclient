@@ -46,13 +46,6 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
             minY = Math.min(minY, box.y);
             maxY = Math.max(maxY, box.y + box.height);
         });
-        _.forEach(this.edges(), (edge: LayoutEdge) => {
-            const box = edge.boundingBox();
-            minX = Math.min(minX, box.x);
-            maxX = Math.max(maxX, box.x + box.width);
-            minY = Math.min(minY, box.y);
-            maxY = Math.max(maxY, box.y + box.height);
-        });
         return new Box(minX, minY, maxX - minX, maxY - minY);
     }
 
