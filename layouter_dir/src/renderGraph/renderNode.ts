@@ -30,12 +30,11 @@ export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
     public height: number = 0;
 
     protected _type: string = null;
-    protected _label: string = null;
 
-    constructor(type: string, label: string = null) {
+    constructor(type: string, label: string = "") {
         super();
         this._type = type;
-        this._label = label;
+        this.label = label;
     }
 
     type(): string {
@@ -73,10 +72,6 @@ export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
 
     boundingBox(): Box {
         return new Box(this.x, this.y, this.width, this.height);
-    }
-
-    label(): string {
-        return this._label || "";
     }
 
     /**

@@ -331,6 +331,32 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return this._components;
     }
 
+    toString(): string {
+        const subgraphToObj = (subgraph: Graph<NodeT, EdgeT>) => {
+            const obj = {
+                nodes: {},
+                edges: [],
+            };
+            _.forEach(subgraph.nodes(), (node: NodeT) => {
+                obj.nodes[node.id] = {
+                    label: node.label,
+                    child: node.childGraph !== null ? subgraphToObj(node.childGraph) : null
+                };
+            });
+            _.forEach(subgraph.edges(), (edge: EdgeT) => {
+                obj.edges.push({src: edge.src, dst: edge.dst, weight: edge.weight});
+            });
+            return obj;
+        };
+        return JSON.stringify(subgraphToObj(this));
+    }
+
+    storeLocal() {
+        if (typeof window !== "undefined") {
+            window.localStorage.setItem("storedGraph", this.toString());
+        }
+    }
+
     protected _createComponent(): Component<NodeT, EdgeT> {
         return new Component(this);
     }

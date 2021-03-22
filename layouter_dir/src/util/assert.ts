@@ -12,6 +12,10 @@ export default class Assert
         Assert.assert(predicate, message, input);
     }
 
+    static assertImplies(premise: boolean, implication: boolean, message) {
+        Assert.assert(!premise || implication, message);
+    }
+
     static assert(predicate: boolean, message: string, ...objects: Array<object>) {
         console.assert(predicate, message, ...objects);
         if (!predicate) {

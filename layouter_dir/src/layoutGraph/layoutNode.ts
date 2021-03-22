@@ -29,8 +29,6 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public readonly padding: number = 0;
     public readonly isVirtual: boolean = false;
 
-    public label;
-
     constructor(size: Size = null, padding: number = 0, isVirtual: boolean = false) {
         super();
         if (size !== null) {

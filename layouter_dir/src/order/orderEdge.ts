@@ -5,8 +5,5 @@ import OrderNode from "./orderNode";
 
 export default class OrderEdge extends Edge<Graph<any, any>, OrderGroup | OrderNode>
 {
-    public readonly type: "GROUP" | "NODE";
-    constructor(src: number, dst: number) {
-        super(src, dst);
-    }
+    // empty
 }

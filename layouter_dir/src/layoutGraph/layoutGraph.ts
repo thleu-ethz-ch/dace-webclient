@@ -80,13 +80,21 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
         return nodesPerRank;
     }
 
-    public updateRank(newRank: number) {
+    public updateRank(newRank: number): void {
         const offset = newRank - this.minRank;
         this.minRank += offset;
         this.maxRank += offset;
         _.forEach(this.nodes(), node => {
             node.updateRank(node.rank + offset);
         });
+    }
+
+    public maxIndex(): number {
+        let maxIndex = 0;
+        _.forEach(this.nodes(), (node: LayoutNode) => {
+            maxIndex = Math.max(maxIndex, node.index);
+        });
+        return maxIndex;
     }
 
     protected _createComponent(): LayoutComponent {

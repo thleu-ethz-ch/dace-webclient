@@ -8,17 +8,16 @@ import * as _ from "lodash";
 export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
 {
     public readonly reference: any;
-    public readonly isFixed: boolean;
     public nodes: Array<OrderNode> = [];
 
     public order: Array<number> = [];
     public position: number = 0;
     public rank: OrderRank;
 
-    constructor(reference: any, isFixed: boolean = false) {
+    constructor(reference: any, label: string = null) {
         super();
         this.reference = reference;
-        this.isFixed = isFixed;
+        this.label = label;
     }
 
     addNode(node: OrderNode, id: number = null): number {
@@ -29,6 +28,11 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
 
     orderedNodes(): Array<OrderNode> {
         const nodes = [];
+        if (this.order.length < this.nodes.length) {
+            this.order = _.map(_.sortBy(_.map(this.nodes, (node, n) => {
+                return {n: n, pos: node.position};
+            }), "pos"), "n");
+        }
         _.forEach(this.order, pos => {
             nodes.push(this.nodes[pos]);
         });

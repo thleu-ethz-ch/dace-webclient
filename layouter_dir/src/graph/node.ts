@@ -5,6 +5,7 @@ export default class Node<GraphT extends Graph<any, any>, EdgeT extends Edge<any
     public id: number;
     public graph: GraphT;
     public childGraph: GraphT = null;
+    public label: string = "";
 
     setChildGraph(childGraph: GraphT) {
         childGraph.parentNode = this;

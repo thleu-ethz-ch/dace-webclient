@@ -31,11 +31,15 @@ import SdfgState from "../renderGraph/sdfgState";
 import AccessNode from "../renderGraph/accessNode";
 import NestedSdfg from "../renderGraph/nestedSdfg";
 import Memlet from "../renderGraph/memlet";
+import DagreLayouter from "../layouter/dagreLayouter";
+import Node from "../graph/node";
+import GenericNode from "../renderGraph/genericNode";
+import GenericContainerNode from "../renderGraph/genericContainerNode";
 
 export default class Renderer {
     private readonly _viewport;
 
-    constructor(domContainer) {
+    constructor(domContainer, coordinateContainer = null) {
         const app = new PIXI.Application({
             width: domContainer.clientWidth,
             height: domContainer.clientHeight,
@@ -106,10 +110,13 @@ export default class Renderer {
 
         this._viewport.drag().pinch().wheel().decelerate();
 
-        const logCoordinate = (e) => {
-            console.log(this._viewport.center);
+        const logCoordinate = () => {
+            coordinateContainer.innerHTML = "center: " + this._viewport.center.x.toFixed(0) + " / " + this._viewport.center.y.toFixed(0);
         }
-        //this._viewport.on('moved', logCoordinate).on('zoomed', logCoordinate);
+        if (coordinateContainer !== null) {
+            this._viewport.on('moved', logCoordinate).on('zoomed', logCoordinate);
+            logCoordinate();
+        }
     }
 
     show(layouter: Layouter, name: string) {
@@ -172,28 +179,72 @@ export default class Renderer {
             console.log("Total size: " + box.width.toFixed(0) +  "x" + box.height.toFixed(0));
             console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
-            this._viewport.moveCorner((box.width - this._viewport.worldWidth) / 2, (box.height - this._viewport.worldHeight) / 2);
-            this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);
-            /*this._viewport.moveCenter(6997.541591078397, 16317.334381731042);
-            this._viewport.setZoom(1, true);*/
             this.render(graph);
         });
+    }
+
+    renderLive() {
+        let prevStoredGraph = null;
+        const layouter = new DagreLayouter();
+
+        const addSubgraph = (parent, obj) => {
+            _.forEach(obj.nodes, (nodeObj, id) => {
+                if (nodeObj.child !== null) {
+                    const node = new GenericContainerNode("GenericContainerNode");
+                    node.label = nodeObj.label;
+                    node.updateSize(this._labelSize(node));
+                    parent.addNode(node, id);
+                    const childGraph =  new RenderGraph();
+                    node.setChildGraph(childGraph);
+                    addSubgraph(node.childGraph, nodeObj.child);
+                } else {
+                    const node = new GenericNode("GenericNode");
+                    node.label = nodeObj.label;
+                    node.updateSize(this._labelSize(node));
+                    parent.addNode(node, id);
+                }
+            });
+            _.forEach(obj.edges, edgeObj => {
+                parent.addEdge(new Memlet(edgeObj.src, edgeObj.dst));
+            });
+        };
+
+        const doRender = () => {
+            const storedGraph = window.localStorage.getItem("storedGraph");
+            if (storedGraph !== prevStoredGraph && storedGraph !== null) {
+                const renderGraph = new RenderGraph();
+                addSubgraph(renderGraph, JSON.parse(storedGraph));
+                layouter.layout(renderGraph);
+                this.render(renderGraph);
+            }
+            setTimeout(doRender, 3000);
+        };
+        doRender();
     }
 
     /**
      * Shows a graph in the designated container.
      * @param graph Graph with layout information for all nodes and edges (x, y, width, height).
+     * @param view = {centerX: number, centerY: number, zoom: number}
      */
-    render(graph: RenderGraph) {
-        const shapes = this._getShapesForGraph(graph);
+    render(graph: RenderGraph, view = null) {
+        this._viewport.removeChildren();
+        const box = graph.boundingBox();
+        this._viewport.moveCorner((box.width - this._viewport.worldWidth) / 2, (box.height - this._viewport.worldHeight) / 2);
+        this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);
+        if (view !== null) {
+            this._viewport.moveCenter(view.centerX, view.centerY);
+            this._viewport.setZoom(view.zoom, true);
+        }
 
+        const shapes = this._getShapesForGraph(graph);
         _.forEach(shapes, (shape) => {
             shape.render(this._viewport);
         });
     }
 
     private _labelSize(node: RenderNode): Size {
-        const textBox = (new Text(0, 0, node.label(), node.labelFontSize)).boundingBox();
+        const textBox = (new Text(0, 0, node.label, node.labelFontSize)).boundingBox();
         return {
             width: textBox.width + 2 * node.labelPaddingX,
             height: textBox.height + 2 * node.labelPaddingY,
@@ -233,12 +284,13 @@ export default class Renderer {
         const shapes = [];
         switch (node.type()) {
             case "AccessNode":
+            case "GenericNode":
                 shapes.push(new Ellipse(node, node.x, node.y, node.width, node.height));
-                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
+                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label));
                 break;
             case "LibraryNode":
                 shapes.push(new FoldedCornerRectangle(this, node.x, node.y, node.width, node.height));
-                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()))
+                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label))
                 break;
             case "NestedSDFG":
                 shapes.push(new Rectangle(node, node.x, node.y, node.width, node.height));
@@ -249,16 +301,20 @@ export default class Renderer {
                 break;
             case "Tasklet":
                 shapes.push(new Octagon(node, node.x, node.y, node.width, node.height));
-                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
+                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label));
+                break;
+            case "GenericContainerNode":
+                shapes.push(new Rectangle(node, node.x, node.y, node.width, node.height));
+                shapes.push(new Text(node.x + 5, node.y + 5, node.label));
                 break;
         }
         if (node.type().endsWith("Entry")) {
             shapes.push(new UpwardTrapezoid(node, node.x, node.y, node.width, node.height));
-            shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
+            shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label));
         }
         if (node.type().endsWith("Exit")) {
             shapes.push(new DownwardTrapezoid(node, node.x, node.y, node.width, node.height));
-            shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
+            shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label));
         }
 
         // add child graph shapes

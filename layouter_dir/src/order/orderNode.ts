@@ -9,8 +9,9 @@ export default class OrderNode extends Node<Graph<any, any>, OrderEdge>
     public group: OrderGroup;
     public position: number = 0;
 
-    constructor(reference: any) {
+    constructor(reference: any, label: string = null) {
         super();
+        this.label = label;
         this.reference = reference;
     }
 

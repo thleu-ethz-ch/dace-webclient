@@ -14,6 +14,7 @@ import OrderGraph from "../order/orderGraph";
 import OrderGroup from "../order/orderGroup";
 import OrderNode from "../order/orderNode";
 import OrderRank from "../order/orderRank";
+import OrderEdge from "../order/orderEdge";
 import Vector from "../geometry/vector";
 
 export default class SugiyamaLayouter extends Layouter
@@ -218,137 +219,159 @@ export default class SugiyamaLayouter extends Layouter
     }
 
     private _orderRanks(graph: LayoutGraph) {
-        const orderGraph = new OrderGraph();
+
+        /**
+         * STEP 1: ORDER NODES
+         * This is done strictly hierarchically.
+         * Child graphs are represented as a chain over multiple ranks in their parent.
+         */
+
+        const inNodeMap = new Map();
+        const outNodeMap = new Map();
+        _.forEach(graph.allGraphs(), (subgraph: LayoutGraph) => {
+            _.forEach(subgraph.components(), (component: LayoutComponent) => {
+                // init graph and ranks
+                const orderGraph = new OrderGraph();
+                const orderGroups = new Array(component.maxRank() + 1);
+                for (let r = component.minRank(); r <= component.maxRank(); ++r) {
+                    const orderRank = new OrderRank();
+                    orderGraph.addRank(orderRank);
+                    orderGroups[r] = new OrderGroup(null);
+                    orderRank.addGroup(orderGroups[r]);
+                }
+                // add nodes
+                _.forEach(component.nodes(), (node: LayoutNode) => {
+                    let orderNode = new OrderNode(node, node.label);
+                    orderGroups[node.rank].addNode(orderNode);
+                    inNodeMap.set(node, orderNode.id);
+
+                    if (node.rankSpan > 1) {
+                        // add chain nodes and edges
+                        let srcId = orderNode.id;
+                        for (let r = node.childGraph.minRank + 1; r <= node.childGraph.maxRank; ++r) {
+                            orderNode = new OrderNode(node, node.label);
+                            orderGroups[r].addNode(orderNode);
+                            let dstId = orderNode.id;
+                            orderGraph.addEdge(new Edge(srcId, dstId, 1000000));
+                            srcId = dstId;
+                        }
+                    }
+                    outNodeMap.set(node, orderNode.id);
+                });
+
+                // add normal edges between nodes; for each pair of nodes, sum up the weights of edges in-between
+                _.forEach(component.edges(), (edge: LayoutEdge) => {
+                    const srcOrderNodeId = outNodeMap.get(subgraph.node(edge.src));
+                    const dstOrderNodeId = inNodeMap.get(subgraph.node(edge.dst));
+                    const orderEdge = orderGraph.edgeBetween(srcOrderNodeId, dstOrderNodeId);
+                    if (orderEdge === undefined) {
+                        orderGraph.addEdge(new Edge(srcOrderNodeId, dstOrderNodeId, edge.weight));
+                    } else {
+                        orderEdge.weight += edge.weight;
+                    }
+                });
+
+                // do order
+                orderGraph.order();
+
+                // copy node order into layout graph
+                _.forEach(orderGraph.nodes(), (orderNode: OrderNode) => {
+                    Assert.assertNumber(orderNode.position, "position is not a valid number");
+                    const layoutNode: LayoutNode = orderNode.reference;
+                    if (layoutNode.childGraph !== null) {
+                        layoutNode.indexes.push(orderNode.position);
+                        layoutNode.index = Math.max(layoutNode.index, orderNode.position);
+                    } else {
+                        layoutNode.index = orderNode.position;
+                    }
+                });
+            });
+        });
+
+        /**
+         * STEP 2: ORDER CONNECTORS
+         * In this step, scope insides and outsides are handled in the same order graph.
+         * If there are nested scopes, they are flattened.
+         */
+
+        const orderGraph = new OrderGraph;
         const orderRanks = [];
         for (let r = 0; r <= graph.maxRank; ++r) {
             orderRanks[r] = new OrderRank();
             orderGraph.addRank(orderRanks[r]);
         }
-        const nodeMap = new Map();
+
         const connectorMap = new Map();
         const generalInMap = new Map();
         const generalOutMap = new Map();
 
-        // 1. order nodes
+        // add edges
+        const addConnectorsForSubgraph = (subgraph: LayoutGraph) => {
+            _.forEach(subgraph.components(), (component: LayoutComponent) => {
+                // handle children first
+                _.forEach(component.nodes(), (node: LayoutNode) => {
+                    if (node.childGraph !== null) {
+                        addConnectorsForSubgraph(node.childGraph);
+                    }
+                });
 
-
-
-        // add nodes
-        const asdf = true;
-        if (asdf) {
-            const addGraph = (subgraph: LayoutGraph) => {
-                _.forEach(subgraph.components(), (component: LayoutComponent) => {
-                    _.forEach(component.ranks(false), (rank: Array<LayoutNode>) => {
-                        _.forEach(rank, (node: LayoutNode) => {
-                            let group = new OrderGroup(node);
-                            orderRanks[node.rank].addGroup(group);
-                            nodeMap.set(node, group.id);
+                _.forEach(component.ranks(), (rank: Array<LayoutNode>, r) => {
+                    let index = 0;
+                    _.forEach(rank, (node: LayoutNode) => {
+                        if (node.childGraph !== null && node.childGraph.entryNode !== null) {
+                            index += node.childGraph.maxIndex() + 1;
+                            return; // do not add connectors for scope nodes
+                        }
+                        let connectorGroup;
+                        if (node.childGraph === null || component.minRank() + r === node.rank) {
+                            // add input connectors
+                            connectorGroup = new OrderGroup(node, node.label);
+                            connectorGroup.position = index;
+                            orderRanks[node.rank].addGroup(connectorGroup);
                             _.forEach(node.inConnectors, (connector: LayoutConnector) => {
-                                const connectorNode = new OrderNode(connector);
-                                group.addNode(connectorNode);
+                                const connectorNode = new OrderNode(connector, connector.name);
+                                connectorGroup.addNode(connectorNode);
                                 connectorMap.set(connector, connectorNode.id);
                                 if (connector.isScoped) {
                                     connectorMap.set(connector.counterpart, connectorNode.id);
                                 }
                             });
                             if (node.inConnectors.length === 0) {
-                                const inNode = new OrderNode(null);
-                                group.addNode(inNode);
+                                const inNode = new OrderNode(null, "generalInConnector");
+                                connectorGroup.addNode(inNode);
                                 generalInMap.set(node, inNode.id);
                             }
-
-                            // for nodes spanning multiple ranks*, insert a copy in each rank
-                            // add edges with large weight between those copies to prevent any crossings
-                            // *scope nodes are excluded here (see above)
-                            if (node.childGraph !== null) {
-                                const orderNode = new OrderNode(null);
-                                group.addNode(orderNode);
-                                let srcId = orderNode.id;
-                                for (let r = node.childGraph.minRank + 1; r <= node.childGraph.maxRank; ++r) {
-                                    group = new OrderGroup(node);
-                                    orderRanks[r].addGroup(group);
-                                    const orderNode = new OrderNode(null);
-                                    group.addNode(orderNode);
-                                    let dstId = orderNode.id;
-                                    orderGraph.addEdge(new Edge(srcId, dstId, 1000000));
-                                    srcId = dstId;
-                                }
-                                addGraph(node.childGraph);
+                        }
+                        if (node.childGraph === null || component.minRank() + r === node.childGraph.maxRank) {
+                            Assert.assertImplies(node.rankSpan > 1, !node.hasScopedConnectors, "multirank node with scoped connectors");
+                            if (!node.hasScopedConnectors) {
+                                // keep in- and out-connectors separated from each other if they are not scoped
+                                connectorGroup = new OrderGroup(node, node.label);
+                                orderRanks[node.rank + node.rankSpan - 1].addGroup(connectorGroup);
                             }
 
+                            // add output connectors
                             _.forEach(node.outConnectors, (connector: LayoutConnector) => {
                                 if (!connector.isScoped) {
-                                    const connectorNode = new OrderNode(connector);
-                                    group.addNode(connectorNode);
+                                    const connectorNode = new OrderNode(connector, connector.name);
+                                    connectorGroup.addNode(connectorNode);
                                     connectorMap.set(connector, connectorNode.id);
                                 }
                             });
                             if (node.outConnectors.length === 0) {
-                                const outNode = new OrderNode(null);
-                                group.addNode(outNode);
+                                const outNode = new OrderNode(null, "generalOutConnector");
+                                connectorGroup.addNode(outNode);
                                 generalOutMap.set(node, outNode.id);
                             }
-                        });
+                        }
+                        index++;
                     });
                 });
-            };
-            addGraph(graph);
-        } else {
-            _.forEach(graph.allNodes(), (node) => {
-                if (node.childGraph !== null && node.childGraph.entryNode !== null) {
-                    return; // skip scope nodes
-                }
-                let group = new OrderGroup(node);
-                orderRanks[node.rank].addGroup(group);
-                nodeMap.set(node, group.id);
-                _.forEach(node.inConnectors, (connector: LayoutConnector) => {
-                    const connectorNode = new OrderNode(connector);
-                    group.addNode(connectorNode);
-                    connectorMap.set(connector, connectorNode.id);
-                    if (connector.isScoped) {
-                        connectorMap.set(connector.counterpart, connectorNode.id);
-                    }
-                });
-                if (node.inConnectors.length === 0) {
-                    const inNode = new OrderNode(null);
-                    group.addNode(inNode);
-                    generalInMap.set(node, inNode.id);
-                }
-
-                // for nodes spanning multiple ranks*, insert a copy in each rank
-                // add edges with large weight between those copies to prevent any crossings
-                // *scope nodes are excluded here (see above)
-                if (node.childGraph !== null) {
-                    const orderNode = new OrderNode(null);
-                    group.addNode(orderNode);
-                    let srcId = orderNode.id;
-                    for (let r = node.childGraph.minRank + 1; r <= node.childGraph.maxRank; ++r) {
-                        group = new OrderGroup(node);
-                        orderRanks[r].addGroup(group);
-                        const orderNode = new OrderNode(null);
-                        group.addNode(orderNode);
-                        let dstId = orderNode.id;
-                        orderGraph.addEdge(new Edge(srcId, dstId, 1000000));
-                        srcId = dstId;
-                    }
-                }
-
-                _.forEach(node.outConnectors, (connector: LayoutConnector) => {
-                    if (!connector.isScoped) {
-                        const connectorNode = new OrderNode(connector);
-                        group.addNode(connectorNode);
-                        connectorMap.set(connector, connectorNode.id);
-                    }
-                });
-                if (node.outConnectors.length === 0) {
-                    const outNode = new OrderNode(null);
-                    group.addNode(outNode);
-                    generalOutMap.set(node, outNode.id);
-                }
             });
-        }
+        };
+        addConnectorsForSubgraph(graph);
 
-        // add edges
+        // add connector edges
         _.forEach(graph.allEdges(), (edge: LayoutEdge) => {
             let srcNode = edge.graph.node(edge.src);
             if (srcNode.childGraph !== null && srcNode.childGraph.exitNode !== null) {
@@ -373,26 +396,14 @@ export default class SugiyamaLayouter extends Layouter
             orderGraph.addEdge(new Edge(srcOrderNodeId, dstOrderNodeId, 1));
         });
 
-        // order
+        // order connectors
         orderGraph.order();
-
-        // reset indexes
-        _.forEach(graph.allNodes(), (node: LayoutNode) => {
-            node.index = 0;
-            node.indexes = [];
-        });
 
         // copy order information from order graph to layout graph
         _.forEach(orderGraph.groups(), (orderGroup: OrderGroup) => {
             Assert.assertNumber(orderGroup.position, "position is not a valid number");
             const layoutNode: LayoutNode = orderGroup.reference;
             if (layoutNode !== null) {
-                if (layoutNode.childGraph !== null && layoutNode.childGraph.entryNode === null) {
-                    layoutNode.indexes.push(orderGroup.position);
-                    layoutNode.index = Math.max(layoutNode.index, orderGroup.position);
-                } else {
-                    layoutNode.index = orderGroup.position;
-                }
                 const connectors = {"IN": [], "OUT": []};
                 _.forEach(orderGroup.orderedNodes(), (orderNode: OrderNode) => {
                     if (orderNode.reference !== null) {
@@ -411,23 +422,6 @@ export default class SugiyamaLayouter extends Layouter
                 }
             }
         });
-
-        const assignScopeIndexes = (graph: LayoutGraph) => {
-            _.forEach(graph.nodes(), (node: LayoutNode) => {
-                if (node.childGraph !== null) {
-                    assignScopeIndexes(node.childGraph);
-                    if (node.childGraph.entryNode !== null) {
-                        _.forEach(node.childGraph.ranks(), (rank: Array<LayoutNode>) => {
-                            let firstChildIndex = rank[0].indexes[0] || rank[0].index;
-                            Assert.assertNumber(firstChildIndex, "first child index is not a valid number");
-                            node.indexes.push(firstChildIndex);
-                            node.index = Math.max(node.index, firstChildIndex);
-                        });
-                    }
-                }
-            });
-        };
-        assignScopeIndexes(graph);
     }
 
     /**

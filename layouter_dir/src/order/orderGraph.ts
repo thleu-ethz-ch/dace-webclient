@@ -11,10 +11,44 @@ export default class OrderGraph {
     private _groupGraph: Graph<OrderGroup, Edge<any, any>>;
     private _nodeGraph: Graph<OrderNode, Edge<any, any>>;
 
+    private _groupEdgesAdded: boolean = false;
+
     constructor() {
         this._rankGraph = new Graph<OrderRank, Edge<any, any>>();
         this._groupGraph = new Graph<OrderGroup, Edge<any, any>>();
         this._nodeGraph = new Graph<OrderNode, Edge<any, any>>();
+    }
+
+    toString(): string {
+        const obj = {
+            nodes: {},
+            edges: [],
+        };
+        _.forEach(this.orderedGroups(), (group: OrderGroup) => {
+            obj.nodes[group.id] = {
+                label: group.label,
+                child: {
+                    nodes: {},
+                    edges: [],
+                },
+            };
+            _.forEach(group.orderedNodes(), (node: OrderNode) => {
+                obj.nodes[group.id].child.nodes[node.id] = {
+                    label: node.label,
+                    child: null
+                };
+            });
+        });
+        _.forEach(this.groupEdges(), (edge: Edge<any, any>) => {
+            obj.edges.push({src: edge.src, dst: edge.dst, weight: edge.weight});
+        });
+        return JSON.stringify(obj);
+    }
+
+    storeLocal() {
+        if (typeof window !== "undefined") {
+            window.localStorage.setItem("storedGraph", this.toString());
+        }
     }
 
     public addRank(rank: OrderRank, id: number = null) {
@@ -35,16 +69,19 @@ export default class OrderGraph {
     }
 
     private _addGroupEdges() {
-        _.forEach(this._nodeGraph.edges(), (edge: Edge<any, any>) => {
-            const srcGroupId = this._nodeGraph.node(edge.src).group.id;
-            const dstGroupId = this._nodeGraph.node(edge.dst).group.id;
-            const groupEdge = this._groupGraph.edgeBetween(srcGroupId, dstGroupId);
-            if (groupEdge === undefined) {
-                this._groupGraph.addEdge(new Edge(srcGroupId, dstGroupId, edge.weight));
-            } else {
-                groupEdge.weight += edge.weight;
-            }
-        });
+        if (!this._groupEdgesAdded) {
+            this._groupEdgesAdded = true;
+            _.forEach(this._nodeGraph.edges(), (edge: Edge<any, any>) => {
+                const srcGroupId = this._nodeGraph.node(edge.src).group.id;
+                const dstGroupId = this._nodeGraph.node(edge.dst).group.id;
+                const groupEdge = this._groupGraph.edgeBetween(srcGroupId, dstGroupId);
+                if (groupEdge === undefined) {
+                    this._groupGraph.addEdge(new Edge(srcGroupId, dstGroupId, edge.weight));
+                } else {
+                    groupEdge.weight += edge.weight;
+                }
+            });
+        }
     }
 
     private _addRankEdges() {
@@ -89,7 +126,12 @@ export default class OrderGraph {
         return this._nodeGraph.outEdges(id);
     }
 
+    public edgeBetween(srcId: number, dstId: number) {
+        return this._nodeGraph.edgeBetween(srcId, dstId);
+    }
+
     public groupEdges() {
+        this._addGroupEdges();
         return this._groupGraph.edges();
     }
 
@@ -101,17 +143,14 @@ export default class OrderGraph {
         return this._groupGraph.sinks();
     }
 
-    public order(): void {
+    public order(doNothing: boolean = false, debug: boolean = false): void {
         const doOrder = (graph: OrderGraph, downward: boolean = true, isAux: boolean = false) => {
-            /*console.log();
-            console.log();
-            console.log("ORDERING");*/
-
             const ranks = graph._rankGraph.toposort();
             const groupOffsets = []; // number of nodes in groups left of this group by group id
             const numNodesGroup = []; // number of nodes per group per rank
             const numNodesRank = []; // total number of nodes per rank
             _.forEach(ranks, (rank: OrderRank, r: number) => {
+                rank.order = _.sortBy(_.range(rank.groups.length), g => rank.groups[g].position);
                 let groupOffset = 0;
                 numNodesGroup[r] = [];
                 _.forEach(rank.orderedGroups(), (group: OrderGroup, g) => {
@@ -209,44 +248,41 @@ export default class OrderGraph {
             console.log("positions", _.cloneDeep(positions));
             console.log("crossings", _.cloneDeep(crossings));*/
 
-            let improved = ranks.length > 1 ? 2 : 0; // if only one rank, nothing to order
+            let improved = (!doNothing && (ranks.length > 1)) ? 2 : 0; // if only one rank, nothing to order
             while (improved > 0) {
                 improved--;
-                //console.log("TOTAL CROSSINGS", _.sum(crossings));
+                if (debug) {
+                    console.log("TOTAL CROSSINGS", _.sum(crossings));
+                }
                 let firstRank = downward ? 1 : ranks.length - 2;
                 let lastRank = downward ? ranks.length - 1 : 0;
                 const direction = downward ? 1 : -1;
                 const neighborsNorth = downward ? neighborsUp : neighborsDown;
-                const neighborsSouth = downward ? neighborsDown : neighborsUp;
-                const weightsNorth = downward ? weightsUp : weightsDown;
-                const weightsSouth = downward ? weightsDown : weightsUp;
                 const crossingOffsetNorth = downward ? 0 : 1;
                 const crossingOffsetSouth = downward ? 1 : 0;
                 const northDirection = downward ? "UP" : "DOWN";
                 const southDirection = downward ? "DOWN" : "UP";
-                //console.log(downward ? "DOWN" : "UP");
+                if (debug) {
+                    console.log(downward ? "DOWN" : "UP");
+                }
                 for (let r = firstRank; r - direction !== lastRank; r += direction) {
-                    //console.log("rank", r);
+                    if (debug) {
+                        console.log("rank", r);
+                    }
                     const newOrder = new Array(order[r].length);
                     const northRank = r - direction;
-                    const southRank = r + direction;
 
                     const prevCrossingsNorth = crossings[r + crossingOffsetNorth];
 
                     if (prevCrossingsNorth === 0) {
                         // no need to reorder
-                        //console.log("skip because already 0");
+                        if (debug) {
+                            console.log("skip because already 0");
+                        }
                         continue;
                     }
 
                     for (let g = 0; g < numNodesGroup[r].length; ++g) {
-                        if (ranks[r].orderedGroups()[g].isFixed) {
-                            //console.log("fixed");
-                            for (let n = groupOffset[r][g]; n < groupOffset[r][g] + numNodesGroup[r][g]; ++n) {
-                                newOrder[n] = order[n];
-                            }
-                            continue;
-                        }
                         // calculate mean position of neighbors
                         const nodeMeans = [];
                         for (let pos = groupOffset[r][g]; pos < groupOffset[r][g] + numNodesGroup[r][g]; ++pos) {
@@ -271,7 +307,9 @@ export default class OrderGraph {
                         }
                     }
                     if (!_.isEqual(newOrder, order[r])) {
-                        //console.log("try new order", _.cloneDeep(newOrder));
+                        if (debug) {
+                            console.log("try new order", _.cloneDeep(newOrder));
+                        }
                         // count crossings with new order
                         const newCrossingsNorth = countCrossings(newOrder, r, northDirection);
 
@@ -284,22 +322,28 @@ export default class OrderGraph {
                         const fewerCrossingsNorth = newCrossingsNorth < prevCrossingsNorth;
                         const fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth <= prevCrossingsNorth + prevCrossingsSouth);
                         if (fewerCrossingsNorth && fewerOrEqualCrossingsTotal) {
-                            //console.log("fewer crossings", newCrossingsNorth, prevCrossingsNorth, newCrossingsSouth, prevCrossingsSouth);
+                            if (debug) {
+                                console.log("fewer crossings", newCrossingsNorth, prevCrossingsNorth, newCrossingsSouth, prevCrossingsSouth);
+                            }
                             if (newCrossingsNorth + newCrossingsSouth < prevCrossingsNorth + prevCrossingsSouth) {
                                 improved = 2;
                             }
                             crossings[r + crossingOffsetNorth] = newCrossingsNorth;
-                            //console.log("crossings[" + (r + crossingOffsetNorth) + "] = " + newCrossingsNorth);
                             if (r !== lastRank) {
                                 crossings[r + crossingOffsetSouth] = newCrossingsSouth;
-                                //console.log("crossings[" + (r + crossingOffsetSouth) + "] = " + newCrossingsSouth);
                             }
                             order[r] = newOrder;
                             for (let pos = 0; pos < order[r].length; ++pos) {
                                 positions[r][order[r][pos]] = pos;
                             }
                         } else {
-                            //console.log("not fewer crossings", newCrossingsNorth, prevCrossingsNorth, newCrossingsSouth, prevCrossingsSouth);
+                            if (debug) {
+                                console.log("not fewer crossings", newCrossingsNorth, prevCrossingsNorth, newCrossingsSouth, prevCrossingsSouth);
+                            }
+                        }
+                    } else {
+                        if (debug) {
+                            console.log("same order");
                         }
                     }
                 }
@@ -317,8 +361,8 @@ export default class OrderGraph {
             });
         }
 
-        // create component graphs
         this._addGroupEdges();
+
         _.forEach(this._groupGraph.components(), (groupGraphComponent: Component<OrderGroup, Edge<any, any>>, i) => {
             //console.log("groupGraphComponent", _.cloneDeep(groupGraphComponent));
             const componentGraph = new OrderGraph();
@@ -335,6 +379,45 @@ export default class OrderGraph {
                     group.addNode(node, node.id);
                 });
             });
+
+            _.forEach(componentGraph.nodes(), (newNode: OrderNode) => {
+                _.forEach(this.outEdges(newNode.id), (edge: Edge<any, any>) => {
+                    componentGraph.addEdge(edge);
+                });
+            });
+
+            componentGraph._addGroupEdges();
+            componentGraph._addRankEdges();
+
+            /*if (debug && componentGraph.groups().length === 5) {
+                componentGraph.storeLocal();
+            }*/
+
+            if (componentGraph.edges().length === 0) {
+                // when there are no edges, no need to order
+                return;
+            }
+
+            doOrder(componentGraph);
+        });
+
+        /*_.forEach(this._nodeGraph.components(), (nodeGraphComponent: Component<OrderNode, Edge<any, any>>, i) => {
+            const componentGraph = new OrderGraph();
+
+            const groups: Array<OrderGroup> = [];
+            const ranks: Array<OrderRank> = [];
+
+            _.forEach(nodeGraphComponent.nodes(), (node: OrderNode) => {
+                if (ranks[node.group.rank.id] === undefined) {
+                    ranks[node.group.rank.id] = new OrderRank();
+                    componentGraph.addRank(ranks[node.group.rank.id]);
+                }
+                if (groups[node.group.id] === undefined) {
+                    groups[node.group.id] = new OrderGroup(node.group.reference);
+                    ranks[node.group.rank.id].addGroup(groups[node.group.id]);
+                }
+                groups[node.group.id].addNode(node, node.id);
+            });
             _.forEach(componentGraph.nodes(), (newNode: OrderNode) => {
                 _.forEach(this.outEdges(newNode.id), (edge: Edge<any, any>) => {
                     componentGraph.addEdge(edge);
@@ -346,40 +429,18 @@ export default class OrderGraph {
             }
             componentGraph._addGroupEdges();
             componentGraph._addRankEdges();
+            /*if (componentGraph._nodeGraph.nodes().length > 0 && componentGraph._nodeGraph.nodes()[0].reference !== null && componentGraph._nodeGraph.nodes()[0].reference.graph !== undefined && componentGraph._nodeGraph.nodes()[0].reference.graph.mayHaveCycles) {
+                console.log(componentGraph._nodeGraph.nodes().length)
+                console.log(_.map(componentGraph._nodeGraph.nodes(), node => node.reference ? (node.reference.label) : ''));
+            }*/
+            /*if (componentGraph._groupGraph.nodes().length > 0 && componentGraph._groupGraph.nodes()[0].reference !== null) {
+                //componentGraph._groupGraph.storeLocal();
+                console.log("connectors in nodes: ", _.map(componentGraph._groupGraph.nodes(), node => node.reference.label));
+            }
+            //console.log("componentGraph", componentGraph);
 
-            // 1. order groups within ranks
-            //console.log("ORDER GROUPS");
-            const auxGraph = new OrderGraph();
-            const nodeMap = new Map();
-            _.forEach(componentGraph._rankGraph.nodes(), (rank: OrderRank) => {
-                const auxRank = new OrderRank(true);
-                auxRank.order = [0];
-                auxGraph.addRank(auxRank);
-                const auxGroup = new OrderGroup(rank, rank.isFixed);
-                auxRank.addGroup(auxGroup);
-                _.forEach(rank.groups, group => {
-                    const auxNode = new OrderNode(group);
-                    nodeMap.set(group.id, auxGroup.addNode(auxNode));
-                });
-            });
-            _.forEach(componentGraph.groupEdges(), edge => {
-                auxGraph.addEdge(new Edge(nodeMap.get(edge.src), nodeMap.get(edge.dst), edge.weight));
-            });
-            auxGraph._addGroupEdges();
-            auxGraph._addRankEdges();
-            doOrder(auxGraph, true, true);
-            _.forEach(auxGraph._groupGraph.nodes(), (auxGroup: OrderGroup) => {
-                const rank = auxGroup.reference;
-                rank.order = auxGroup.order;
-            });
-            _.forEach(auxGraph._nodeGraph.nodes(), (auxNode: OrderNode) => {
-                const group = auxNode.reference;
-                group.position = auxNode.position;
-            });
-            // 2. order nodes within groups
-            //console.log("ORDER NODES");
             doOrder(componentGraph);
-        });
+        });*/
 
     }
 

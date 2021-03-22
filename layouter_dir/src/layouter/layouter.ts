@@ -575,7 +575,7 @@ export default abstract class Layouter {
                     layoutNode.addConnector("OUT", connector.name, connector.width);
                 });
                 node.layoutNode = layoutNode;
-                layoutNode.label = node.type() + " " + node.id + " (" + node.label() + ")"; // for debugging
+                layoutNode.label = node.type() + " " + node.id + " (" + node.label + ")"; // for debugging
                 return layoutNode;
             };
 

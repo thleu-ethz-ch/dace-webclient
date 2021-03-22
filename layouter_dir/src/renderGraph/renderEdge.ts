@@ -28,7 +28,7 @@ export default abstract class RenderEdge extends Edge<RenderGraph, RenderNode> {
 
     public layoutEdge: LayoutEdge = null;
 
-    constructor(src: number, dst: number, srcConnector, dstConnector, attributes) {
+    constructor(src: number, dst: number, srcConnector: string = null, dstConnector: string = null, attributes: any = {}) {
         super(src, dst);
         this.srcConnector = srcConnector || null;
         this.dstConnector = dstConnector || null;

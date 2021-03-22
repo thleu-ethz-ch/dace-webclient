@@ -13,9 +13,8 @@ export default class OrderRank extends Node<Graph<any, any>, Edge<any, any>>
     public order: Array<number>;
     public orderGraph: OrderGraph;
 
-    constructor(isFixed: boolean = false) {
+    constructor() {
         super();
-        this.isFixed = isFixed;
     }
 
     orderedGroups(): Array<OrderGroup> {
