@@ -15,6 +15,10 @@ export default class Edge<GraphT extends Graph<any, any>, NodeT extends Node<any
         this.weight = weight;
     }
 
+    toString() {
+        return this.graph.node(this.src).label + " ---(" + this.weight + ")---> " + this.graph.node(this.dst).label;
+    }
+
     parents(): Array<NodeT> {
         const parents = [];
         let graph = this.graph;

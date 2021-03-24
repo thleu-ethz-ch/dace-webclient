@@ -19,6 +19,16 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         this._init();
     }
 
+    clone() {
+        const clone = this.cloneEmpty();
+        _.forEach(this.nodes(), node => {
+            clone.addNode(_.clone(node), node.id);
+        });
+        _.forEach(this.edges(), edge => {
+            clone.addEdge(_.clone(edge), edge.id);
+        });
+    }
+
     cloneEmpty() {
         const clone = _.clone(this);
         clone._init();
@@ -226,6 +236,44 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         }
 
         return invertedEdges;
+    }
+
+    public bfs(startId: number = null, ignoreDirections: boolean = false): Array<NodeT> {
+        const nodes = this.nodes();
+        if (nodes.length === 0) {
+            return [];
+        }
+
+        const sortedNodes = [];
+        const visited = _.fill(new Array(this.maxId() + 1), false);
+        const queue = [];
+        let queuePointer = 0;
+        if (startId === null) {
+            queue.push(nodes[0]);
+            visited[nodes[0].id] = true;
+        } else {
+            queue.push(this.node(startId));
+            visited[startId] = true;
+        }
+        while (queuePointer < queue.length) {
+            const node = queue[queuePointer++];
+            sortedNodes.push(node);
+            _.forEach(this.outEdges(node.id), (outEdge: EdgeT) => {
+                if (!visited[outEdge.dst]) {
+                    queue.push(this.node(outEdge.dst));
+                    visited[outEdge.dst] = true;
+                }
+            });
+            if (ignoreDirections) {
+                _.forEach(this.inEdges(node.id), (inEdge: EdgeT) => {
+                    if (!visited[inEdge.src]) {
+                        queue.push(this.node(inEdge.src));
+                        visited[inEdge.src] = true;
+                    }
+                });
+            }
+        }
+        return sortedNodes;
     }
 
     toposort(): Array<NodeT> {

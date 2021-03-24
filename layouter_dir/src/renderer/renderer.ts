@@ -191,7 +191,8 @@ export default class Renderer {
             _.forEach(obj.nodes, (nodeObj, id) => {
                 if (nodeObj.child !== null) {
                     const node = new GenericContainerNode("GenericContainerNode");
-                    node.label = nodeObj.label;
+                    node.label = nodeObj.label || "";
+                    console.log(nodeObj.label);
                     node.updateSize(this._labelSize(node));
                     parent.addNode(node, id);
                     const childGraph =  new RenderGraph();
@@ -199,7 +200,8 @@ export default class Renderer {
                     addSubgraph(node.childGraph, nodeObj.child);
                 } else {
                     const node = new GenericNode("GenericNode");
-                    node.label = nodeObj.label;
+                    node.label = nodeObj.label || "";
+                    console.log(nodeObj.label);
                     node.updateSize(this._labelSize(node));
                     parent.addNode(node, id);
                 }
@@ -212,6 +214,7 @@ export default class Renderer {
         const doRender = () => {
             const storedGraph = window.localStorage.getItem("storedGraph");
             if (storedGraph !== prevStoredGraph && storedGraph !== null) {
+                prevStoredGraph = storedGraph;
                 const renderGraph = new RenderGraph();
                 addSubgraph(renderGraph, JSON.parse(storedGraph));
                 layouter.layout(renderGraph);

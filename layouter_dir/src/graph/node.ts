@@ -7,6 +7,10 @@ export default class Node<GraphT extends Graph<any, any>, EdgeT extends Edge<any
     public childGraph: GraphT = null;
     public label: string = "";
 
+    constructor(label: string = "") {
+        this.label = label;
+    }
+
     setChildGraph(childGraph: GraphT) {
         childGraph.parentNode = this;
         this.childGraph = childGraph;

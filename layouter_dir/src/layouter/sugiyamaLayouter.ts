@@ -1,4 +1,5 @@
 import * as _ from "lodash";
+import * as PriorityQueue from "priorityqueuejs";
 import Assert from "../util/assert";
 import Box from "../geometry/box";
 import Edge from "../graph/edge";
@@ -16,6 +17,8 @@ import OrderNode from "../order/orderNode";
 import OrderRank from "../order/orderRank";
 import OrderEdge from "../order/orderEdge";
 import Vector from "../geometry/vector";
+import RankGraph from "../rank/rankGraph";
+import RankNode from "../rank/rankNode";
 
 export default class SugiyamaLayouter extends Layouter
 {
@@ -29,6 +32,7 @@ export default class SugiyamaLayouter extends Layouter
         Assert.assert(!graph.hasCycle(), "graph has cycle");
 
         this._assignRanks(graph);
+        console.log(graph.globalRanks());
         Assert.assertNone(graph.allNodes(), node => node.rank < 0, "invalid rank assignment");
 
         this._addVirtualNodes(graph);
@@ -65,85 +69,30 @@ export default class SugiyamaLayouter extends Layouter
             _.forEach(component.nodes(), (node: LayoutNode) => {
                 if (node.childGraph !== null) {
                     this._assignRanks(node.childGraph);
+                    if (node.childGraph.maxRank === Number.POSITIVE_INFINITY) {
+                        throw new Error("INIFINITE MAX RANK");
+                    }
                     node.rankSpan = node.childGraph.maxRank - node.childGraph.minRank + 1;
                 }
             });
 
-            // do toposort and allocate each node with one of its ancestor sources
-            const rankPerNode: Array<Map<number, number>> = new Array(component.maxId() + 1);
-            for (let n = 0; n < rankPerNode.length; ++n) {
-                rankPerNode[n] = new Map();
-            }
-            const minSourcePerNode: Array<number> = _.fill(new Array(component.maxId() + 1), Number.POSITIVE_INFINITY);
-            const sources = component.sources();
-            const nodesBySource = new Array(sources.length);
-            const clusterGraph = new Graph();
-            _.forEach(sources, (source: LayoutNode, s: number) => {
-                nodesBySource[s] = [];
-                rankPerNode[source.id].set(s, 0);
-                minSourcePerNode[source.id] = s;
-                clusterGraph.addNode(new Node(), s);
+            const rankGraph = new RankGraph();
+            _.forEach(component.nodes(), node => {
+                const rankNode = new RankNode();
+                rankNode.label = node.label;
+                rankGraph.addNode(rankNode, node.id);
             });
-            _.forEach(component.toposort(), (node) => {
-                const s = minSourcePerNode[node.id];
-                // set rank according to minimum s
-                rankPerNode[node.id].forEach((rankI, sI) => {
-                    if (s === sI) {
-                        nodesBySource[s].push(node);
-                        node.rank = rankI;
-                    }
-                });
-                // set offset to other sources
-                rankPerNode[node.id].forEach((rankI, sI) => {
-                    if (s !== sI) {
-                        const weight = node.rank - rankI;
-                        clusterGraph.addEdge(new Edge(s, sI, weight));
-                    }
-                });
-
-                let nextRank = node.rank + node.rankSpan;
-                _.forEach(graph.outEdges(node.id), (outEdge: LayoutEdge) => {
-                    if (rankPerNode[outEdge.dst].has(s)) {
-                        nextRank = Math.max(nextRank, rankPerNode[outEdge.dst].get(s));
-                    } else {
-                        minSourcePerNode[outEdge.dst] = Math.min(minSourcePerNode[outEdge.dst], s);
-                    }
-                    rankPerNode[outEdge.dst].set(s, nextRank);
-                });
+            _.forEach(component.edges(), edge => {
+                rankGraph.addEdge(new Edge(edge.src, edge.dst, component.node(edge.src).rankSpan));
             });
+            rankGraph.rank();
 
-            // do toposort on cluster graph to merge clusters
-            const clusterSources = clusterGraph.sources();
-            Assert.assert(clusterSources.length === 1, "more than one cluster sources");
-            const minDifferenceBySource = _.fill(new Array(sources.length), Number.POSITIVE_INFINITY);
-            minDifferenceBySource[clusterSources[0].id] = 0;
-            _.forEach(clusterGraph.toposort(), (clusterNode: Node<any, any>) => {
-                const diff = minDifferenceBySource[clusterNode.id];
-                _.forEach(clusterGraph.outEdges(clusterNode.id), (outEdge: Edge<any, any>) => {
-                    minDifferenceBySource[outEdge.dst] = Math.min(minDifferenceBySource[outEdge.dst], diff + outEdge.weight);
-                });
-            });
-
-            for (let s = 0; s < sources.length; ++s) {
-                _.forEach(nodesBySource[s], (node: LayoutNode) => {
-                    node.rank += minDifferenceBySource[s];
-                });
-            }
-
-            let minRank = Number.POSITIVE_INFINITY;
-            let maxRank = Number.NEGATIVE_INFINITY;
-            _.forEach(component.nodes(), (node: LayoutNode) => {
-                Assert.assertNumber(node.rank, "rank is not a valid number");
-                minRank = Math.min(minRank, node.rank);
-                maxRank = Math.min(maxRank, node.rank + node.rankSpan - 1);
-            });
-            const difference = 0 - minRank;
-            _.forEach(component.nodes(), (node) => {
-                node.rank += difference;
+            _.forEach(component.nodes(), node => {
+                node.rank = rankGraph.node(node.id).rank;
             });
 
             if (this._options['alignInAndOut']) {
-                _.forEach(sources, (source: LayoutNode) => {
+                _.forEach(component.sources, (source: LayoutNode) => {
                     if (source.isAccessNode) {
                         source.rank = component.minRank();
                     }
@@ -252,7 +201,7 @@ export default class SugiyamaLayouter extends Layouter
                             orderNode = new OrderNode(node, node.label);
                             orderGroups[r].addNode(orderNode);
                             let dstId = orderNode.id;
-                            orderGraph.addEdge(new Edge(srcId, dstId, 1000000));
+                            orderGraph.addEdge(new Edge(srcId, dstId, Number.POSITIVE_INFINITY));
                             srcId = dstId;
                         }
                     }
@@ -272,7 +221,7 @@ export default class SugiyamaLayouter extends Layouter
                 });
 
                 // do order
-                orderGraph.order();
+                orderGraph.order(false, false);
 
                 // copy node order into layout graph
                 _.forEach(orderGraph.nodes(), (orderNode: OrderNode) => {
