@@ -100,6 +100,11 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         this.height = size.height;
     }
 
+    updateSize(size: Size) {
+        this.width = Math.max(this.width, size.width);
+        this.height = Math.max(this.height, size.height);
+    }
+
     setWidth(width: number) {
         this.width = width;
     }

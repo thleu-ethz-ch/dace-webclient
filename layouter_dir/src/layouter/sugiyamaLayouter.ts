@@ -516,8 +516,8 @@ export default class SugiyamaLayouter extends Layouter
 
             // set parent bounding box
             if (subgraph.parentNode !== null) {
-                const boundingBox = subgraph.boundingBox();
-                subgraph.parentNode.setSize({width: boundingBox.width + 2 * subgraph.parentNode.padding, height: boundingBox.height + 2 * subgraph.parentNode.padding});
+                const boundingBox = subgraph.boundingBox(false);
+                subgraph.parentNode.updateSize({width: boundingBox.width + 2 * subgraph.parentNode.padding, height: boundingBox.height + 2 * subgraph.parentNode.padding});
                 console.assert(subgraph.parentNode.width >= 0 && subgraph.parentNode.height >= 0, "node has invalid size", subgraph.parentNode);
                 if (subgraph.entryNode !== null) {
                     subgraph.entryNode.setWidth(boundingBox.width);

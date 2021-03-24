@@ -5,6 +5,7 @@ import OrderGroup from "./orderGroup";
 import OrderNode from "./orderNode";
 import OrderRank from "./orderRank";
 import Component from "../graph/component";
+import Assert from "../util/assert";
 
 export default class OrderGraph {
     private _rankGraph: Graph<OrderRank, Edge<any, any>>;
@@ -349,6 +350,211 @@ export default class OrderGraph {
                 }
                 downward = !downward;
             }
+
+            if (_.sum(crossings) === Number.POSITIVE_INFINITY) {
+                for (let r = 1; r < ranks.length; ++r) {
+                    crossings[r] = countCrossings(order[r], r, "UP");
+                }
+            }
+
+            /**
+             * RESOLVE ILLEGAL CROSSINGS
+             */
+
+            const resolve = (r: number, heavyNorth: number, heavySouth: number, otherNorth: number, otherSouth: number) => {
+                Assert.assert(groupOffset[r].length === 1, "more than one group");
+                if (debug) {
+                    console.log(
+                        "resolve",
+                        ranks[r - 1].groups[0].nodes[order[r - 1][heavyNorth]],
+                        ranks[r].groups[0].nodes[order[r][heavySouth]],
+                        heavyNorth,
+                        heavySouth,
+                        otherNorth,
+                        otherSouth,
+                    );
+                }
+
+                let heavyPerRank = new Map();
+                heavyPerRank.set(r, heavySouth);
+                let otherPerRank = new Map([[r - 1, new Set([otherNorth])], [r, new Set([otherSouth])]]);
+                _.forEach([1, -1], direction => {
+                    const neighbors = (direction === 1 ? neighborsDown : neighborsUp);
+                    const weights = (direction === 1 ? weightsDown : weightsUp);
+                    let heavyPos = (direction === 1 ? heavyNorth : heavySouth);
+                    let tmpR = (direction === 1 ? r - 1 : r);
+                    while (neighbors[tmpR][order[tmpR][heavyPos]].length > 0 && weights[tmpR][order[tmpR][heavyPos]][0] === 1000000) {
+                        heavyPos = positions[tmpR + direction][neighbors[tmpR][order[tmpR][heavyPos]][0]];
+                        heavyPerRank.set(tmpR + direction, heavyPos);
+                        if (!otherPerRank.has(tmpR + direction)) {
+                            otherPerRank.set(tmpR + direction, new Set());
+                        }
+                        otherPerRank.get(tmpR).forEach((other: number) => {
+                            for (let neighbor = 0; neighbor < neighbors[tmpR][order[tmpR][other]].length; ++neighbor) {
+                                otherPerRank.get(tmpR + direction).add(positions[tmpR + direction][neighbors[tmpR][order[tmpR][other]][neighbor]]);
+                            }
+                        });
+                        tmpR += direction;
+                    }
+                });
+
+                // count how many nodes would have to be moved from left to right or from right to left
+                const leftPerRank = [];
+                const rightPerRank = [];
+                let numLeft = 0;
+                let numRight = 0;
+                otherPerRank.forEach((otherPositionsSet: Set<number>, r: number) => {
+                    if (otherPositionsSet.size === 0) {
+                        return;
+                    }
+                    const otherPositions =  _.sortBy(Array.from(otherPositionsSet));
+                    const index = _.sortedLastIndex(otherPositions, heavyPerRank.get(r));
+                    const left = _.slice(otherPositions, 0, index);
+                    const right = _.reverse(_.slice(otherPositions, index));
+                    if (debug) {
+                        console.log("r", r, "heavy", heavyPerRank.get(r), "otherPositions", otherPositions, "index", index, "left", left, "right", right);
+                    }
+                    if (left.length > 0) {
+                        leftPerRank.push([r, left]);
+                        numLeft += left.length;
+                    }
+                    if (right.length > 0) {
+                        rightPerRank.push([r, right]);
+                        numRight += right.length;
+                    }
+                });
+                // move the smaller number of nodes
+                const moveDir = (numLeft < numRight ? 1 : -1);
+                const otherPositionsPerRank = (moveDir === 1 ? leftPerRank : rightPerRank);
+
+                console.log(moveDir, heavyPerRank, otherPositionsPerRank);
+                _.forEach(otherPositionsPerRank, (rankPositions: [number, Array<number>]) => {
+                    let r = rankPositions[0];
+                    let movingPositions = rankPositions[1];
+                    let positionsPointer = 0;
+                    let offsetMoving = heavyPerRank.get(r) - movingPositions[0] + 1 - movingPositions.length;
+                    let offsetNonMoving = 0;
+                    for (let p = movingPositions[0]; p - moveDir !== heavyPerRank.get(r); p += moveDir) {
+                        if (movingPositions[positionsPointer] === p) {
+                            positions[r][order[r][p]] += offsetMoving;
+                            offsetNonMoving -= moveDir;
+                            positionsPointer++;
+                        } else {
+                            positions[r][order[r][p]] += offsetNonMoving;
+                            offsetMoving -= moveDir;
+                        }
+                    }
+                    order[r] = _.map(_.sortBy(_.map(positions[r], (pos, n) => [pos, n]), "0"), "1");
+                });
+
+
+                const rankCrossingsChanged = _.fill(new Array(ranks.length), false);
+                _.forEach(otherPositionsPerRank, (rankPositions: [number, Array<number>]) => {
+                    let r = rankPositions[0];
+                    rankCrossingsChanged[r] = true;
+                    if (r < ranks.length - 1) {
+                        rankCrossingsChanged[r + 1] = true;
+                    }
+                });
+                for (let r = 0; r < ranks.length; ++r) {
+                    if (rankCrossingsChanged[r]) {
+                        crossings[r] = countCrossings(order[r], r, "UP");
+                    }
+                }
+            }
+
+            while (_.sum(crossings) >= 1000000) {
+                let hasResolved = false;
+                if (debug) {
+                    console.log("must resolve", _.sum(crossings));
+                }
+                for (let r = 1; r < ranks.length; ++r) {
+                    if (crossings[r] >= 1000000) {
+                        // there is at least one illegal crossing between this and the upper rank
+                        const segmentStarts = [];
+                        const segmentEnds = [];
+                        for (let n = 0; n < Math.max(order[r - 1].length); ++n) {
+                            segmentStarts[n] = [];
+                        }
+                        for (let n = 0; n < Math.max(order[r].length); ++n) {
+                            segmentEnds[n] = [];
+                        }
+                        for (let n = 0; n < order[r].length; ++n) {
+                            const posSouth = positions[r][n];
+                            for (let neighbor = 0; neighbor < neighborsUp[r][n].length; ++neighbor) {
+                                const posNorth = positions[r - 1][neighborsUp[r][n][neighbor]];
+                                const heavy = (weightsUp[r][n][neighbor] === 1000000);
+                                const segment = [posNorth, posSouth, heavy];
+                                segmentStarts[posNorth].push(segment);
+                                segmentEnds[posSouth].push(segment);
+                            }
+                        }
+                        const openSegments = new Set();
+                        for (let n = 0; n < Math.max(order[r].length, order[r - 1].length); ++n) {
+                            _.forEach(segmentStarts[n], (segment: [number, number, boolean]) => {
+                                const [posNorth, posSouth, heavy] = segment;
+                                if (posNorth >= posSouth) {
+                                    openSegments.delete(segment);
+                                }
+                            });
+                            _.forEach(segmentEnds[n], (segment: [number, number, boolean]) => {
+                                const [posNorth, posSouth, heavy] = segment;
+                                if (posNorth < posSouth) { // equality handled in loop above
+                                    openSegments.delete(segment);
+                                }
+                            });
+                            const newSegments = [];
+                            _.forEach(segmentStarts[n], (segment: [number, number, boolean]) => {
+                                const [posNorth, posSouth, heavy] = segment;
+                                if (posNorth <= posSouth) {
+                                    newSegments.push(segment);
+                                }
+                            });
+                            _.forEach(segmentEnds[n], (segment: [number, number, boolean]) => {
+                                const [posNorth, posSouth, heavy] = segment;
+                                if (posNorth > posSouth) { // equality handled in loop above
+                                    newSegments.push(segment);
+                                }
+                            });
+                            _.forEach(newSegments, newSegment => {
+                                if (hasResolved) {
+                                    return; // can not break from forEach
+                                }
+                                const [posNorth, posSouth, heavy] = newSegment;
+                                let newDir = Math.sign(posSouth - posNorth);
+                                openSegments.forEach((openSegment: [number, number, boolean]) => {
+                                    if (hasResolved) {
+                                        return; // can not break from forEach
+                                    }
+                                    const [openPosNorth, openPosSouth, openHeavy] = openSegment;
+                                    // dir is
+                                    let openDir = Math.sign(openPosSouth - openPosNorth);
+                                    if ((newDir !== openDir) || (newDir === 1 && posSouth < openPosSouth) || (posNorth < openPosNorth)) {
+                                        // segments have different direction or new segment is more vertical
+                                        if (openHeavy) {
+                                            resolve(r, openPosNorth, openPosSouth, posNorth, posSouth);
+                                            hasResolved = true;
+                                        } else if (heavy) {
+                                            resolve(r, posNorth, posSouth, openPosNorth, openPosSouth);
+                                            hasResolved = true;
+                                        }
+                                    }
+                                });
+                                if (newDir !== 0) {
+                                    openSegments.add(newSegment);
+                                }
+                            });
+                            if (hasResolved) {
+                                break;
+                            }
+                        }
+                        if (hasResolved) {
+                            break;
+                        }
+                    }
+                }
+            }
+
             _.forEach(ranks, (rank: OrderRank, r: number) => {
                 _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {
                     group.order = _.map(_.slice(order[r], groupOffset[r][g], groupOffset[r][g] + numNodesGroup[r][g]),

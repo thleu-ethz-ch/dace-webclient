@@ -298,6 +298,7 @@ export default class Renderer {
             case "SDFGState":
                 const color = new Color(0xDE, 0xEB, 0xF7);
                 shapes.push(new Rectangle(node, node.x, node.y, node.width, node.height, color, color));
+                shapes.push(new Text(node.x + 5, node.y + 5, node.label));
                 break;
             case "Tasklet":
                 shapes.push(new Octagon(node, node.x, node.y, node.width, node.height));
