@@ -6,6 +6,7 @@ import OrderNode from "./orderNode";
 import OrderRank from "./orderRank";
 import Component from "../graph/component";
 import Assert from "../util/assert";
+import Timer from "../util/timer";
 
 export default class OrderGraph {
     private _rankGraph: Graph<OrderRank, Edge<any, any>>;
@@ -27,7 +28,7 @@ export default class OrderGraph {
         };
         _.forEach(this.orderedGroups(), (group: OrderGroup) => {
             obj.nodes[group.id] = {
-                label: group.label,
+                label: group.label(),
                 child: {
                     nodes: {},
                     edges: [],
@@ -35,7 +36,7 @@ export default class OrderGraph {
             };
             _.forEach(group.orderedNodes(), (node: OrderNode) => {
                 obj.nodes[group.id].child.nodes[node.id] = {
-                    label: node.label,
+                    label: node.label(),
                     child: null
                 };
             });
@@ -109,6 +110,7 @@ export default class OrderGraph {
 
     public groups() {
         return this._groupGraph.nodes();
+        return this._groupGraph.nodes();
     }
 
     public orderedGroups() {
@@ -146,6 +148,7 @@ export default class OrderGraph {
 
     public order(doNothing: boolean = false, debug: boolean = false): void {
         const doOrder = (graph: OrderGraph, downward: boolean = true, isAux: boolean = false) => {
+            Timer.start("doOrder")
             const ranks = graph._rankGraph.toposort();
             const groupOffsets = []; // number of nodes in groups left of this group by group id
             const numNodesGroup = []; // number of nodes per group per rank
@@ -173,7 +176,7 @@ export default class OrderGraph {
             const weightsDown = [];
             const neighborsUp = [];
             const weightsUp = [];
-            const order = []; // current order of this level (e. g. 2, 0, 1)
+            let order = []; // current order of this level (e. g. 2, 0, 1)
             const positions = []; // inverse of order (e. g. 1, 2, 0)
             const crossings = []; // number of crossings above each rank where heavy edges are not so heavy
             const crossingsWithInfinity = []; // number of crossings above each rank where heavy edges are heavy
@@ -243,11 +246,6 @@ export default class OrderGraph {
                 return this._countCrossings(testOrder.length, order[neighborRank].length, edges);
             };
 
-            // count initial crossings
-            for (let r = 1; r < ranks.length; ++r) {
-                crossings[r] = countCrossings(order[r], r, "UP");
-            }
-
             /*console.log("groupOffset", _.cloneDeep(groupOffset));
             console.log("neighborsDown", _.cloneDeep(neighborsDown));
             console.log("neighborsUp", _.cloneDeep(neighborsUp));
@@ -255,10 +253,19 @@ export default class OrderGraph {
             console.log("positions", _.cloneDeep(positions));
             console.log("crossings", _.cloneDeep(crossings));*/
 
-            let prevCrossings = _.sum(crossings);
+            /**
+             * Sweeps the ranks up and down and reorders the nodes according to the barycenter heuristic
+             * @param countInitial
+             */
+            const reorder = (countInitial: boolean = false) => {
+                Timer.start("reorder");
+                // count initial crossings
+                if (countInitial) {
+                    for (let r = 1; r < ranks.length; ++r) {
+                        crossings[r] = countCrossings(order[r], r, "UP");
+                    }
+                }
 
-            let improved = !doNothing && (ranks.length > 1);
-            while (improved) {
                 let improveCounter = (!doNothing && (ranks.length > 1)) ? 2 : 0; // if only one rank, nothing to order
                 while (improveCounter > 0) {
                     improveCounter--;
@@ -361,15 +368,15 @@ export default class OrderGraph {
                     downward = !downward;
                 }
 
-                for (let r = 1; r < ranks.length; ++r) {
-                    crossingsWithInfinity[r] = countCrossings(order[r], r, "UP", true);
-                }
+                Timer.stop("reorder");
+            };
 
-                /**
-                 * RESOLVE ILLEGAL CROSSINGS
-                 */
-
-                const resolve = (r: number, heavyNorth: number, heavySouth: number, otherNorth: number, otherSouth: number) => {
+            /**
+             * Tries to resolve illegal crossings, i. e. crossings of edges with infinite weight.
+             */
+            const resolve = () => {
+                Timer.start("resolve");
+                const resolveCrossing = (r: number, heavyNorth: number, heavySouth: number, otherNorth: number, otherSouth: number) => {
                     Assert.assert(groupOffset[r].length === 1, "more than one group");
                     if (debug) {
                         console.log(
@@ -472,15 +479,23 @@ export default class OrderGraph {
                         }
                     }
                 }
-                let numex = 0;
-                while (false && _.sum(crossingsWithInfinity) >= 1000000) {
-                    if (numex++ === 100) {
-                        throw new Error("halt");
+
+                for (let r = 1; r < ranks.length; ++r) {
+                    crossingsWithInfinity[r] = countCrossings(order[r], r, "UP", true);
+                }
+
+                let counter = 0;
+                let invalid = false;
+                while (_.sum(crossingsWithInfinity) >= 1000000) {
+                    if (counter++ === 10) {
+                        invalid = true;
+                        console.log("break");
+                        break;
                     }
                     let hasResolved = false;
-                    //if (debug) {
-                        console.log("must resolve", _.sum(crossingsWithInfinity));
-                    //}
+                    if (debug) {
+                        console.log("resolve", _.sum(crossingsWithInfinity));
+                    }
                     for (let r = 1; r < ranks.length; ++r) {
                         if (crossingsWithInfinity[r] >= 1000000) {
                             // there is at least one illegal crossing between this and the upper rank
@@ -545,10 +560,10 @@ export default class OrderGraph {
                                         if ((newDir !== openDir) || (newDir === 1 && posSouth < openPosSouth) || (posNorth < openPosNorth)) {
                                             // segments have different direction or new segment is more vertical
                                             if (openHeavy) {
-                                                resolve(r, openPosNorth, openPosSouth, posNorth, posSouth);
+                                                resolveCrossing(r, openPosNorth, openPosSouth, posNorth, posSouth);
                                                 hasResolved = true;
                                             } else if (heavy) {
-                                                resolve(r, posNorth, posSouth, openPosNorth, openPosSouth);
+                                                resolveCrossing(r, posNorth, posSouth, openPosNorth, openPosSouth);
                                                 hasResolved = true;
                                             }
                                         }
@@ -567,14 +582,19 @@ export default class OrderGraph {
                         }
                     }
                 }
-                for (let r = 1; r < ranks.length; ++r) {
-                    crossings[r] = countCrossings(order[r], r, "UP");
-                }
-                let newCrossings = _.sum(crossings);
-                improved = newCrossings < prevCrossings;
-                prevCrossings = newCrossings;
+                Timer.stop("resolve")
+                return !invalid;
             }
 
+            const originalOrder = _.cloneDeep(order);
+
+            reorder(false);
+            if (!resolve()) {
+                order = _.cloneDeep(originalOrder);
+                reorder(true);
+                const success = resolve();
+                Assert.assert(success, "illegal crossings when starting from original order");
+            }
 
             _.forEach(ranks, (rank: OrderRank, r: number) => {
                 _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {
@@ -586,6 +606,7 @@ export default class OrderGraph {
                     });
                 });
             });
+            Timer.stop("doOrder");
         }
 
         this._addGroupEdges();
@@ -616,10 +637,6 @@ export default class OrderGraph {
             componentGraph._addGroupEdges();
             componentGraph._addRankEdges();
 
-            if (componentGraph.nodes().length === 13) {
-                componentGraph.storeLocal();
-            }
-
             if (componentGraph.edges().length === 0) {
                 // when there are no edges, no need to order
                 return;
@@ -627,48 +644,6 @@ export default class OrderGraph {
 
             doOrder(componentGraph);
         });
-
-        /*_.forEach(this._nodeGraph.components(), (nodeGraphComponent: Component<OrderNode, Edge<any, any>>, i) => {
-            const componentGraph = new OrderGraph();
-
-            const groups: Array<OrderGroup> = [];
-            const ranks: Array<OrderRank> = [];
-
-            _.forEach(nodeGraphComponent.nodes(), (node: OrderNode) => {
-                if (ranks[node.group.rank.id] === undefined) {
-                    ranks[node.group.rank.id] = new OrderRank();
-                    componentGraph.addRank(ranks[node.group.rank.id]);
-                }
-                if (groups[node.group.id] === undefined) {
-                    groups[node.group.id] = new OrderGroup(node.group.reference);
-                    ranks[node.group.rank.id].addGroup(groups[node.group.id]);
-                }
-                groups[node.group.id].addNode(node, node.id);
-            });
-            _.forEach(componentGraph.nodes(), (newNode: OrderNode) => {
-                _.forEach(this.outEdges(newNode.id), (edge: Edge<any, any>) => {
-                    componentGraph.addEdge(edge);
-                });
-            });
-            if (componentGraph.edges().length === 0) {
-                // when there are no edges, no need to order
-                return;
-            }
-            componentGraph._addGroupEdges();
-            componentGraph._addRankEdges();
-            /*if (componentGraph._nodeGraph.nodes().length > 0 && componentGraph._nodeGraph.nodes()[0].reference !== null && componentGraph._nodeGraph.nodes()[0].reference.graph !== undefined && componentGraph._nodeGraph.nodes()[0].reference.graph.mayHaveCycles) {
-                console.log(componentGraph._nodeGraph.nodes().length)
-                console.log(_.map(componentGraph._nodeGraph.nodes(), node => node.reference ? (node.reference.label) : ''));
-            }*/
-            /*if (componentGraph._groupGraph.nodes().length > 0 && componentGraph._groupGraph.nodes()[0].reference !== null) {
-                //componentGraph._groupGraph.storeLocal();
-                console.log("connectors in nodes: ", _.map(componentGraph._groupGraph.nodes(), node => node.reference.label));
-            }
-            //console.log("componentGraph", componentGraph);
-
-            doOrder(componentGraph);
-        });*/
-
     }
 
     /**

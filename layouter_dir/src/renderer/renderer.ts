@@ -35,6 +35,7 @@ import DagreLayouter from "../layouter/dagreLayouter";
 import Node from "../graph/node";
 import GenericNode from "../renderGraph/genericNode";
 import GenericContainerNode from "../renderGraph/genericContainerNode";
+import Timer from "../util/timer";
 
 export default class Renderer {
     private readonly _viewport;
@@ -162,13 +163,15 @@ export default class Renderer {
             });
 
             const layout = layouter.layout(graph);
+
+
             const layoutAnalysis = new LayoutAnalysis(layout);
-            if (layoutAnalysis.validate()) {
+            /*if (layoutAnalysis.validate()) {
                 console.log("Layout satisfies constraints.");
             } else {
                 console.log("Layout violates constraints.");
-            }
-            console.log("Weighted cost: " + layoutAnalysis.cost(true).toFixed(0));
+            }*/
+            //console.log("Weighted cost: " + layoutAnalysis.cost(true).toFixed(0));
             /*const performanceAnalysis = new PerformanceAnalysis(layouter);
             performanceAnalysis.measure(name, 1).then(time => {
                 console.log(time + " ms");
@@ -178,6 +181,10 @@ export default class Renderer {
             const box = graph.boundingBox();
             console.log("Total size: " + box.width.toFixed(0) +  "x" + box.height.toFixed(0));
             console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
+
+
+            Timer.printTimes();
+
 
             this.render(graph);
         });
@@ -191,7 +198,7 @@ export default class Renderer {
             _.forEach(obj.nodes, (nodeObj, id) => {
                 if (nodeObj.child !== null) {
                     const node = new GenericContainerNode("GenericContainerNode");
-                    node.label = nodeObj.label || "";
+                    node.setLabel(nodeObj.label || "");
                     console.log(nodeObj.label);
                     node.updateSize(this._labelSize(node));
                     parent.addNode(node, id);
@@ -200,7 +207,7 @@ export default class Renderer {
                     addSubgraph(node.childGraph, nodeObj.child);
                 } else {
                     const node = new GenericNode("GenericNode");
-                    node.label = nodeObj.label || "";
+                    node.setLabel(nodeObj.label || "");
                     console.log(nodeObj.label);
                     node.updateSize(this._labelSize(node));
                     parent.addNode(node, id);
@@ -247,7 +254,7 @@ export default class Renderer {
     }
 
     private _labelSize(node: RenderNode): Size {
-        const textBox = (new Text(0, 0, node.label, node.labelFontSize)).boundingBox();
+        const textBox = (new Text(0, 0, node.label(), node.labelFontSize)).boundingBox();
         return {
             width: textBox.width + 2 * node.labelPaddingX,
             height: textBox.height + 2 * node.labelPaddingY,
@@ -289,11 +296,11 @@ export default class Renderer {
             case "AccessNode":
             case "GenericNode":
                 shapes.push(new Ellipse(node, node.x, node.y, node.width, node.height));
-                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label));
+                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
                 break;
             case "LibraryNode":
                 shapes.push(new FoldedCornerRectangle(this, node.x, node.y, node.width, node.height));
-                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label))
+                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()))
                 break;
             case "NestedSDFG":
                 shapes.push(new Rectangle(node, node.x, node.y, node.width, node.height));
@@ -301,24 +308,24 @@ export default class Renderer {
             case "SDFGState":
                 const color = new Color(0xDE, 0xEB, 0xF7);
                 shapes.push(new Rectangle(node, node.x, node.y, node.width, node.height, color, color));
-                shapes.push(new Text(node.x + 5, node.y + 5, node.label));
+                shapes.push(new Text(node.x + 5, node.y + 5, node.label()));
                 break;
             case "Tasklet":
                 shapes.push(new Octagon(node, node.x, node.y, node.width, node.height));
-                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label));
+                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
                 break;
             case "GenericContainerNode":
                 shapes.push(new Rectangle(node, node.x, node.y, node.width, node.height));
-                shapes.push(new Text(node.x + 5, node.y + 5, node.label));
+                shapes.push(new Text(node.x + 5, node.y + 5, node.label()));
                 break;
         }
         if (node.type().endsWith("Entry")) {
             shapes.push(new UpwardTrapezoid(node, node.x, node.y, node.width, node.height));
-            shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label));
+            shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
         }
         if (node.type().endsWith("Exit")) {
             shapes.push(new DownwardTrapezoid(node, node.x, node.y, node.width, node.height));
-            shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label));
+            shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
         }
 
         // add child graph shapes

@@ -19,6 +19,7 @@ import OrderEdge from "../order/orderEdge";
 import Vector from "../geometry/vector";
 import RankGraph from "../rank/rankGraph";
 import RankNode from "../rank/rankNode";
+import Timer from "../util/timer";
 
 export default class SugiyamaLayouter extends Layouter
 {
@@ -27,30 +28,44 @@ export default class SugiyamaLayouter extends Layouter
         if (graph.nodes().length === 0) {
             return;
         }
+        Timer.start("doLayout()");
 
+        Timer.start("removeCycles");
         this._removeCycles(graph);
+        Timer.stop("removeCycles");
         Assert.assert(!graph.hasCycle(), "graph has cycle");
 
+        Timer.start("assignRanks");
         this._assignRanks(graph);
-        console.log(graph.globalRanks());
+        Timer.stop("assignRanks");
         Assert.assertNone(graph.allNodes(), node => node.rank < 0, "invalid rank assignment");
 
+        Timer.start("addVirtualNodes");
         this._addVirtualNodes(graph);
+        Timer.stop("addVirtualNodes");
         Assert.assertNone(graph.allEdges(), edge => {
             const srcNode = edge.graph.node(edge.src)
             return srcNode.rank + srcNode.rankSpan !== edge.graph.node(edge.dst).rank;
         }, "edge not between neighboring ranks");
 
+        Timer.start("orderRanks");
         this._orderRanks(graph);
+        Timer.stop("orderRanks");
         Assert.assertNone(graph.allNodes(), node => typeof node.index !== "number" || isNaN(node.index), "invalid index");
         Assert.assertNone(graph.allNodes(), node => node.childGraph !== null && node.indexes.length < node.rankSpan, "wrong number of indexes");
         Assert.assertNone(graph.allNodes(), node => node.childGraph !== null && _.max(node.indexes) !== node.index, "index is not maximum of indexes");
 
+        Timer.start("assignCoordinates");
         this._assignCoordinates(graph);
+        Timer.stop("assignCoordinates");
         Assert.assertNone(graph.allNodes(), node => typeof node.y !== "number" || isNaN(node.y), "invalid y assignment");
         Assert.assertNone(graph.allNodes(), node => typeof node.x !== "number" || isNaN(node.x), "invalid x assignment");
 
+        Timer.start("restoreCycles");
         this._restoreCycles(graph);
+        Timer.stop("restoreCycles");
+
+        Timer.stop("doLayout()");
     }
 
     private _removeCycles(graph: LayoutGraph): void {
@@ -78,9 +93,7 @@ export default class SugiyamaLayouter extends Layouter
 
             const rankGraph = new RankGraph();
             _.forEach(component.nodes(), node => {
-                const rankNode = new RankNode();
-                rankNode.label = node.label;
-                rankGraph.addNode(rankNode, node.id);
+                rankGraph.addNode(new RankNode(node.label()), node.id);
             });
             _.forEach(component.edges(), edge => {
                 rankGraph.addEdge(new Edge(edge.src, edge.dst, component.node(edge.src).rankSpan));
@@ -138,7 +151,7 @@ export default class SugiyamaLayouter extends Layouter
                 for (let tmpDstRank = srcRank + 1; tmpDstRank < dstNode.rank; ++tmpDstRank) {
                     const newNode = new LayoutNode({width: 0, height: 0}, 0, true);
                     newNode.rank = tmpDstRank;
-                    newNode.label = "virtual";
+                    newNode.setLabel("virtual node on edge " + edge.toString);
                     tmpDstId = edge.graph.addNode(newNode);
                     if (tmpDstRank === srcRank + 1) {
                         // original edge is redirected from source to first virtual node
@@ -161,7 +174,7 @@ export default class SugiyamaLayouter extends Layouter
             if (subgraph.nodes().length === 0) {
                 const newNode = new LayoutNode({width: 0, height: 0}, 0, true);
                 newNode.rank = subgraph.minRank;
-                newNode.label = "virtual";
+                newNode.setLabel("placeholder inside parent " + (subgraph.parentNode !== null ? subgraph.parentNode.label() : ""));
                 subgraph.addNode(newNode);
             }
         });
@@ -190,7 +203,7 @@ export default class SugiyamaLayouter extends Layouter
                 }
                 // add nodes
                 _.forEach(component.nodes(), (node: LayoutNode) => {
-                    let orderNode = new OrderNode(node, node.label);
+                    let orderNode = new OrderNode(node, node.label());
                     orderGroups[node.rank].addNode(orderNode);
                     inNodeMap.set(node, orderNode.id);
 
@@ -198,7 +211,7 @@ export default class SugiyamaLayouter extends Layouter
                         // add chain nodes and edges
                         let srcId = orderNode.id;
                         for (let r = node.childGraph.minRank + 1; r <= node.childGraph.maxRank; ++r) {
-                            orderNode = new OrderNode(node, node.label);
+                            orderNode = new OrderNode(node, node.label());
                             orderGroups[r].addNode(orderNode);
                             let dstId = orderNode.id;
                             orderGraph.addEdge(new Edge(srcId, dstId, Number.POSITIVE_INFINITY));
@@ -274,7 +287,7 @@ export default class SugiyamaLayouter extends Layouter
                         let connectorGroup;
                         if (node.childGraph === null || component.minRank() + r === node.rank) {
                             // add input connectors
-                            connectorGroup = new OrderGroup(node, node.label);
+                            connectorGroup = new OrderGroup(node, node.label());
                             connectorGroup.position = index;
                             orderRanks[node.rank].addGroup(connectorGroup);
                             _.forEach(node.inConnectors, (connector: LayoutConnector) => {
@@ -295,7 +308,7 @@ export default class SugiyamaLayouter extends Layouter
                             Assert.assertImplies(node.rankSpan > 1, !node.hasScopedConnectors, "multirank node with scoped connectors");
                             if (!node.hasScopedConnectors) {
                                 // keep in- and out-connectors separated from each other if they are not scoped
-                                connectorGroup = new OrderGroup(node, node.label);
+                                connectorGroup = new OrderGroup(node, node.label());
                                 orderRanks[node.rank + node.rankSpan - 1].addGroup(connectorGroup);
                             }
 
@@ -319,7 +332,6 @@ export default class SugiyamaLayouter extends Layouter
             });
         };
         addConnectorsForSubgraph(graph);
-
         // add connector edges
         _.forEach(graph.allEdges(), (edge: LayoutEdge) => {
             let srcNode = edge.graph.node(edge.src);

@@ -3,10 +3,12 @@ import Graph from "./graph";
 import Node from "./node";
 import * as _ from "lodash";
 import Assert from "../util/assert";
+import Timer from "../util/timer";
 
 export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<any, any>>
 {
     protected _nodeIds: Array<number> = [];
+    protected _nodes: Array<NodeT> = [];
     protected _edgeIds: Array<number> = [];
     protected _graph: Graph<NodeT, EdgeT>;
 
@@ -18,6 +20,7 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
 
     public addNode(id: number) {
         this._nodeIds.push(id);
+        this._nodes.push(this._graph.node(id));
     }
 
     public addEdge(id: number) {
@@ -29,11 +32,9 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
     }
 
     public nodes(): Array<NodeT> {
-        const nodes = [];
-        _.forEach(this._nodeIds, id => {
-            const node = this._graph.node(id)
-            nodes.push(node);
-        });
+        Timer.start("component.nodes()");
+        const nodes = _.clone(this._nodes);
+        Timer.stop("component.nodes()");
         return nodes;
     }
 

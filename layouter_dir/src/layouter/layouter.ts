@@ -14,6 +14,7 @@ import OrderNode from "../order/orderNode";
 import Vector from "../geometry/vector";
 import Segment from "../geometry/segment";
 import Edge from "../graph/edge";
+import Assert from "../util/assert";
 
 true
 export default abstract class Layouter {
@@ -59,404 +60,6 @@ export default abstract class Layouter {
 
     protected abstract doLayout(graph: LayoutGraph): void;
 
-    private _placeConnectorsHeuristically(graph: RenderGraph): void {
-        _.forEach(graph.allGraphs(), (renderGraph: RenderGraph) => {
-            /*const inConnectorsByNode = new Map();
-            const outConnectorsByNode = new Map();
-            const connectorGraph =  new OrderGraph();
-            const connectorIdMap = new Map();
-
-            // add nodes with connectors
-            _.forEach(renderGraph.nodes(), (node: RenderNode) => {
-                inConnectorsByNode.set(node.layoutNode, []);
-                outConnectorsByNode.set(node.layoutNode, []);
-                let hasScopedConnectors = false;
-                _.forEach(node.inConnectors, (connector: RenderConnector) => {
-                    hasScopedConnectors ||= (node.layoutNode.connector("IN", connector.name).isScoped);
-                });
-                if (hasScopedConnectors) {
-                    // create one group for all connectors
-                    const group = new OrderGroup({node: node, type: "ALL"});
-                    connectorGraph.addGroup(group);
-                    _.forEach(node.inConnectors, (connector: RenderConnector) => {
-                        const isScoped = node.layoutNode.connector("IN", connector.name).isScoped
-                        const orderNode = new OrderNode({type: isScoped ? "ALL" : "IN", name: connector.name});
-                        group.addNode(orderNode);
-                        connectorIdMap.set(node.id + "IN" + connector.name, orderNode.id);
-                        if (isScoped) {
-                            connectorIdMap.set(node.id + "OUTOUT_" + connector.name.substr(3), orderNode.id);
-                        }
-                    });
-                    _.forEach(node.outConnectors, (connector: RenderConnector) => {
-                        if (!node.layoutNode.connector("OUT", connector.name).isScoped) {
-                            const orderNode = new OrderNode({type: "OUT", name: connector.name});
-                            group.addNode(orderNode);
-                            connectorIdMap.set(node.id + "OUT" + connector.name, orderNode.id);
-                        }
-                    });
-                } else {
-                    // create separate groups for in-connectors and out-connectors
-                    if (node.inConnectors.length > 0) {
-                        const group = new OrderGroup({node: node, type: "IN"});
-                        connectorGraph.addGroup(group);
-                        _.forEach(node.inConnectors, (connector: RenderConnector) => {
-                            const orderNode = new OrderNode({type: "IN", name: connector.name});
-                            group.addNode(orderNode);
-                            connectorIdMap.set(node.id + "IN" + connector.name, orderNode.id);
-                        });
-                    }
-                    if (node.outConnectors.length > 0) {
-                        const group = new OrderGroup({node: node, type: "OUT"});
-                        connectorGraph.addGroup(group);
-                        _.forEach(node.outConnectors, (connector: RenderConnector) => {
-                            const orderNode = new OrderNode({type: "OUT", name: connector.name});
-                            group.addNode(orderNode);
-                            connectorIdMap.set(node.id + "OUT" + connector.name, orderNode.id);
-                        });
-                    }
-                }
-            });
-
-            // add edges between connectors (nodes)
-            _.forEach(renderGraph.edges(), (edge: RenderEdge) => {
-                if (edge.srcConnector !== null && edge.dstConnector !== null) {
-                    const srcId = connectorIdMap.get(edge.src + "OUT" + edge.srcConnector);
-                    const dstId = connectorIdMap.get(edge.dst + "IN" + edge.dstConnector);
-                    connectorGraph.addEdge(new OrderEdge(srcId, dstId));
-                }
-            });
-
-            // add non-connector nodes on top (dominating)
-            _.forEach(connectorGraph.sourceGroups(), (source: OrderGroup) => {
-                if (source.reference.type === "OUT") {
-                    return;
-                }
-                const orderGroup = new OrderGroup(null, true);
-                connectorGraph.addGroup(orderGroup);
-                connectorGraph.addEdge(new Edge(orderGroup.id, source.id));
-                const sortedEdges = _.sortBy(renderGraph.inEdges(source.reference.node.id), (edge: RenderEdge) => {
-                    return edge.layoutEdge.points[edge.layoutEdge.points.length - 3].x;
-                });
-                _.forEach(sortedEdges, (edge: RenderEdge) => {
-                    const orderNode = new OrderNode(null);
-                    orderGroup.addNode(orderNode);
-                    const dstId = connectorIdMap.get(edge.dst + "IN" + edge.dstConnector);
-                    connectorGraph.addEdge(new Edge(orderNode.id, dstId));
-                });
-            });
-            // add non-connector nodes on bottom (dominated)
-            _.forEach(connectorGraph.sinkGroups(), (sink: OrderGroup) => {
-                if (sink.reference.type === "IN") {
-                    return;
-                }
-                const orderGroup = new OrderGroup(null, true);
-                connectorGraph.addGroup(orderGroup);
-                connectorGraph.addEdge(new Edge(sink.id, orderGroup.id));
-                const sortedEdges = _.sortBy(renderGraph.outEdges(sink.reference.node.id), (edge: RenderEdge) => {
-                    return edge.layoutEdge.points[2].x;
-                });
-                _.forEach(sortedEdges, (edge: RenderEdge) => {
-                    const orderNode = new OrderNode(edge.id);
-                    orderGroup.addNode(orderNode);
-                    const srcId = connectorIdMap.get(edge.src + "OUT" + edge.srcConnector);
-                    connectorGraph.addEdge(new OrderEdge(srcId, orderNode.id));
-                });
-            });
-
-            _.forEach(connectorGraph.components(), (connectorGraph: OrderGraph) => {
-                if (connectorGraph.groups().length > 0) {
-
-
-                    console.log();
-                    console.log();
-                    _.forEach(connectorGraph.orderedGroups(), (group: OrderGroup) => {
-                        if (group.reference === null) {
-                            console.log("INPUT / OUTPUT");
-                        } else {
-                            console.log(group.reference.type, group.reference.node.label());
-                        }
-                    });
-
-
-
-                    connectorGraph.order();
-                    _.forEach(connectorGraph.groups(), group => {
-                        if (group.reference !== null) {
-                            const layoutNode = <LayoutNode>group.reference.node.layoutNode;
-                            if (group.reference.type === "ALL") {
-                                _.forEach(group.order, pos => {
-                                    const connectorType = group.nodes[pos].reference.type;
-                                    if (connectorType === "ALL" || connectorType === "IN") {
-                                        const inConnector = layoutNode.connector("IN", group.nodes[pos].reference.name);
-                                        inConnectorsByNode.get(layoutNode).push(inConnector);
-                                        if (connectorType === "ALL") {
-                                            const outConnector = layoutNode.connector("OUT", "OUT_" + group.nodes[pos].reference.name.substr("3"));
-                                            outConnectorsByNode.get(layoutNode).push(outConnector);
-                                        }
-                                    } else {
-                                        const outConnector = layoutNode.connector("OUT", group.nodes[pos].reference.name);
-                                        outConnectorsByNode.get(layoutNode).push(outConnector);
-                                    }
-                                });
-                            } else if (group.reference.type === "IN") {
-                                _.forEach(group.order, pos => {
-                                    const inConnector = layoutNode.connector("IN", group.nodes[pos].reference.name);
-                                    inConnectorsByNode.get(layoutNode).push(inConnector);
-                                });
-                            } else {
-                                _.forEach(group.order, pos => {
-                                    const outConnector = layoutNode.connector("OUT", group.nodes[pos].reference.name);
-                                    outConnectorsByNode.get(layoutNode).push(outConnector);
-                                });
-                            }
-                        }
-                    });
-                    // assign x coordinates to connectors (also y, but those are trivial)
-                    _.forEach(connectorGraph.orderedGroups(), (connectorGroup: OrderGroup) => {
-                        if (connectorGroup.reference === null) {
-                            return;
-                        }
-                        const renderNode = connectorGroup.reference.node;
-                        const layoutNode = renderNode.layoutNode;
-                        const inConnectors = inConnectorsByNode.get(layoutNode) || [];
-                        const outConnectors = outConnectorsByNode.get(layoutNode) || [];
-                        if (inConnectors.length + outConnectors.length === 0) {
-                            return; // skip nodes with no connectors
-                        }
-                        const inPositions = new Map();
-                        const outPositions = new Map();
-                        const inNeighborXSum = [];
-                        const outNeighborXSum = [];
-                        const inNeighborCount = [];
-                        const outNeighborCount = [];
-                        _.forEach(inConnectors, (connector, pos) => {
-                            inPositions.set(connector.name, pos);
-                            inNeighborXSum[pos] = 0;
-                            inNeighborCount[pos] = 0;
-                        });
-                        _.forEach(outConnectors, (connector, pos) => {
-                            outPositions.set(connector.name, pos);
-                            outNeighborXSum[pos] = 0;
-                            outNeighborCount[pos] = 0;
-                        });
-                        // gather values to calculate mean neighbor value
-                        if (inConnectors.length > 0) {
-                            _.forEach(renderGraph.inEdges(renderNode.id), (renderEdge: RenderEdge) => {
-                                const layoutEdge = renderEdge.layoutEdge;
-                                const connectorPos = inPositions.get(layoutEdge.dstConnector);
-                                inNeighborXSum[connectorPos] += layoutEdge.points[layoutEdge.points.length - 3].x;
-                                inNeighborCount[connectorPos]++;
-                            });
-                        }
-                        if (outConnectors.length > 0) {
-                            _.forEach(renderGraph.outEdges(renderNode.id), (renderEdge: RenderEdge) => {
-                                const layoutEdge = renderEdge.layoutEdge;
-                                const connectorPos = outPositions.get(layoutEdge.srcConnector);
-                                outNeighborXSum[connectorPos] += layoutEdge.points[2].x;
-                                outNeighborCount[connectorPos]++;
-                            });
-                        }
-                        _.forEach(inConnectors, (connector, pos) => {
-                            if (connector.isScoped) {
-                                const outConnector = connector.counterpart;
-                                const outPos = outPositions.get(outConnector.name);
-                                const inSum = inNeighborXSum[pos];
-                                const inCount = inNeighborCount[pos];
-                                inNeighborXSum[pos] += outNeighborXSum[outPos];
-                                inNeighborCount[pos] += outNeighborCount[outPos];
-                                outNeighborXSum[outPos] += inSum;
-                                outNeighborCount[outPos] += inCount;
-                            }
-                        });
-
-                        const inX = [];
-                        const outX = [];
-                        const inIdealX = [];
-                        const outIdealX = [];
-                        const inForce = [];
-                        const outForce = [];
-                        const SPACE = this._options['connectorSpacing'];
-                        const firstConnector = inConnectors[0] || outConnectors[0];
-                        const CW = firstConnector.width;
-                        const leftBoundary = layoutNode.x + renderNode.connectorPadding;
-                        const rightBoundary = layoutNode.x + layoutNode.width - renderNode.connectorPadding - CW;
-                        const inY = layoutNode.y - CW / 2;
-                        const outY = layoutNode.y + layoutNode.height - CW / 2;
-                        let absMinX = [leftBoundary];
-                        let minX = leftBoundary;
-                        let maxX = rightBoundary - (inConnectors.length - 1) * (CW + SPACE);
-                        let leftMostMovable = 0;
-                        _.forEach(inConnectors, (connector: LayoutConnector, pos: number) => {
-                            inIdealX[pos] = inNeighborXSum[pos] / inNeighborCount[pos] - CW / 2;
-                            inX[pos] = Math.max(minX, Math.min(maxX, inIdealX[pos]));
-                            inForce[pos] = inIdealX[pos] - inX[pos];
-                            while (inX[pos] > absMinX[pos] && inForce[pos] < 0) {
-                                let maxMove = inX[pos] - absMinX[pos];
-                                let negativeCharged = 0;
-                                let forceSum = 0;
-                                for (let i = leftMostMovable; i <= pos; ++i) {
-                                    forceSum += inForce[i];
-                                    maxMove = Math.min(maxMove, inX[i] - absMinX[i]);
-                                    if (inForce[i] < 0) {
-                                        negativeCharged++;
-                                        maxMove = Math.min(maxMove, -inForce[i]);
-                                    }
-                                }
-                                const positiveCharged = pos - leftMostMovable + 1 - negativeCharged;
-                                if (forceSum >= 0) {
-                                    break;
-                                }
-                                if (positiveCharged > negativeCharged) {
-                                    break;
-                                }
-                                let move = maxMove;
-                                if (positiveCharged === negativeCharged) {
-                                    move = Math.min(-0.5 * forceSum, maxMove);
-                                }
-                                // move whole group as far to the left as possible
-                                for (let i = leftMostMovable; i <= pos; ++i) {
-                                    inX[i] -= move;
-                                    if (inX[i] < absMinX[i]) {
-                                        throw new Error("inX[i] = " + inX[i] + "; absMinX[i] = " + absMinX[i])
-                                    }
-                                    inForce[i] = inIdealX[i] - inX[i];
-                                    if (inX[i] === absMinX[i]) {
-                                        leftMostMovable = i + 1;
-                                        absMinX[i + 1] = absMinX[i] + (CW + SPACE);
-                                    }
-                                }
-                                if (positiveCharged === negativeCharged) {
-                                    break;
-                                }
-                            }
-                            if (inX[pos] === absMinX[pos]) {
-                                leftMostMovable = pos + 1;
-                            }
-                            minX = inX[pos] + (CW + SPACE);
-                            absMinX[pos + 1] = absMinX[pos] + (CW + SPACE);
-                            maxX += (CW + SPACE);
-                            if (inX[pos] < leftBoundary) {
-                                throw new Error("Boundary breach");
-                            }
-                        });
-                        minX = leftBoundary;
-                        absMinX = [leftBoundary];
-                        maxX = rightBoundary - (outConnectors.length - 1) * (CW + SPACE);
-                        leftMostMovable = 0;
-                        _.forEach(outConnectors, (connector: LayoutConnector, pos: number) => {
-                            if (connector.isScoped) {
-                                outX[pos] = inX[inPositions.get(connector.counterpart.name)];
-                                absMinX[pos] = outX[pos];
-                            } else {
-                                outIdealX[pos] = outNeighborXSum[pos] / outNeighborCount[pos] - CW / 2;
-                                outX[pos] = Math.max(minX, Math.min(maxX, outIdealX[pos]));
-                                outForce[pos] = outIdealX[pos] - outX[pos];
-                                while (outX[pos] > absMinX[pos] && outForce[pos] < 0) {
-                                    let maxMove = outX[pos] - absMinX[pos];
-                                    let negativeCharged = 0;
-                                    let forceSum = 0;
-                                    for (let i = leftMostMovable; i <= pos; ++i) {
-                                        forceSum += outForce[i];
-                                        if (outForce[i] < 0) {
-                                            negativeCharged++;
-                                            maxMove = Math.min(maxMove, -outForce[i]);
-                                        }
-                                    }
-                                    const positiveCharged = pos - leftMostMovable + 1 - negativeCharged;
-                                    if (forceSum >= 0) {
-                                        break;
-                                    }
-                                    if (positiveCharged > negativeCharged) {
-                                        break;
-                                    }
-                                    let move = maxMove;
-                                    if (positiveCharged === negativeCharged) {
-                                        move = Math.min(-0.5 * forceSum, maxMove);
-                                    }
-                                    // move whole group as far to the left as possible
-                                    for (let i = leftMostMovable; i <= pos; ++i) {
-                                        outX[i] -= move;
-                                        outForce[i] = outIdealX[i] - outX[i];
-                                        if (outX[i] === absMinX[i]) {
-                                            leftMostMovable = i + 1;
-                                            absMinX[i + 1] = absMinX[i] + (CW + SPACE);
-                                        }
-                                    }
-                                    if (positiveCharged === negativeCharged) {
-                                        break;
-                                    }
-                                }
-                            }
-                            if (outX[pos] === absMinX[pos]) {
-                                leftMostMovable = pos + 1;
-                            }
-                            minX = outX[pos] + (CW + SPACE);
-                            absMinX[pos + 1] = absMinX[pos] + (CW + SPACE);
-                            maxX += (CW + SPACE);
-                        });
-                        _.forEach(inConnectors, (connector: LayoutConnector, pos: number) => {
-                            connector.setPosition(inX[pos], inY);
-                            const edgeInPos = connector.position().add(new Vector(connector.width / 2, 0));
-                            _.forEach(renderGraph.inEdges(renderNode.id), (edge: RenderEdge) => {
-                                if (edge.dstConnector === connector.name) {
-                                    edge.layoutEdge.points[edge.layoutEdge.points.length - 1] = _.clone(edgeInPos);
-                                }
-                                let bundled = false;
-                                const points = edge.layoutEdge.points;
-                                const n = points.length;
-                                if (edge.layoutEdge.bundle !== null) {
-                                    const connectors = edge.layoutEdge.bundle.connectors;
-                                    let xSum = 0;
-                                    if (connectors.length > 1) {
-                                        // move middle point to mean connector position
-                                        _.forEach(connectors, (name: string) => {
-                                            xSum += inX[inPositions.get(name)];
-                                        });
-                                        points[n - 2].x = xSum / connectors.length;
-                                        bundled = true;
-                                    }
-                                }
-                                if (!bundled && n === 3) {
-                                    // straighten line
-                                    points[n - 2].x = (points[n - 1].x + points[n - 3].x) / 2;
-                                    points[n - 2].y = (points[n - 1].y + points[n - 3].y) / 2;
-                                }
-                            });
-                        });
-                        _.forEach(outConnectors, (connector: LayoutConnector, pos: number) => {
-                            connector.setPosition(outX[pos], outY);
-                            const edgeOutPos = connector.position().add(new Vector(connector.width / 2, connector.width));
-                            _.forEach(renderGraph.outEdges(renderNode.id), (edge: RenderEdge) => {
-                                if (edge.srcConnector === connector.name) {
-                                    edge.layoutEdge.points[0] = _.clone(edgeOutPos);
-                                }
-                                let bundled = false;
-                                const points = edge.layoutEdge.points;
-                                if (edge.layoutEdge.bundle !== null) {
-                                    const connectors = edge.layoutEdge.bundle.connectors;
-                                    let xSum = 0;
-                                    if (connectors.length > 1) {
-                                        // move middle point to mean connector position
-                                        _.forEach(connectors, (name: string) => {
-                                            xSum += outX[outPositions.get(name)];
-                                        });
-                                        points[1].x = xSum / connectors.length;
-                                        bundled = true;
-                                    }
-                                }
-                                if (!bundled && points.length === 3) {
-                                    // straighten line
-                                    points[1].x = (points[0].x + points[2].x) / 2;
-                                    points[1].y = (points[0].y + points[2].y) / 2;
-                                }
-                            });
-                        });
-                    });
-                }
-            });*/
-        });
-        this._placeConnectorsCenter(graph.layoutGraph);
-    }
 
     /**
      * Places the scoped connectors in the middle and the unscoped evenly on both sides.
@@ -575,7 +178,7 @@ export default abstract class Layouter {
                     layoutNode.addConnector("OUT", connector.name, connector.width);
                 });
                 node.layoutNode = layoutNode;
-                layoutNode.label = node.type() + " " + node.id + " (" + node.label + ")"; // for debugging
+                layoutNode.setLabel(node.type() + " " + node.id + " (" + node.label() + ")"); // for debugging
                 return layoutNode;
             };
 
@@ -603,7 +206,7 @@ export default abstract class Layouter {
                     node.layoutNode = entryNode;
                     scopeGraph.entryNode = entryNode;
                     layoutChildren.set(scopeNode, []);
-                    scopeNode.label = "Map with entry " + entryNode.label; // for debugging
+                    scopeNode.setLabel("Map with entry " + entryNode.label()); // for debugging
                 }
             });
 
@@ -648,17 +251,18 @@ export default abstract class Layouter {
 
             // add edges
             _.forEach(renderGraph.edges(), (edge: RenderEdge) => {
-                let srcNode = <RenderNode><unknown>renderGraph.node(edge.src);
-                let dstNode = <RenderNode><unknown>renderGraph.node(edge.dst);
+                let srcNode = renderGraph.node(edge.src);
+                let dstNode = renderGraph.node(edge.dst);
                 let srcLayoutNode = srcNode.layoutNode;
                 let dstLayoutNode = dstNode.layoutNode;
                 if (srcNode.layoutGraph !== dstNode.layoutGraph) {
                     if (dstNode.layoutGraph.entryNode === dstLayoutNode) {
-                        dstLayoutNode = <LayoutNode>dstNode.layoutGraph.parentNode;
+                        dstLayoutNode = dstNode.layoutGraph.parentNode;
                     } else {
-                        srcLayoutNode = <LayoutNode>srcNode.layoutGraph.parentNode;
+                        srcLayoutNode = srcNode.layoutGraph.parentNode;
                     }
                 }
+                Assert.assert(srcLayoutNode.graph === dstLayoutNode.graph, "edge between different graphs", edge);
                 edge.layoutEdge = new LayoutEdge(srcLayoutNode.id, dstLayoutNode.id, edge.srcConnector, edge.dstConnector, edge.labelSize);
                 srcLayoutNode.graph.addEdge(edge.layoutEdge);
             });
@@ -676,7 +280,7 @@ export default abstract class Layouter {
 
         const printLayout = (graph: LayoutGraph, level: number = 0) => {
             _.forEach(graph.nodes(), (node: LayoutNode) => {
-                console.log("  ".repeat(level) + node.label);
+                console.log("  ".repeat(level) + node.label());
                 if (node.childGraph !== null) {
                     printLayout(node.childGraph, level + 1);
                 }

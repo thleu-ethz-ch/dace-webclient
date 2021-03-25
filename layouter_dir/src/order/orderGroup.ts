@@ -15,9 +15,8 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
     public rank: OrderRank;
 
     constructor(reference: any, label: string = null) {
-        super();
+        super(label);
         this.reference = reference;
-        this.label = label;
     }
 
     addNode(node: OrderNode, id: number = null): number {

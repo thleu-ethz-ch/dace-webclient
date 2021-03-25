@@ -17,7 +17,10 @@ class SDFGElement {
         this.highlighted = false;
         this.hovered = false;
 
-        this.childGraph = elem.graph;
+        this.childGraph = elem.graph || null;
+        if (this.childGraph !== null) {
+            this.childGraph.parentNode = this;
+        }
 
         this.scopeEntry = null;
         this.scopeExit = null;

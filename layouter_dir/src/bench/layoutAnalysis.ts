@@ -4,6 +4,7 @@ import LayoutEdge from "../layoutGraph/layoutEdge";
 import LayoutNode from "../layoutGraph/layoutNode";
 import LayoutConnector from "../layoutGraph/layoutConnector";
 import Segment from "../geometry/segment";
+import Timer from "../util/timer";
 
 export default class LayoutAnalysis {
     private readonly _layoutGraph: LayoutGraph;
@@ -13,6 +14,7 @@ export default class LayoutAnalysis {
     private readonly _segments: Array<Segment>;
     private readonly _nodeParents: Map<LayoutNode, Set<LayoutNode>>;
     private readonly _edgeParents: Map<LayoutEdge, Set<LayoutNode>>;
+
 
     constructor(layout: LayoutGraph, options: any = {}) {
         this._layoutGraph = layout;
@@ -49,15 +51,7 @@ export default class LayoutAnalysis {
      * Returns the total number of pairwise segment crossings in the graph.
      */
     segmentCrossings() {
-        let counter = 0;
-        for (let i = 0; i < this._segments.length; ++i) {
-            for (let j = i + 1; j < this._segments.length; ++j) {
-                if (this._segments[i].intersects(this._segments[j])) {
-                    counter++;
-                }
-            }
-        }
-        return counter;
+        return this._getAllCrossingSegments().length;
     }
 
     /**
@@ -264,5 +258,46 @@ export default class LayoutAnalysis {
 
     private _nodesRelated(nodeA: LayoutNode, nodeB: LayoutNode) {
         return this._nodeParents.get(nodeA).has(nodeB) || this._nodeParents.get(nodeB).has(nodeA);
+    }
+
+    private _getAllCrossingSegments() {
+        Timer.start("get crossings");
+        const overlaps = {};
+        _.forEach(["x", "y"], axis => {
+            overlaps[axis] = new Array(this._segments.length);
+            for (let i = 0; i < this._segments.length; ++i) {
+                overlaps[axis][i] = [];
+            }
+            const endpoints = [];
+            for (let i = 0; i < this._segments.length; ++i) {
+                endpoints.push([this._segments[i].start[axis], i, this._segments[i].start[axis] <= this._segments[i].end[axis]]);
+                endpoints.push([this._segments[i].end[axis], i, this._segments[i].start[axis] > this._segments[i].end[axis]]);
+            }
+            let openSegments = new Set();
+            _.forEach(_.sortBy(endpoints, "0"), ([coord, segId, isFirst]) => {
+                if (isFirst) {
+                    openSegments.forEach((openSegId: number) => {
+                        let min = Math.min(openSegId, segId);
+                        let max = Math.max(openSegId, segId);
+                        overlaps[axis][min].push(max);
+                    });
+                    openSegments.add(segId);
+                } else {
+                    openSegments.delete(segId);
+                }
+            });
+        });
+        const intersections = [];
+        for (let i = 0; i < this._segments.length; ++i) {
+            const segI = this._segments[i];
+            _.forEach(_.intersection(overlaps["y"][i], overlaps["x"][i]), (j: number) => {
+                const segJ = this._segments[j];
+                if (segI.intersects(segJ)) {
+                    intersections.push([segI, segJ]);
+                }
+            });
+        }
+        Timer.stop("get crossings");
+        return intersections;
     }
 }

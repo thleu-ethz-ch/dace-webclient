@@ -16,6 +16,10 @@ export default class Assert
         Assert.assert(!premise || implication, message);
     }
 
+    static assertEqual(objectA: any, objectB: any, message: string) {
+        Assert.assert(_.isEqual(objectA, objectB), message, objectA, objectB);
+    }
+
     static assert(predicate: boolean, message: string, ...objects: Array<object>) {
         console.assert(predicate, message, ...objects);
         if (!predicate) {

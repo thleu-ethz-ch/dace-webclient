@@ -4,11 +4,15 @@ import Node from "./node";
 import Component from "./component";
 import Assert from "../util/assert";
 import LayoutNode from "../layoutGraph/layoutNode";
+import Timer from "../util/timer";
 
 export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any, any>> {
     public parentNode: NodeT = null;
 
+    protected _numNodes: number;
     protected _nodes: Array<NodeT>;
+    protected _nodeIds: Array<number>;
+    protected _nodesDense: Array<NodeT>;
     protected _edges: Array<EdgeT>;
     protected _outEdges: Array<Array<number>>;
     protected _inEdges: Array<Array<number>>;
@@ -42,9 +46,19 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         node.id = id;
         node.graph = this;
         this._nodes[id] = node;
+        //const index = _.sortedIndex(this._nodeIds, id);
+        /*for (let i = this._numNodes; i > index; i--) {
+            this._nodeIds[i] = this._nodeIds[i - 1];
+            this._nodesDense[i] = this._nodesDense[i - 1];
+        }
+        this._nodeIds[index] = id;
+        this._nodesDense[index] = node;*/
+        this._nodeIds.push(id);
+        this._nodesDense.push(node);
         this._outEdges[id] = [];
         this._inEdges[id] = [];
         this._components = null;
+        this._numNodes++;
         return id;
     }
 
@@ -70,6 +84,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         edge.dst = tmpSrc;
         this._outEdges[edge.src].push(edgeId);
         this._inEdges[edge.dst].push(edgeId);
+        edge.isInverted = true;
     }
 
     node(id: number): NodeT {
@@ -102,6 +117,12 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
 
     removeNode(id: number): void {
         this._nodes[id] = undefined;
+        const index = _.sortedIndexOf(this._nodeIds, id);
+        for (let i = index; i < this._numNodes - 1; ++i) {
+            this._nodeIds[i] = this._nodeIds[i + 1];
+            this._nodesDense[i] = this._nodesDense[i + 1];
+        }
+        this._numNodes--;
         this._components = null;
     }
 
@@ -114,7 +135,10 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
     }
 
     nodes(): Array<NodeT> {
-        return _.compact(this._nodes);
+        Timer.start("graph.nodes()");
+        const nodes = _.clone(this._nodesDense);
+        Timer.stop("graph.nodes()");
+        return nodes;
     }
 
     maxId(): number {
@@ -387,7 +411,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
             };
             _.forEach(subgraph.nodes(), (node: NodeT) => {
                 obj.nodes[node.id] = {
-                    label: node.label,
+                    label: node.label(),
                     child: node.childGraph !== null ? subgraphToObj(node.childGraph) : null
                 };
             });
@@ -410,7 +434,10 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
     }
 
     private _init() {
+        this._numNodes = 0;
         this._nodes = [];
+        this._nodeIds = [];
+        this._nodesDense = [];
         this._edges = [];
         this._outEdges = [];
         this._inEdges = [];

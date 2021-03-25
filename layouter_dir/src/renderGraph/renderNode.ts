@@ -32,9 +32,8 @@ export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
     protected _type: string = null;
 
     constructor(type: string, label: string = "") {
-        super();
+        super(label);
         this._type = type;
-        this.label = label;
     }
 
     type(): string {

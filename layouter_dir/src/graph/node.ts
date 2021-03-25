@@ -5,10 +5,18 @@ export default class Node<GraphT extends Graph<any, any>, EdgeT extends Edge<any
     public id: number;
     public graph: GraphT;
     public childGraph: GraphT = null;
-    public label: string = "";
+    private _label: string = "";
 
     constructor(label: string = "") {
-        this.label = label;
+        this._label = label;
+    }
+
+    public label() {
+        return this._label;
+    }
+
+    public setLabel(label: string = "") {
+        this._label = label;
     }
 
     setChildGraph(childGraph: GraphT) {
