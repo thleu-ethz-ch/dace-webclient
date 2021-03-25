@@ -1,5 +1,6 @@
 import * as _ from "lodash";
-import {GPU, IConstants} from "gpu.js";
+import {GPU} from "gpu.js";
+
 export class CrossCount {
     static pipeline = null;
 

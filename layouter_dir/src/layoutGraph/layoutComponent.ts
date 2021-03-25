@@ -5,22 +5,22 @@ import LayoutEdge from "./layoutEdge";
 
 export default class LayoutComponent extends Component<LayoutNode, LayoutEdge>
 {
-    private _minRank: number = null;
-    private _maxRank: number = null;
     private _ranks: Array<Array<LayoutNode>> = null;
 
     public minRank(): number {
-        //if (this._minRank === null) {
-            this.updateMinMaxRank();
-        //}
-        return this._minRank;
+        let minRank = Number.POSITIVE_INFINITY;
+        _.forEach(this.nodes(), node => {
+            minRank = Math.min(minRank, node.rank);
+        });
+        return minRank;
     }
 
     public maxRank(): number {
-        //if (this._maxRank === null) {
-            this.updateMinMaxRank();
-        //}
-        return this._maxRank;
+        let maxRank = Number.NEGATIVE_INFINITY;
+        _.forEach(this.nodes(), node => {
+            maxRank = Math.max(maxRank, node.rank + node.rankSpan - 1);
+        });
+        return maxRank;
     }
 
     public ranks(rankSpanning: boolean = true): Array<Array<LayoutNode>> {
@@ -53,14 +53,5 @@ export default class LayoutComponent extends Component<LayoutNode, LayoutEdge>
             });
         }
         return this._ranks;
-    }
-
-    public updateMinMaxRank() {
-        this._minRank = Number.POSITIVE_INFINITY;
-        this._maxRank = Number.NEGATIVE_INFINITY;
-        _.forEach(this.nodes(), node => {
-            this._minRank = Math.min(this._minRank, node.rank);
-            this._maxRank = Math.max(this._maxRank, node.rank + node.rankSpan - 1);
-        });
     }
 }

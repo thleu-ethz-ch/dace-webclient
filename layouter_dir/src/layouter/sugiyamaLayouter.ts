@@ -1,5 +1,4 @@
 import * as _ from "lodash";
-import * as PriorityQueue from "priorityqueuejs";
 import Assert from "../util/assert";
 import Box from "../geometry/box";
 import Edge from "../graph/edge";
@@ -15,11 +14,10 @@ import OrderGraph from "../order/orderGraph";
 import OrderGroup from "../order/orderGroup";
 import OrderNode from "../order/orderNode";
 import OrderRank from "../order/orderRank";
-import OrderEdge from "../order/orderEdge";
-import Vector from "../geometry/vector";
 import RankGraph from "../rank/rankGraph";
 import RankNode from "../rank/rankNode";
 import Timer from "../util/timer";
+import Vector from "../geometry/vector";
 
 export default class SugiyamaLayouter extends Layouter
 {
@@ -440,7 +438,7 @@ export default class SugiyamaLayouter extends Layouter
                 for (let r = 0; r < ranks.length; ++r) {
                     for (let i = 0; i < ranks[r].length; ++i) {
                         if (depGraph.node(ranks[r][i].id) === undefined) {
-                            const depId = depGraph.addNode(new Node(), ranks[r][i].id);
+                            depGraph.addNode(new Node(), ranks[r][i].id);
                         }
                     }
                     for (let i = 1; i < ranks[r].length; ++i) {
@@ -466,7 +464,7 @@ export default class SugiyamaLayouter extends Layouter
                 });
 
                 // find x for next component
-                _.forEach(ranks, (rank: Array<LayoutNode>, r: number) => {
+                _.forEach(ranks, (rank: Array<LayoutNode>) => {
                     if (rank.length === 0) {
                         return;
                     }

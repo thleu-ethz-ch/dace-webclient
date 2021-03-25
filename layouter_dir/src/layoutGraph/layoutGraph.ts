@@ -58,26 +58,6 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
         return new Box(minX, minY, maxX - minX, maxY - minY);
     }
 
-    public ranks() {
-        if (this._ranks === null) {
-            const numRanks = this.maxRank - this.minRank + 1;
-            this._ranks = new Array(numRanks);
-            for (let r = 0; r < numRanks; ++r) {
-                this._ranks[r] = [];
-            }
-            _.forEach(this.components(), (component: LayoutComponent) => {
-                const componentOffset = component.minRank() - this.minRank;
-                _.forEach(component.ranks(), (rank: Array<LayoutNode>, cr: number) => {
-                    const rankOffset = componentOffset + cr
-                    _.forEach(rank, (node: LayoutNode) => {
-                        this._ranks[rankOffset].push(node);
-                    });
-                });
-            });
-        }
-        return this._ranks;
-    }
-
     public globalRanks(): Array<Array<LayoutNode>> {
         const nodesPerRank = new Array(this.maxRank + 1);
         for (let r = 0; r <= this.maxRank; ++r) {

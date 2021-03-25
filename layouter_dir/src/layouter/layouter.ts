@@ -1,4 +1,5 @@
 import * as _ from "lodash";
+import Assert from "../util/assert";
 import LayoutConnector from "../layoutGraph/layoutConnector";
 import LayoutEdge from "../layoutGraph/layoutEdge";
 import LayoutGraph from "../layoutGraph/layoutGraph";
@@ -7,16 +8,9 @@ import RenderConnector from "../renderGraph/renderConnector";
 import RenderEdge from "../renderGraph/renderEdge";
 import RenderGraph from "../renderGraph/renderGraph";
 import RenderNode from "../renderGraph/renderNode";
-import OrderGraph from "../order/orderGraph";
-import OrderGroup from "../order/orderGroup";
-import OrderEdge from "../order/orderEdge";
-import OrderNode from "../order/orderNode";
-import Vector from "../geometry/vector";
 import Segment from "../geometry/segment";
-import Edge from "../graph/edge";
-import Assert from "../util/assert";
+import Vector from "../geometry/vector";
 
-true
 export default abstract class Layouter {
     protected _options: any;
 

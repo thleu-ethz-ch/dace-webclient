@@ -38,7 +38,7 @@
                         start = Date.now();
                         const crossingsGpu = CrossCount.countGpu(n, n, _.cloneDeep(edges));
                         if (crossingsEfficient !== crossingsGpu) {
-                            console.log("BAD!", edges, crossingsEfficient, crossingsGpu);
+                            console.log("different count on gpu", edges, crossingsEfficient, crossingsGpu);
                         }
                         stop = Date.now();
                         timesGpu.push(stop - start);

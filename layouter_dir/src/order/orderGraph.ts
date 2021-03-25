@@ -1,11 +1,11 @@
 import * as _ from "lodash";
+import Assert from "../util/assert";
+import Component from "../graph/component";
 import Edge from "../graph/edge";
 import Graph from "../graph/graph";
 import OrderGroup from "./orderGroup";
 import OrderNode from "./orderNode";
 import OrderRank from "./orderRank";
-import Component from "../graph/component";
-import Assert from "../util/assert";
 import Timer from "../util/timer";
 
 export default class OrderGraph {
@@ -26,7 +26,7 @@ export default class OrderGraph {
             nodes: {},
             edges: [],
         };
-        _.forEach(this.orderedGroups(), (group: OrderGroup) => {
+        _.forEach(_.sortBy(this.groups(), "position"), (group: OrderGroup) => {
             obj.nodes[group.id] = {
                 label: group.label(),
                 child: {
@@ -110,15 +110,6 @@ export default class OrderGraph {
 
     public groups() {
         return this._groupGraph.nodes();
-        return this._groupGraph.nodes();
-    }
-
-    public orderedGroups() {
-        return this._groupGraph.toposort();
-    }
-
-    public orderedRanks() {
-        return this._rankGraph.toposort();
     }
 
     public edges() {
@@ -138,16 +129,8 @@ export default class OrderGraph {
         return this._groupGraph.edges();
     }
 
-    public sourceGroups(): Array<OrderGroup> {
-        return this._groupGraph.sources();
-    }
-
-    public sinkGroups(): Array<OrderGroup> {
-        return this._groupGraph.sinks();
-    }
-
     public order(doNothing: boolean = false, debug: boolean = false): void {
-        const doOrder = (graph: OrderGraph, downward: boolean = true, isAux: boolean = false) => {
+        const doOrder = (graph: OrderGraph, downward: boolean = true) => {
             Timer.start("doOrder")
             const ranks = graph._rankGraph.toposort();
             const groupOffsets = []; // number of nodes in groups left of this group by group id
@@ -246,13 +229,6 @@ export default class OrderGraph {
                 return this._countCrossings(testOrder.length, order[neighborRank].length, edges);
             };
 
-            /*console.log("groupOffset", _.cloneDeep(groupOffset));
-            console.log("neighborsDown", _.cloneDeep(neighborsDown));
-            console.log("neighborsUp", _.cloneDeep(neighborsUp));
-            console.log("order", _.cloneDeep(order));
-            console.log("positions", _.cloneDeep(positions));
-            console.log("crossings", _.cloneDeep(crossings));*/
-
             /**
              * Sweeps the ranks up and down and reorders the nodes according to the barycenter heuristic
              * @param countInitial
@@ -314,9 +290,6 @@ export default class OrderGraph {
                                     nodeMeans.push([pos, pos]);
                                 }
                             }
-                            /*console.log("oldGroupOrder", _.slice(order[r], groupOffset[r][g], groupOffset[r][g] + numNodesGroup[r][g]));
-                            console.log("nodeMeans[" + r + "][" + g + "]", nodeMeans);
-                            console.log("newGroupOrder", _.map(_.sortBy(nodeMeans, pair => pair[1]), pair => pair[0]));*/
 
                             // sort by the means
                             const newGroupOrder = _.map(_.sortBy(nodeMeans, pair => pair[1]), pair => pair[0]);
@@ -383,10 +356,6 @@ export default class OrderGraph {
                             "resolve",
                             ranks[r - 1].groups[0].nodes[order[r - 1][heavyNorth]],
                             ranks[r].groups[0].nodes[order[r][heavySouth]],
-                            heavyNorth,
-                            heavySouth,
-                            otherNorth,
-                            otherSouth,
                         );
                     }
 
@@ -489,7 +458,6 @@ export default class OrderGraph {
                 while (_.sum(crossingsWithInfinity) >= 1000000) {
                     if (counter++ === 10) {
                         invalid = true;
-                        console.log("break");
                         break;
                     }
                     let hasResolved = false;
@@ -611,8 +579,7 @@ export default class OrderGraph {
 
         this._addGroupEdges();
 
-        _.forEach(this._groupGraph.components(), (groupGraphComponent: Component<OrderGroup, Edge<any, any>>, i) => {
-            //console.log("groupGraphComponent", _.cloneDeep(groupGraphComponent));
+        _.forEach(this._groupGraph.components(), (groupGraphComponent: Component<OrderGroup, Edge<any, any>>) => {
             const componentGraph = new OrderGraph();
             const ranks: Array<OrderRank> = [];
             _.forEach(groupGraphComponent.nodes(), (group: OrderGroup) => {
@@ -684,7 +651,6 @@ export default class OrderGraph {
             }
             crossWeight += weights[i] * weightSum;
         });
-        //console.log("countCrossings(", numNorth, numSouth, edges, ") = ", crossWeight);
         return crossWeight;
     }
 }

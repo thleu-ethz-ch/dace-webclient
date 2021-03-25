@@ -1,8 +1,8 @@
 import * as _ from "lodash";
-import RecursiveLayouter from "./recursiveLayouter";
-import LayoutGraph from "../layoutGraph/layoutGraph";
 import LayoutEdge from "../layoutGraph/layoutEdge";
+import LayoutGraph from "../layoutGraph/layoutGraph";
 import LayoutNode from "../layoutGraph/layoutNode";
+import RecursiveLayouter from "./recursiveLayouter";
 import Vector from "../geometry/vector";
 
 export default class MagneticSpringLayouter extends RecursiveLayouter {
@@ -12,7 +12,7 @@ export default class MagneticSpringLayouter extends RecursiveLayouter {
     public static REPULSIVE_WEIGHT = 1;
     public static MAGNETIC_WEIGHT = 1;
 
-    layoutSizedGraph(graph: LayoutGraph, withLabels) {
+    layoutSizedGraph(graph: LayoutGraph) {
         switch (graph.nodes().length) {
             case 1:
                 // just one node => place it anywhere

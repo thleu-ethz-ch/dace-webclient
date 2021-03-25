@@ -1,41 +1,32 @@
 import * as _ from "lodash";
 import * as PIXI from "pixi.js";
 import {Viewport} from "pixi-viewport"
+import AccessNode from "../renderGraph/accessNode";
+import Box from "../geometry/box";
+import Color from "./color";
+import DagreLayouter from "../layouter/dagreLayouter";
+import DownwardTrapezoid from "../shapes/downwardTrapezoid";
+import EdgeShape from "../shapes/edgeShape";
+import Ellipse from "../shapes/ellipse";
+import FoldedCornerRectangle from "../shapes/foldedCornerRectangle";
+import GenericContainerNode from "../renderGraph/genericContainerNode";
+import GenericNode from "../renderGraph/genericNode";
 import Layouter from "../layouter/layouter";
 import Loader from "../parse/loader";
 import LayoutAnalysis from "../bench/layoutAnalysis";
+import Memlet from "../renderGraph/memlet";
+import Octagon from "../shapes/octagon";
+import Rectangle from "../shapes/rectangle";
+import RenderEdge from "../renderGraph/renderEdge";
 import RenderGraph from "../renderGraph/renderGraph";
 import RenderNode from "../renderGraph/renderNode";
-import Shape from "../shapes/shape";
-import Ellipse from "../shapes/ellipse";
 import RenderConnector from "../renderGraph/renderConnector";
-import Text from "../shapes/text";
-import FoldedCornerRectangle from "../shapes/foldedCornerRectangle";
-import Rectangle from "../shapes/rectangle";
-import Color from "./color";
-import Octagon from "../shapes/octagon";
-import RenderEdge from "../renderGraph/renderEdge";
-import EdgeShape from "../shapes/edgeShape";
-import UpwardTrapezoid from "../shapes/upwardTrapezoid";
-import DownwardTrapezoid from "../shapes/downwardTrapezoid";
+import Shape from "../shapes/shape";
 import Size from "../geometry/size";
-import Vector from "../geometry/vector";
-import Box from "../geometry/box";
-import OrderGraph from "../order/orderGraph";
-import OrderGroup from "../order/orderGroup";
-import OrderRank from "../order/orderRank";
-import OrderNode from "../order/orderNode";
-import Edge from "../graph/edge";
-import Polygon from "../shapes/polygon";
-import SdfgState from "../renderGraph/sdfgState";
-import AccessNode from "../renderGraph/accessNode";
-import NestedSdfg from "../renderGraph/nestedSdfg";
-import Memlet from "../renderGraph/memlet";
-import DagreLayouter from "../layouter/dagreLayouter";
-import Node from "../graph/node";
-import GenericNode from "../renderGraph/genericNode";
-import GenericContainerNode from "../renderGraph/genericContainerNode";
+import Text from "../shapes/text";
 import Timer from "../util/timer";
+import UpwardTrapezoid from "../shapes/upwardTrapezoid";
+import Vector from "../geometry/vector";
 
 export default class Renderer {
     private readonly _viewport;
@@ -58,100 +49,25 @@ export default class Renderer {
         });
         app.stage.addChild(this._viewport);
 
-
-        /*const orderGraph = new OrderGraph();
-        const rank1 = new OrderRank(true);
-        const rank2 = new OrderRank(true);
-        const group1 = new OrderGroup("Group 1", true);
-        const group2 = new OrderGroup("Group 2", true);
-        const group3 = new OrderGroup("Group 3");
-        const node11 = new OrderNode("1.1");
-        const node12 = new OrderNode("1.2");
-        const node21 = new OrderNode("2.1");
-        const node22 = new OrderNode("2.2");
-        const node31 = new OrderNode("3.1");
-        const node32 = new OrderNode("3.2");
-        orderGraph.addRank(rank1);
-        orderGraph.addRank(rank2);
-        rank1.addGroup(group1);
-        rank1.addGroup(group2);
-        rank2.addGroup(group3);
-        group1.addNode(node11);
-        group1.addNode(node12);
-        group2.addNode(node21);
-        group2.addNode(node22);
-        group3.addNode(node31);
-        group3.addNode(node32);
-        orderGraph.addEdge(new Edge(node11.id, node32.id));
-        orderGraph.addEdge(new Edge(node12.id, node32.id));
-        orderGraph.addEdge(new Edge(node21.id, node32.id));
-        orderGraph.addEdge(new Edge(node22.id, node31.id));
-        orderGraph.order();
-        console.log(orderGraph);*/
-
-        /*this._viewport.interactive = true;
-        this._viewport.on('mousemove', _.throttle((e) => {
-            if (this._layout === null) {
-                return;
-            }
-            const mousePos = e.data.getLocalPosition(this._viewport);
-            const mouseRectangle = new Rectangle(mousePos.x - 2, mousePos.y - 2, 4, 4);
-            _.forEach(this._layout.elements, (element) => {
-                if (element instanceof Edge && element.intersects(mouseRectangle)) {
-                    console.log(element);
-                }
-            });
-        }, 100));*/
-
-        /*const update = () => {
-            requestAnimationFrame(update);
-            app.renderer.render(app.stage);
+        const showCoordinates = (title, point) => {
+            coordinateContainer.innerHTML = title + ": " + point.x.toFixed(0) + " / " + point.y.toFixed(0);
         }
-        update();*/
+
+        if (coordinateContainer !== null) {
+            this._viewport.interactive = true;
+            this._viewport.on('mousemove', _.throttle((e) => {
+                const mousePos = e.data.getLocalPosition(this._viewport);
+                showCoordinates("mouse", mousePos);
+            }, 10));
+
+            showCoordinates("center", this._viewport.center);
+        }
 
         this._viewport.drag().pinch().wheel().decelerate();
-
-        const logCoordinate = () => {
-            coordinateContainer.innerHTML = "center: " + this._viewport.center.x.toFixed(0) + " / " + this._viewport.center.y.toFixed(0);
-        }
-        if (coordinateContainer !== null) {
-            this._viewport.on('moved', logCoordinate).on('zoomed', logCoordinate);
-            logCoordinate();
-        }
     }
 
     show(layouter: Layouter, name: string) {
         Loader.load(name).then((graph) => {
-            /*graph = new RenderGraph();
-            const outerState = new SdfgState("SDFGState", "outerState");
-            const topAccessNode = new AccessNode("AccessNode", "topAccessNode");
-            const bottomAccessNode = new AccessNode("AccessNode", "bottomAccessNode");
-            const sideAccessNode = new AccessNode("AccessNode", "sideAccessNode");
-            const nestedSdfg = new NestedSdfg("NestedSDFG", "nestedSdfg");
-            nestedSdfg.setConnectors(["nestedIn1", "nestedIn2"], ["nestedOut"]);
-            const innerState = new SdfgState("SDFGState", "innerState");
-            const innerNodeTop = new AccessNode("AccessNode", "innerNodeTop");
-            const innerNodeBottom = new AccessNode("AccessNode", "innerNodeBottom");
-            graph.addNode(outerState);
-            const outerStateGraph = new RenderGraph();
-            outerState.setChildGraph(outerStateGraph);
-            outerStateGraph.addNode(topAccessNode);
-            outerStateGraph.addNode(sideAccessNode);
-            outerStateGraph.addNode(nestedSdfg);
-            outerStateGraph.addNode(bottomAccessNode);
-            outerStateGraph.addEdge(new Memlet(topAccessNode.id, nestedSdfg.id, null, "nestedIn1", {}));
-            outerStateGraph.addEdge(new Memlet(topAccessNode.id, nestedSdfg.id, null, "nestedIn2", {}));
-            outerStateGraph.addEdge(new Memlet(topAccessNode.id, bottomAccessNode.id, null, null, {}));
-            outerStateGraph.addEdge(new Memlet(sideAccessNode.id, bottomAccessNode.id, null, null, {}));
-            outerStateGraph.addEdge(new Memlet(nestedSdfg.id, bottomAccessNode.id, "nestedOut", null, {}));
-            const innerSdfgGraph = new RenderGraph();
-            nestedSdfg.setChildGraph(innerSdfgGraph);
-            innerSdfgGraph.addNode(innerState);
-            const innerStateGraph = new RenderGraph();
-            innerState.setChildGraph(innerStateGraph);
-            innerStateGraph.addNode(innerNodeTop);
-            innerStateGraph.addNode(innerNodeBottom);
-            innerStateGraph.addEdge(new Memlet(innerNodeTop.id, innerNodeBottom.id, null, null, {}));*/
 
             // set node sizes
             _.forEach(graph.allNodes(), (node: RenderNode) => {
@@ -163,7 +79,6 @@ export default class Renderer {
             });
 
             const layout = layouter.layout(graph);
-
 
             const layoutAnalysis = new LayoutAnalysis(layout);
             /*if (layoutAnalysis.validate()) {
@@ -182,9 +97,7 @@ export default class Renderer {
             console.log("Total size: " + box.width.toFixed(0) +  "x" + box.height.toFixed(0));
             console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
-
             Timer.printTimes();
-
 
             this.render(graph);
         });

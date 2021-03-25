@@ -73,39 +73,6 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
         });
     }
 
-
-    public bfsUndirected(startId: number = null): Array<NodeT> {
-        const nodes = this.nodes();
-        if (nodes.length === 0) {
-            return [];
-        }
-
-        const sortedNodes = [];
-        const visited = _.fill(new Array(this.maxId() + 1), false);
-        const queue = [];
-        let queuePointer = 0;
-        if (startId === null) {
-            queue.push(nodes[0]);
-            visited[nodes[0].id] = true;
-        } else {
-            console.assert(nodes[startId] !== undefined);
-            queue.push(this._graph.node(startId));
-            visited[startId] = true;
-        }
-        while (queuePointer < queue.length) {
-            const node = queue[queuePointer++];
-            sortedNodes.push(node);
-            _.forEach(this.outEdges(node.id), (outEdge: EdgeT) => {
-                if (!visited[outEdge.dst]) {
-                    queue.push(this._graph.node(outEdge.dst));
-                    visited[outEdge.dst] = true;
-                }
-            });
-
-        }
-        return sortedNodes;
-    }
-
     public toposort(): Array<NodeT>
     {
         const sortedNodes = [];

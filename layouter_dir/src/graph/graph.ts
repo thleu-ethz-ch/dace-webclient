@@ -3,7 +3,6 @@ import Edge from "./edge";
 import Node from "./node";
 import Component from "./component";
 import Assert from "../util/assert";
-import LayoutNode from "../layoutGraph/layoutNode";
 import Timer from "../util/timer";
 
 export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any, any>> {
@@ -39,6 +38,9 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return clone;
     }
 
+    /**
+     * Assumption: Nodes are added with increasing id.
+     */
     addNode(node: NodeT, id: number = null): number {
         if (id === null) {
             id = this._nodes.length;
@@ -46,13 +48,6 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         node.id = id;
         node.graph = this;
         this._nodes[id] = node;
-        //const index = _.sortedIndex(this._nodeIds, id);
-        /*for (let i = this._numNodes; i > index; i--) {
-            this._nodeIds[i] = this._nodeIds[i - 1];
-            this._nodesDense[i] = this._nodesDense[i - 1];
-        }
-        this._nodeIds[index] = id;
-        this._nodesDense[index] = node;*/
         this._nodeIds.push(id);
         this._nodesDense.push(node);
         this._outEdges[id] = [];
@@ -62,6 +57,9 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return id;
     }
 
+    /**
+     * Assumption: Both end nodes of the edge have been added before.
+     */
     addEdge(edge: EdgeT, id: number = null): number {
         if (id === null) {
             id = this._edges.length;
@@ -341,7 +339,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
     }
 
     components(): Array<Component<NodeT, EdgeT>> {
-        //if (this._components === null) {
+        if (this._components === null) {
             const nodes = this.nodes();
             if (nodes.length === 0) {
                 return [];
@@ -390,7 +388,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
                     this._components[componentId].addEdge(edge.id);
                 });
             });
-        //}
+        }
 
         const nodeSet = new Set();
         _.forEach(this._components, component => {

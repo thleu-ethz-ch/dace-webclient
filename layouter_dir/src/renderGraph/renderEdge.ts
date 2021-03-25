@@ -5,7 +5,6 @@ import LayoutEdge from "../layoutGraph/layoutEdge";
 import RenderGraph from "./renderGraph";
 import RenderNode from "./renderNode";
 import Size from "../geometry/size";
-import Text from "../shapes/text";
 import Vector from "../geometry/vector";
 
 export default abstract class RenderEdge extends Edge<RenderGraph, RenderNode> {

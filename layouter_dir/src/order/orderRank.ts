@@ -7,7 +7,6 @@ import OrderGroup from "./orderGroup";
 
 export default class OrderRank extends Node<Graph<any, any>, Edge<any, any>>
 {
-    public readonly isFixed: boolean;
     public readonly groups: Array<OrderGroup> = [];
 
     public order: Array<number>;

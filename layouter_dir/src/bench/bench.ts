@@ -1,8 +1,7 @@
-import Layouter from "../layouter/layouter";
-import Loader from "../parse/loader";
-import RenderGraph from "../renderGraph/renderGraph";
-import LayoutAnalysis from "./layoutAnalysis";
 import DagreLayouter from "../layouter/dagreLayouter";
+import LayoutAnalysis from "./layoutAnalysis";
+import Layouter from "../layouter/layouter";
+import RenderGraph from "../renderGraph/renderGraph";
 
 export default class Bench {
     public static GRAPHS_SMALL = ["jacobi", "placement", "symm", "wrong"];

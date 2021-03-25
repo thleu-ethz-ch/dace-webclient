@@ -1,5 +1,4 @@
 import * as _ from "lodash";
-import {Container} from "pixi.js";
 import Box from "../geometry/box";
 import Vector from "../geometry/vector";
 

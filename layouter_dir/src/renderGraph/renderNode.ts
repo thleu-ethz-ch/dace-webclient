@@ -40,11 +40,6 @@ export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
         return this._type
     }
 
-    setSize(size: Size) {
-        this.width = size.width;
-        this.height = size.height;
-    }
-
     updateSize(minimumSize: Size) {
         this.width = Math.max(this.width, minimumSize.width);
         this.height = Math.max(this.height, minimumSize.height);
