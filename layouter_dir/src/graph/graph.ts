@@ -219,10 +219,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         const predecessors = new Array(this._nodes.length);
         const queue = [];
         let queuePointer = 0;
-        _.forEach(this._nodes, (node: NodeT) => {
-            if (node === undefined) {
-                return; // skip removed nodes
-            }
+        _.forEach(this.nodes(), (node: NodeT) => {
             const numInEdges = this.inEdges(node.id).length;
             predecessors[node.id] = numInEdges;
             if (numInEdges === 0) {
@@ -235,6 +232,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
             // toposort
             while (queuePointer < queue.length) {
                 const node = queue[queuePointer++];
+                remainingNodes.delete(node.id);
                 _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
                     predecessors[edge.dst]--;
                     if (predecessors[edge.dst] === 0) {
@@ -249,8 +247,10 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
                 const nextNodeId = remainingNodes.values().next().value;
                 const nextNode = this.node(nextNodeId); // first remaining node
                 _.forEach(this.inEdges(nextNode.id), (inEdge: EdgeT) => {
-                    this.invertEdge(inEdge.id);
-                    invertedEdges.push(this._edges[inEdge.id]);
+                    if (remainingNodes.has(inEdge.src)) {
+                        this.invertEdge(inEdge.id);
+                        invertedEdges.push(this._edges[inEdge.id]);
+                    }
                 });
                 remainingNodes.delete(nextNode.id);
                 queue.push(nextNode);

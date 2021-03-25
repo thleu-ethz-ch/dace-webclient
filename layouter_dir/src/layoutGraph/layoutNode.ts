@@ -8,9 +8,6 @@ import LayoutGraph from "./layoutGraph";
 import * as _ from "lodash";
 
 export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
-    private readonly _inConnectors: Map<string, LayoutConnector> = new Map();
-    private readonly _outConnectors: Map<string, LayoutConnector> = new Map();
-
     public inConnectors: Array<LayoutConnector> = [];
     public outConnectors: Array<LayoutConnector> = [];
 
@@ -18,6 +15,8 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public y: number = null;
     public width: number = null;
     public height: number = null;
+
+    public selfLoop: LayoutEdge = null;
 
     public isAccessNode: boolean = false;
     public hasScopedConnectors: boolean = false;
@@ -28,6 +27,9 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
 
     public readonly padding: number = 0;
     public readonly isVirtual: boolean = false;
+
+    private readonly _inConnectors: Map<string, LayoutConnector> = new Map();
+    private readonly _outConnectors: Map<string, LayoutConnector> = new Map();
 
     constructor(size: Size = null, padding: number = 0, isVirtual: boolean = false) {
         super();

@@ -48,13 +48,24 @@ export default class Vector {
         return this;
     }
 
-    add(otherVector: Vector) {
+    rotateAround(center: Vector, angle: number): Vector {
+        this.sub(center);
+        const sin = Math.sin(angle);
+        const cos = Math.cos(angle);
+        const x = this.x * cos - this.y * sin;
+        this.y = this.x * sin + this.y * cos;
+        this.x = x;
+        this.add(center);
+        return this;
+    }
+
+    add(otherVector: Vector): Vector {
         this.x += otherVector.x;
         this.y += otherVector.y;
         return this;
     }
 
-    sub(otherVector: Vector) {
+    sub(otherVector: Vector): Vector {
         this.x -= otherVector.x;
         this.y -= otherVector.y;
         return this;

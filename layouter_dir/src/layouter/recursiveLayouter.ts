@@ -39,7 +39,7 @@ export default abstract class RecursiveLayouter extends Layouter {
                         childGraph.exitNode.translate(-childNodeBox.x, 0);
                     }
                 }
-                node.setSize({
+                node.updateSize({
                     width: childGraphBox.width + 2 * node.padding,
                     height: childGraphBox.height + 2 * node.padding,
                 });

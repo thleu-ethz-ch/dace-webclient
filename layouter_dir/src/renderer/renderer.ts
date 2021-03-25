@@ -260,10 +260,11 @@ export default class Renderer {
     }
 
     private _getShapesForEdge(edge: RenderEdge): Array<Shape> {
-        const shapes: Array<Shape> = [new EdgeShape(edge, _.clone(edge.points))];
+        const color = (edge instanceof Memlet ? Color.BLACK : new Color(0xBE, 0xCB, 0xD7));
+        const shapes: Array<Shape> = [new EdgeShape(edge, _.clone(edge.points), color)];
         if (edge.labelX) {
             const labelSize = this._edgeLabelSize(edge);
-            const labelBackground = new Rectangle(null, edge.labelX - 3, edge.labelY - 3, labelSize.width + 6, labelSize.height + 6, new Color(255, 255, 255, 0.8), Color.TRANSPARENT);
+            const labelBackground = new Rectangle(null, edge.labelX - 3, edge.labelY - 3, labelSize.width + 6, labelSize.height + 6, Color.WHITE.fade(0.8), Color.TRANSPARENT);
             labelBackground.zIndex = 2;
             shapes.push(labelBackground);
             shapes.push(new Text(edge.labelX, edge.labelY, edge.label(), edge.labelFontSize, 0x666666));

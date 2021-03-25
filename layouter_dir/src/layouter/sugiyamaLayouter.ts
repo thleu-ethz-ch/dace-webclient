@@ -69,7 +69,16 @@ export default class SugiyamaLayouter extends Layouter
     private _removeCycles(graph: LayoutGraph): void {
         _.forEach(graph.allGraphs(), (subgraph: LayoutGraph) => {
             if (subgraph.mayHaveCycles) {
+                // remove normal cycles
                 subgraph.removeCycles();
+
+                // remove self-loops
+                _.forEach(subgraph.edges(), (edge: LayoutEdge) => {
+                    if (edge.src === edge.dst) {
+                        subgraph.node(edge.src).selfLoop = edge;
+                        subgraph.removeEdge(edge.id);
+                    }
+                });
             }
         });
     }
@@ -461,6 +470,15 @@ export default class SugiyamaLayouter extends Layouter
                     if (layoutNode.childGraph !== null) {
                         assignX(layoutNode.childGraph, layoutNode.x + layoutNode.padding);
                     }
+                    // set self loop points
+                    if (layoutNode.selfLoop !== null) {
+                        layoutNode.selfLoop.points = [
+                            new Vector(layoutNode.x + layoutNode.width - this._options["targetEdgeLength"], layoutNode.y + layoutNode.height - 10),
+                            new Vector(layoutNode.x + layoutNode.width, layoutNode.y + layoutNode.height - 10),
+                            new Vector(layoutNode.x + layoutNode.width, layoutNode.y + 10),
+                            new Vector(layoutNode.x + layoutNode.width - this._options["targetEdgeLength"], layoutNode.y + 10),
+                        ];
+                    }
                 });
 
                 // find x for next component
@@ -477,6 +495,9 @@ export default class SugiyamaLayouter extends Layouter
             if (subgraph.parentNode !== null) {
                 const boundingBox = subgraph.boundingBox(false);
                 subgraph.parentNode.updateSize({width: boundingBox.width + 2 * subgraph.parentNode.padding, height: boundingBox.height + 2 * subgraph.parentNode.padding});
+                if (subgraph.parentNode.selfLoop !== null) {
+                    subgraph.parentNode.updateSize({width: subgraph.parentNode.width + this._options["targetEdgeLength"], height: 0});
+                }
                 console.assert(subgraph.parentNode.width >= 0 && subgraph.parentNode.height >= 0, "node has invalid size", subgraph.parentNode);
                 if (subgraph.entryNode !== null) {
                     subgraph.entryNode.setWidth(boundingBox.width);
@@ -564,8 +585,8 @@ export default class SugiyamaLayouter extends Layouter
                 }
             });
 
-            // remove virtual nodes and edges
             _.forEach(subgraph.nodes(), (node: LayoutNode) => {
+                // remove virtual nodes and edges
                 if (node.isVirtual) {
                     _.forEach(subgraph.inEdges(node.id), (inEdge) => {
                         subgraph.removeEdge(inEdge.id);
@@ -575,8 +596,13 @@ export default class SugiyamaLayouter extends Layouter
                     });
                     subgraph.removeNode(node.id);
                 }
-            });
 
+                // place self-loops visually outside their state
+                if (node.selfLoop !== null) {
+                    node.setWidth(node.width - this._options["targetEdgeLength"]);
+                }
+
+            });
         };
         assignX(graph, 0);
     }

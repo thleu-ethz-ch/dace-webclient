@@ -1,4 +1,6 @@
 export default class Color {
+    public static WHITE = new Color(255, 255, 255);
+    public static BLACK = new Color(0, 0, 0);
     public static TRANSPARENT = new Color(0, 0, 0, 0);
 
     public red: number = 0;
