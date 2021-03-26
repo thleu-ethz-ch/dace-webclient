@@ -351,6 +351,7 @@ export default class OrderGraph {
                 Timer.start("resolve");
                 const resolveCrossing = (r: number, heavyNorth: number, heavySouth: number, otherNorth: number, otherSouth: number) => {
                     Assert.assert(groupOffset[r].length === 1, "more than one group");
+                    Assert.assert(groupOffset[r - 1].length === 1, "more than one group");
                     if (debug) {
                         console.log(
                             "resolve",
@@ -358,8 +359,10 @@ export default class OrderGraph {
                             ranks[r].groups[0].nodes[order[r][heavySouth]],
                         );
                     }
+                    Assert.assertEqual(ranks[r - 1].groups[0].nodes[order[r - 1][heavyNorth]].label(), ranks[r].groups[0].nodes[order[r][heavySouth]].label(), "different nodes");
 
                     let heavyPerRank = new Map();
+                    heavyPerRank.set(r - 1, heavyNorth);
                     heavyPerRank.set(r, heavySouth);
                     let otherPerRank = new Map([[r - 1, new Set([otherNorth])], [r, new Set([otherSouth])]]);
                     _.forEach([1, -1], direction => {
@@ -418,21 +421,36 @@ export default class OrderGraph {
                         let r = rankPositions[0];
                         let movingPositions = rankPositions[1];
                         let positionsPointer = 0;
-                        let offsetMoving = heavyPerRank.get(r) - movingPositions[0] + 1 - movingPositions.length;
-                        let offsetNonMoving = 0;
-                        for (let p = movingPositions[0]; p - moveDir !== heavyPerRank.get(r); p += moveDir) {
-                            if (movingPositions[positionsPointer] === p) {
-                                positions[r][order[r][p]] += offsetMoving;
-                                offsetNonMoving -= moveDir;
-                                positionsPointer++;
-                            } else {
-                                positions[r][order[r][p]] += offsetNonMoving;
-                                offsetMoving -= moveDir;
+                        if (moveDir === 1) {
+                            let offsetMoving = heavyPerRank.get(r) - movingPositions[0] + 1 - movingPositions.length;
+                            let offsetNonMoving = 0;
+                            for (let p = movingPositions[0]; p <= heavyPerRank.get(r); p++) {
+                                if (movingPositions[positionsPointer] === p) {
+                                    positions[r][order[r][p]] += offsetMoving;
+                                    offsetNonMoving--;
+                                    positionsPointer++;
+                                } else {
+                                    positions[r][order[r][p]] += offsetNonMoving;
+                                    offsetMoving--;
+                                }
+                            }
+                        } else {
+                            let posMoving = heavyPerRank.get(r);
+                            let offsetNonMoving = 0;
+                            for (let p = movingPositions[0]; p >= heavyPerRank.get(r); p--) {
+                                if (movingPositions[positionsPointer] === p) {
+                                    positions[r][order[r][p]] = posMoving++;
+                                    offsetNonMoving += 1;
+                                    positionsPointer++;
+                                } else {
+                                    positions[r][order[r][p]] += offsetNonMoving;
+                                }
                             }
                         }
+
+                        Assert.assertEqual(_.sortBy(positions[r]), _.range(0, positions[r].length), "positions not consistent");
                         order[r] = _.map(_.sortBy(_.map(positions[r], (pos, n) => [pos, n]), "0"), "1");
                     });
-
 
                     const rankCrossingsChanged = _.fill(new Array(ranks.length), false);
                     _.forEach(otherPositionsPerRank, (rankPositions: [number, Array<number>]) => {
@@ -442,7 +460,7 @@ export default class OrderGraph {
                             rankCrossingsChanged[r + 1] = true;
                         }
                     });
-                    for (let r = 0; r < ranks.length; ++r) {
+                    for (let r = 1; r < ranks.length; ++r) {
                         if (rankCrossingsChanged[r]) {
                             crossingsWithInfinity[r] = countCrossings(order[r], r, "UP", true);
                         }
@@ -456,7 +474,7 @@ export default class OrderGraph {
                 let counter = 0;
                 let invalid = false;
                 while (_.sum(crossingsWithInfinity) >= 1000000) {
-                    if (counter++ === 10) {
+                    if (counter++ === 100) {
                         invalid = true;
                         break;
                     }

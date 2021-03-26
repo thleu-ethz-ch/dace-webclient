@@ -81,11 +81,11 @@ export default class Renderer {
             const layout = layouter.layout(graph);
 
             const layoutAnalysis = new LayoutAnalysis(layout);
-            /*if (layoutAnalysis.validate()) {
+            if (layoutAnalysis.validate()) {
                 console.log("Layout satisfies constraints.");
             } else {
                 console.log("Layout violates constraints.");
-            }*/
+            }
             //console.log("Weighted cost: " + layoutAnalysis.cost(true).toFixed(0));
             /*const performanceAnalysis = new PerformanceAnalysis(layouter);
             performanceAnalysis.measure(name, 1).then(time => {

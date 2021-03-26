@@ -4,9 +4,9 @@ import Layouter from "../layouter/layouter";
 import RenderGraph from "../renderGraph/renderGraph";
 
 export default class Bench {
-    public static GRAPHS_SMALL = ["jacobi", "placement", "symm", "wrong"];
-    public static GRAPHS_LARGE = ["bert", "lulesh-with-maps", "unreadable"];
-    public static GRAPHS_ALL = ["bert", "jacobi", "lulesh-with-maps", "placement", "symm", "unreadable", "wrong"];
+    public static GRAPHS_SMALL = ["gemm_opt", "jacobi", "placement", "symm", "wrong"];
+    public static GRAPHS_LARGE = ["bert", "lulesh-with-maps", "unreadable", "rfg_dense"];
+    public static GRAPHS_ALL = ["bert", "gemm_opt", "jacobi", "lulesh-with-maps", "placement", "rfg_dense", "symm", "unreadable", "wrong"];
 
     public static LAYOUTERS = [new DagreLayouter()];
 
@@ -22,4 +22,5 @@ export default class Bench {
         })
         return Promise.all(promises);
     }
+
 }

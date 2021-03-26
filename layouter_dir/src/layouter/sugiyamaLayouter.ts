@@ -158,7 +158,7 @@ export default class SugiyamaLayouter extends Layouter
                 for (let tmpDstRank = srcRank + 1; tmpDstRank < dstNode.rank; ++tmpDstRank) {
                     const newNode = new LayoutNode({width: 0, height: 0}, 0, true);
                     newNode.rank = tmpDstRank;
-                    newNode.setLabel("virtual node on edge " + edge.toString);
+                    newNode.setLabel("virtual node on edge " + edge.toString());
                     tmpDstId = edge.graph.addNode(newNode);
                     if (tmpDstRank === srcRank + 1) {
                         // original edge is redirected from source to first virtual node
