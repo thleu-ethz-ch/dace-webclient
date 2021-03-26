@@ -1,0 +1,83 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+        }
+        html {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 16px;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        table {
+            border-collapse: collapse;
+        }
+        td {
+            padding: 10px;
+            border: 1px solid #ccc;
+            text-align: center;
+        }
+        td:first-child {
+            text-align: left;
+        }
+        td:last-child {
+            background-color: #eee;
+        }
+    </style>
+    <script src="./dist/layoutLib.js"></script>
+    <script>
+        window.addEventListener("load", function () {
+            const graphs = [];
+            for (let g = 0; g < layoutLib.Bench.GRAPHS_ALL.length; ++g) {
+                if (layoutLib.Bench.GRAPHS_ALL[g] !== "bert") {
+                    graphs.push(layoutLib.Bench.GRAPHS_ALL[g]);
+                }
+            }
+            const layouters = [new layoutLib.layouter.DagreLayouter(), new layoutLib.layouter.SugiyamaLayouter()];
+
+            const table = document.getElementById("table");
+            const tableRows = document.getElementsByTagName("tr");
+            for (let g = 0; g < graphs.length; ++g) {
+                tableRows[0].innerHTML += "<td><b>" + graphs[g] + "</b></td>";
+                tableRows[1].innerHTML += "<td></td>";
+                tableRows[2].innerHTML += "<td></td>";
+            }
+            tableRows[0].innerHTML += "<td><b>mean</b></td>";
+            tableRows[1].innerHTML += "<td></td>";
+            tableRows[2].innerHTML += "<td></td>";
+            for (let l = 0; l < 2; ++l) {
+                layoutLib.Bench.crossings(layoutLib.Loader.load, layouters[l], graphs).then((crossings) => {
+                    let sum = 0;
+                    for (let g = 0; g < graphs.length; ++g) {
+                        tableRows[l + 1].childNodes[g + 1].innerHTML = crossings[g];
+                        sum += crossings[g];
+                    }
+                    tableRows[l + 1].childNodes[graphs.length + 1].innerHTML = (sum / graphs.length).toFixed(0);
+                });
+            }
+
+        });
+    </script>
+</head>
+<body>
+<table>
+    <tr><td></td></tr>
+    <tr><td><b>Dagre</b></td></tr>
+    <tr><td><b>Sugiyama</b></td></tr>
+</table>
+</body>
+</html>

@@ -23,4 +23,15 @@ export default class Bench {
         return Promise.all(promises);
     }
 
+    public static crossings(loadFunction: (name: string) => Promise<RenderGraph>, layouter: Layouter, graphs: Array<string> = Bench.GRAPHS_ALL) {
+        const promises = graphs.map(name => {
+            return loadFunction(name).then((renderGraph: RenderGraph) => {
+                const layoutGraph = layouter.layout(renderGraph);
+                const layoutAnalysis = new LayoutAnalysis(layoutGraph, layouter.getOptionsForAnalysis());
+                return layoutAnalysis.segmentCrossings();
+            });
+        })
+        return Promise.all(promises);
+    }
+
 }

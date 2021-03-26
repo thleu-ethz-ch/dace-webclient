@@ -475,6 +475,7 @@ export default class OrderGraph {
                 let invalid = false;
                 while (_.sum(crossingsWithInfinity) >= 1000000) {
                     if (counter++ === 100) {
+                        console.log("break");
                         invalid = true;
                         break;
                     }
