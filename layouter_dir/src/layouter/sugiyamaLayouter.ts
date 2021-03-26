@@ -18,6 +18,7 @@ import RankGraph from "../rank/rankGraph";
 import RankNode from "../rank/rankNode";
 import Timer from "../util/timer";
 import Vector from "../geometry/vector";
+import LayoutBundle from "../layoutGraph/layoutBundle";
 
 export default class SugiyamaLayouter extends Layouter
 {
@@ -28,16 +29,19 @@ export default class SugiyamaLayouter extends Layouter
         }
         Timer.start("doLayout()");
 
+        // STEP 1: REMOVE CYCLES
         Timer.start("removeCycles");
         this._removeCycles(graph);
         Timer.stop("removeCycles");
         Assert.assert(!graph.hasCycle(), "graph has cycle");
 
+        // STEP 2: ASSIGN RANKS
         Timer.start("assignRanks");
         this._assignRanks(graph);
         Timer.stop("assignRanks");
         Assert.assertNone(graph.allNodes(), node => node.rank < 0, "invalid rank assignment");
 
+        // STEP 3: ADD VIRTUAL NODES
         Timer.start("addVirtualNodes");
         this._addVirtualNodes(graph);
         Timer.stop("addVirtualNodes");
@@ -53,12 +57,14 @@ export default class SugiyamaLayouter extends Layouter
         Assert.assertNone(graph.allNodes(), node => node.childGraph !== null && node.indexes.length < node.rankSpan, "wrong number of indexes");
         Assert.assertNone(graph.allNodes(), node => node.childGraph !== null && _.max(node.indexes) !== node.index, "index is not maximum of indexes");
 
+        // STEP 4: ASSIGN COORDINATES
         Timer.start("assignCoordinates");
         this._assignCoordinates(graph);
         Timer.stop("assignCoordinates");
         Assert.assertNone(graph.allNodes(), node => typeof node.y !== "number" || isNaN(node.y), "invalid y assignment");
         Assert.assertNone(graph.allNodes(), node => typeof node.x !== "number" || isNaN(node.x), "invalid x assignment");
 
+        // STEP 5: RESTORE CYCLES
         Timer.start("restoreCycles");
         this._restoreCycles(graph);
         Timer.stop("restoreCycles");
@@ -507,7 +513,7 @@ export default class SugiyamaLayouter extends Layouter
 
             // place connectors
             _.forEach(subgraph.nodes(), (node: LayoutNode) => {
-                this._placeConnectors(node);
+                this._placeConnectors(node, rankTops, rankBottoms);
             });
 
             // place edges
@@ -533,13 +539,13 @@ export default class SugiyamaLayouter extends Layouter
                 }
                 edge.points = [startPos];
 
-                let startRank = startNode.rank;
-                if (startNode.childGraph !== null) {
-                    startRank += startNode.childGraph.maxRank - startNode.childGraph.minRank;
-                }
-                const startBottom = rankBottoms[startRank];
-                if (startBottom > startPos.y) {
-                    edge.points.push(new Vector(startPos.x, startBottom))
+                if (edge.bundle !== null && edge.bundle.connectors.length > 1 && edge.srcConnector !== null) {
+                    edge.points.push(new Vector(edge.bundle.x, edge.bundle.y));
+                } else {
+                    const startBottom = rankBottoms[startNode.rank + startNode.rankSpan - 1];
+                    if (startBottom > startPos.y) {
+                        edge.points.push(new Vector(startPos.x, startBottom))
+                    }
                 }
 
                 let nextNode = subgraph.node(edge.dst);
@@ -572,15 +578,22 @@ export default class SugiyamaLayouter extends Layouter
                         endPos = dstConnector.position().add(new Vector(dstConnector.diameter / 2, 0));
                     }
                 }
-                const endTop = rankTops[nextNode.rank];
-                if (endTop < endPos.y) {
-                    edge.points.push(new Vector(endPos.x, endTop));
+                if (edge.bundle !== null && edge.bundle.connectors.length > 1 && edge.dstConnector !== null) {
+                    //console.log(edge.bundle);
+                    edge.points.push(new Vector(edge.bundle.x, edge.bundle.y));
+                } else {
+                    const startBottom = rankBottoms[startNode.rank + startNode.rankSpan - 1];
+                    if (startBottom > startPos.y) {
+                        const endTop = rankTops[nextNode.rank];
+                        if (endTop < endPos.y) {
+                            edge.points.push(new Vector(endPos.x, endTop));
+                        }
+                    }
                 }
                 edge.points.push(endPos);
                 if (tmpEdge !== null) {
                     edge.graph.removeEdge(edge.id);
                     edge.dst = tmpEdge.dst;
-                    edge.dstConnector = tmpEdge.dstConnector;
                     edge.graph.addEdge(edge, edge.id);
                 }
             });
@@ -617,7 +630,7 @@ export default class SugiyamaLayouter extends Layouter
         });
     }
 
-    private _placeConnectors(node: LayoutNode) {
+    private _placeConnectors(node: LayoutNode, rankTops: Array<number>, rankBottoms: Array<number>) {
         const SPACE = this._options['connectorSpacing'];
         let tmpInConnectors = [];
         let tmpOutConnectors = [];
@@ -704,6 +717,18 @@ export default class SugiyamaLayouter extends Layouter
         });
         _.forEach(node.outConnectors, (connector: LayoutConnector) => {
             connector.translate(auxBox.x - node.x, 0);
+        });
+
+        // place bundles
+        _.forEach(node.inConnectorBundles, (inBundle: LayoutBundle) => {
+            inBundle.x = _.mean(_.map(inBundle.connectors, (name: string) => node.connector("IN", name).x));
+            const top = rankTops[node.rank];
+            inBundle.y = Math.min(top, node.y - this._options["targetEdgeLength"] / 2);
+        });
+        _.forEach(node.outConnectorBundles, (outBundle: LayoutBundle) => {
+            outBundle.x = _.mean(_.map(outBundle.connectors, (name: string) => node.connector("OUT", name).x));
+            const bottom = rankBottoms[node.rank + node.rankSpan - 1];
+            outBundle.y = Math.max(bottom, node.y + node.height + this._options["targetEdgeLength"] / 2);
         });
     }
 }

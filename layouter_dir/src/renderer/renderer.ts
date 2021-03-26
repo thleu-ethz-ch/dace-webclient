@@ -81,11 +81,11 @@ export default class Renderer {
             const layout = layouter.layout(graph);
 
             const layoutAnalysis = new LayoutAnalysis(layout);
-            if (layoutAnalysis.validate()) {
+            /*if (layoutAnalysis.validate()) {
                 console.log("Layout satisfies constraints.");
             } else {
                 console.log("Layout violates constraints.");
-            }
+            }*/
             //console.log("Weighted cost: " + layoutAnalysis.cost(true).toFixed(0));
             /*const performanceAnalysis = new PerformanceAnalysis(layouter);
             performanceAnalysis.measure(name, 1).then(time => {
@@ -95,7 +95,7 @@ export default class Renderer {
             // center and fit the graph in the viewport
             const box = graph.boundingBox();
             console.log("Total size: " + box.width.toFixed(0) +  "x" + box.height.toFixed(0));
-            console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
+            //console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
             Timer.printTimes();
 
@@ -112,7 +112,6 @@ export default class Renderer {
                 if (nodeObj.child !== null) {
                     const node = new GenericContainerNode("GenericContainerNode");
                     node.setLabel(nodeObj.label || "");
-                    console.log(nodeObj.label);
                     node.updateSize(this._labelSize(node));
                     parent.addNode(node, id);
                     const childGraph =  new RenderGraph();
@@ -121,7 +120,6 @@ export default class Renderer {
                 } else {
                     const node = new GenericNode("GenericNode");
                     node.setLabel(nodeObj.label || "");
-                    console.log(nodeObj.label);
                     node.updateSize(this._labelSize(node));
                     parent.addNode(node, id);
                 }

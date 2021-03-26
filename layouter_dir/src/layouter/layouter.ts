@@ -10,6 +10,7 @@ import RenderGraph from "../renderGraph/renderGraph";
 import RenderNode from "../renderGraph/renderNode";
 import Segment from "../geometry/segment";
 import Vector from "../geometry/vector";
+import LayoutBundle from "../layoutGraph/layoutBundle";
 
 export default abstract class Layouter {
     protected _options: any;
@@ -19,8 +20,7 @@ export default abstract class Layouter {
             connectorSpacing: 10,
             targetEdgeLength: 50,
             withLabels: false,
-            bundle: false,
-            minimizeConnectorCrossings: false,
+            bundle: true,
             maximizeAngles: false,
             alignInAndOut: false
         });
@@ -293,16 +293,28 @@ export default abstract class Layouter {
                 if ((edge.srcConnector !== null || edge.dstConnector !== null) && (edge.srcConnector === null || edge.dstConnector === null)) {
                     const key = edge.src + "_" + edge.dst;
                     const connector = edge.srcConnector || edge.dstConnector;
+                    let bundle;
                     if (!bundles.has(key)) {
-                        const bundle = {weight: 1, connectors: [connector]};
+                        bundle = new LayoutBundle();
                         bundles.set(key, bundle);
-                        edge.bundle = bundle;
+                        if (connector === edge.srcConnector) {
+                            let srcNode = graph.node(edge.src);
+                            if (srcNode.childGraph !== null && srcNode.childGraph.exitNode !== null) {
+                                srcNode = srcNode.childGraph.exitNode;
+                            }
+                            srcNode.outConnectorBundles.push(bundle);
+                        } else {
+                            let dstNode = graph.node(edge.dst);
+                            if (dstNode.childGraph !== null && dstNode.childGraph.entryNode !== null) {
+                                dstNode = dstNode.childGraph.entryNode;
+                            }
+                            dstNode.inConnectorBundles.push(bundle);
+                        }
                     } else {
-                        const bundle = bundles.get(key);
-                        bundle.weight++;
-                        bundle.connectors.push(connector);
-                        edge.bundle = bundle;
+                        bundle = bundles.get(key);
                     }
+                    bundle.connectors.push(connector);
+                    edge.bundle = bundle;
                 }
             });
         });

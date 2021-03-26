@@ -6,10 +6,13 @@ import LayoutEdge from "./layoutEdge";
 import Vector from "../geometry/vector";
 import LayoutGraph from "./layoutGraph";
 import * as _ from "lodash";
+import LayoutBundle from "./layoutBundle";
 
 export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public inConnectors: Array<LayoutConnector> = [];
     public outConnectors: Array<LayoutConnector> = [];
+    public inConnectorBundles: Array<LayoutBundle> = [];
+    public outConnectorBundles: Array<LayoutBundle> = [];
 
     public x: number = null;
     public y: number = null;
