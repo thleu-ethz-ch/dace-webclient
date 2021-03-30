@@ -50,15 +50,19 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
         this._nodeIds = _.sortBy(this._nodeIds);
         _.forEach(this.nodes(), node => {
             _.forEach(this.outEdges(node.id), outEdge => {
-                this._edgeIds.push(outEdge.id);
+                if (_.sortedIndexOf(this._nodeIds, outEdge.dst) !== -1) {
+                    this._edgeIds.push(outEdge.id);
+                }
             });
         });
     }
 
+    public inEdges(id: number): Array<EdgeT> {
+        return this._graph.inEdges(id);
+    }
+
     public outEdges(id: number): Array<EdgeT> {
-        return _.filter(this._graph.outEdges(id), edge => {
-            return _.sortedIndexOf(this._nodeIds, edge.dst) !== -1;
-        });
+        return this._graph.outEdges(id);
     }
 
     public sources(): Array<NodeT> {

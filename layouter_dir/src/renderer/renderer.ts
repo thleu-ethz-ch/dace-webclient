@@ -95,7 +95,7 @@ export default class Renderer {
             // center and fit the graph in the viewport
             const box = graph.boundingBox();
             console.log("Total size: " + box.width.toFixed(0) +  "x" + box.height.toFixed(0));
-            //console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
+            console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
             Timer.printTimes();
 

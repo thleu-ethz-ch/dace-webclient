@@ -359,7 +359,7 @@ export default class OrderGraph {
                             ranks[r].groups[0].nodes[order[r][heavySouth]],
                         );
                     }
-                    Assert.assertEqual(ranks[r - 1].groups[0].nodes[order[r - 1][heavyNorth]].label(), ranks[r].groups[0].nodes[order[r][heavySouth]].label(), "different nodes");
+                    //Assert.assertEqual(ranks[r - 1].groups[0].nodes[order[r - 1][heavyNorth]].label(), ranks[r].groups[0].nodes[order[r][heavySouth]].label(), "different nodes");
 
                     let heavyPerRank = new Map();
                     heavyPerRank.set(r - 1, heavyNorth);
@@ -475,7 +475,6 @@ export default class OrderGraph {
                 let invalid = false;
                 while (_.sum(crossingsWithInfinity) >= 1000000) {
                     if (counter++ === 100) {
-                        console.log("break");
                         invalid = true;
                         break;
                     }

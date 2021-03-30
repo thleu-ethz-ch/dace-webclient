@@ -2,10 +2,13 @@ import * as _ from "lodash";
 import Component from "../graph/component";
 import LayoutNode from "./layoutNode";
 import LayoutEdge from "./layoutEdge";
+import LevelGraph from "../levelGraph/levelGraph";
+import LevelNode from "../levelGraph/levelNode";
+import Box from "../geometry/box";
 
 export default class LayoutComponent extends Component<LayoutNode, LayoutEdge>
 {
-    private _ranks: Array<Array<LayoutNode>> = null;
+    private _levelGraph: LevelGraph = null;
 
     public minRank(): number {
         let minRank = Number.POSITIVE_INFINITY;
@@ -23,35 +26,30 @@ export default class LayoutComponent extends Component<LayoutNode, LayoutEdge>
         return maxRank;
     }
 
-    public ranks(rankSpanning: boolean = true): Array<Array<LayoutNode>> {
-        if (this._ranks === null) {
-            const minRank = this.minRank();
-            const maxRank = this.maxRank();
-            const numRanks = maxRank - minRank + 1;
-            this._ranks = new Array(numRanks);
-            const unsortedRanks = new Array(numRanks);
-            for (let r = 0; r < numRanks; ++r) {
-                unsortedRanks[r] = [];
-            }
+    public levelGraph(): LevelGraph {
+        if (this._levelGraph === null) {
+            this._levelGraph = new LevelGraph();
             _.forEach(this.nodes(), (node: LayoutNode) => {
-                if (rankSpanning && node.childGraph !== null) {
-                    for (let r = node.childGraph.minRank; r <= node.childGraph.maxRank; ++r) {
-                        unsortedRanks[r - minRank].push(node);
-                    }
-                } else {
-                    unsortedRanks[node.rank - minRank].push(node);
-                }
+                this._levelGraph.addLayoutNode(node);
             });
-            _.forEach(unsortedRanks, (rank, r) => {
-                this._ranks[r] = _.sortBy(rank, (node: LayoutNode) => {
-                    if (node.indexes.length > 0) {
-                        return node.indexes[r - (node.rank - minRank)];
-                    } else {
-                        return node.index;
-                    }
-                });
+            _.forEach(this.edges(), (edge: LayoutEdge) => {
+                this._levelGraph.addLayoutEdge(edge);
             });
         }
-        return this._ranks;
+        return this._levelGraph;
+    }
+
+    public boundingBox(): Box {
+        let minX = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        let minY = Number.POSITIVE_INFINITY;
+        let maxY = Number.NEGATIVE_INFINITY;
+        _.forEach(this.nodes(), (node: LayoutNode) => {
+            minX = Math.min(minX, node.x);
+            maxX = Math.max(maxX, node.x + node.width);
+            minY = Math.min(minY, node.y);
+            maxY = Math.max(maxY, node.y + node.height);
+        });
+        return new Box(minX, minY, maxX - minX, maxY - minY);
     }
 }

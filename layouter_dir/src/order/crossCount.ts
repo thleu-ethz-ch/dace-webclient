@@ -49,14 +49,34 @@ export class CrossCount {
         const gpu = new GPU();
 
         CrossCount.pipeline = [
-            // take row-wise cumulative sum
+
+            // left shift
             gpu.createKernel(function (adjacencyMatrix) {
-                const outputX = this.output.x;
-                let sum = 0;
-                for (let j = this.thread.x + 1; j < outputX; ++j) {
-                    sum += adjacencyMatrix[this.thread.y][j];
+                return ((this.thread.x === this.output.x - 1) ? 0 : adjacencyMatrix[this.thread.y][this.thread.x + 1]);
+            }, {
+                dynamicArguments: true,
+                dynamicOutput: true,
+                pipeline: true,
+            }),
+
+            // take row-wise cumulative sum
+            gpu.createKernel(function (leftShifted, i: number) {
+                const numCols = this.output.x;
+                let sum = leftShifted[this.thread.y][this.thread.x];
+                if (this.thread.x + i < numCols) {
+                    sum += leftShifted[this.thread.y][this.thread.x + i];
                 }
                 return sum;
+            }, {
+                dynamicArguments: true,
+                dynamicOutput: true,
+                pipeline: true,
+                immutable: true,
+            }),
+
+            // down shift
+            gpu.createKernel(function (rowSum) {
+                return ((this.thread.y === 0) ? 0 : rowSum[this.thread.y - 1][this.thread.x]);
             }, {
                 dynamicArguments: true,
                 dynamicOutput: true,
@@ -64,16 +84,17 @@ export class CrossCount {
             }),
 
             // take column-wise cumulative sum
-            gpu.createKernel(function (rowSums) {
-                let sum = 0;
-                for (let i = 0; i < this.thread.y; ++i) {
-                    sum += rowSums[i][this.thread.x];
+            gpu.createKernel(function (downShifted, i: number) {
+                let sum = downShifted[this.thread.y][this.thread.x];
+                if (this.thread.y - i >= 0) {
+                    sum += downShifted[this.thread.y - i][this.thread.x];
                 }
                 return sum;
             }, {
                 dynamicArguments: true,
                 dynamicOutput: true,
                 pipeline: true,
+                immutable: true,
             }),
 
             // hadamard product (adjacency matrix acts as a mask)
@@ -86,10 +107,9 @@ export class CrossCount {
             }),
 
             // row-wise sum
-            gpu.createKernel(function (matrix) {
-                const outputX = this.output.x;
+            gpu.createKernel(function (matrix, numCols) {
                 let sum = 0;
-                for (let j = 0; j < outputX; ++j) {
+                for (let j = 0; j < numCols; ++j) {
                     sum += matrix[this.thread.x][j];
                 }
                 return sum;
@@ -106,10 +126,13 @@ export class CrossCount {
         }
 
         const adjacencyMatrixSize = [numSouth, numNorth];
+        //const height = Math.log2(Math.max(numNorth, numSouth) - 1) + 1;
         CrossCount.pipeline[0].setOutput(adjacencyMatrixSize);
         CrossCount.pipeline[1].setOutput(adjacencyMatrixSize);
         CrossCount.pipeline[2].setOutput(adjacencyMatrixSize);
-        CrossCount.pipeline[3].setOutput([numNorth]);
+        CrossCount.pipeline[3].setOutput(adjacencyMatrixSize);
+        CrossCount.pipeline[4].setOutput(adjacencyMatrixSize);
+        CrossCount.pipeline[5].setOutput([numNorth]);
 
         // build matrix
         const adjacencyMatrix = [];
@@ -121,10 +144,18 @@ export class CrossCount {
         });
 
         // execute pipeline
-        const rowSums = CrossCount.pipeline[0](adjacencyMatrix);
-        const columnSums = CrossCount.pipeline[1](rowSums);
-        const product = CrossCount.pipeline[2](columnSums, adjacencyMatrix);
-        const sums = CrossCount.pipeline[3](product);
+        let leftShifted = CrossCount.pipeline[0](adjacencyMatrix);
+        for (let i = 1; i < numSouth; i <<= 1) {
+            leftShifted = CrossCount.pipeline[1](leftShifted, i);
+        }
+        let downShifted = CrossCount.pipeline[2](leftShifted);
+        leftShifted.delete();
+        for (let i = 1; i < numNorth; i <<= 1) {
+            downShifted = CrossCount.pipeline[3](downShifted, i);
+        }
+        const product = CrossCount.pipeline[4](downShifted, adjacencyMatrix);
+        downShifted.delete();
+        const sums = CrossCount.pipeline[5](product, numSouth);
         return _.sum(sums);
     }
 }

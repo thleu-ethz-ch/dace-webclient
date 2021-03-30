@@ -30,6 +30,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         _.forEach(this.edges(), edge => {
             clone.addEdge(_.clone(edge), edge.id);
         });
+        return clone;
     }
 
     cloneEmpty() {

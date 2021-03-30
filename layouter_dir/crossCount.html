@@ -21,7 +21,7 @@
         window.addEventListener("load", function () {
             const CrossCount = crossCount.CrossCount;
             CrossCount.initGpu();
-            const numRuns = 100;
+            const numRuns = 10;
             const densities = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
             const ns = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
 
@@ -49,10 +49,21 @@
                 });
             });*/
 
-            const edges = [
+            const n = 512;
+            let sum = 0;
+            for (let run = 0; run < numRuns; ++run) {
+                const edges = _.shuffle(CrossCount.buildGraph(n, 0.5));
+                let start = Date.now();
+                const crossingsEfficient = CrossCount.countEfficient(n, n, _.cloneDeep(edges));
+                let stop = Date.now();
+                sum += (stop - start);
+            }
+            console.log((sum / 1000) + "s")
+
+            /*const edges = [
                 [
                     0,
-                    5,
+                    0,
                 ],
                 [
                     1,
@@ -60,14 +71,42 @@
                 ],
                 [
                     1,
+                    2,
+                ],
+                [
+                    2,
                     0,
                 ],
                 [
                     2,
-                    6,
+                    3,
+                ],
+                [
+                    2,
+                    4,
+                ],
+                [
+                    3,
+                    0,
+                ],
+                [
+                    3,
+                    2,
+                ],
+                [
+                    4,
+                    3,
+                ],
+                [
+                    5,
+                    2,
+                ],
+                [
+                    5,
+                    4,
                 ]
             ];
-            console.log(CrossCount.countEfficient(3, 7, edges));
+            console.log(CrossCount.countGpu(6, 5, edges));*/
 
         });
     </script>
