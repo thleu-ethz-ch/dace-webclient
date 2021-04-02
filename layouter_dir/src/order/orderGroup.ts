@@ -25,6 +25,11 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
         return this.rank.orderGraph.addNode(node, id);
     }
 
+    removeNode(node: OrderNode) {
+        this.rank.orderGraph.removeNode(node.id);
+        _.pull(this.nodes, node);
+    }
+
     orderedNodes(): Array<OrderNode> {
         const nodes = [];
         if (this.order.length < this.nodes.length) {

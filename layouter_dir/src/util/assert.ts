@@ -7,6 +7,11 @@ export default class Assert
         Assert.assert(matches.length === 0, message, matches);
     }
 
+    static assertAll(collection: Array<any>, predicate: (element: any, i: number) => boolean, message: string) {
+        const matches = _.filter(collection, (el, i) => !predicate(el, i));
+        Assert.assert(matches.length === 0, message, matches);
+    }
+
     static assertNumber(input: any, message: string) {
         const predicate = (typeof input === "number" && !isNaN(input));
         Assert.assert(predicate, message, input);

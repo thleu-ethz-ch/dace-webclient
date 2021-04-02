@@ -27,27 +27,36 @@ import Text from "../shapes/text";
 import Timer from "../util/timer";
 import UpwardTrapezoid from "../shapes/upwardTrapezoid";
 import Vector from "../geometry/vector";
+import {Container} from "pixi.js";
+import MapEntry from "../renderGraph/mapEntry";
+import MapExit from "../renderGraph/mapExit";
+import Tasklet from "../renderGraph/tasklet";
 
 export default class Renderer {
+    private readonly _app;
     private readonly _viewport;
+    private readonly _container;
 
     constructor(domContainer, coordinateContainer = null) {
-        const app = new PIXI.Application({
+        this._app = new PIXI.Application({
             width: domContainer.clientWidth,
             height: domContainer.clientHeight,
             antialias: true,
         });
-        app.renderer.backgroundColor = 0xFFFFFF;
-        domContainer.appendChild(app.view);
+        this._app.renderer.backgroundColor = 0xFFFFFF;
+        domContainer.appendChild(this._app.view);
 
         this._viewport = new Viewport({
             screenWidth: domContainer.clientWidth,
             screenHeight: domContainer.clientHeight,
             worldWidth: domContainer.clientWidth,
             worldHeight: domContainer.clientHeight,
-            interaction: app.renderer.plugins.interaction, // the interaction module is important for wheel to work properly when renderer.view is placed or scaled
+            interaction: this._app.renderer.plugins.interaction, // the interaction module is important for wheel to work properly when renderer.view is placed or scaled
         });
-        app.stage.addChild(this._viewport);
+        this._app.stage.addChild(this._viewport);
+
+        this._container = new Container();
+        this._viewport.addChild(this._container);
 
         const showCoordinates = (title, point) => {
             coordinateContainer.innerHTML = title + ": " + point.x.toFixed(0) + " / " + point.y.toFixed(0);
@@ -68,6 +77,53 @@ export default class Renderer {
 
     show(layouter: Layouter, name: string) {
         Loader.load(name).then((graph) => {
+
+            graph = new RenderGraph();
+            const a = new AccessNode("AccessNode", "a");
+            const b = new AccessNode("AccessNode", "b");
+            const c = new AccessNode("AccessNode", "c");
+            const d = new AccessNode("AccessNode", "d");
+            const e = new AccessNode("AccessNode", "e");
+            const f = new AccessNode("AccessNode", "f");
+            const map1Entry = new MapEntry("MapEntry", "map1Entry");
+            const map1Tasklet1 = new Tasklet("Tasklet", "map1Tasklet1");
+            const map1Tasklet2 = new Tasklet("Tasklet", "map1Tasklet2");
+            const map1Exit = new MapExit("MapExit", "map1Exit");
+            const map2Entry = new MapEntry("MapEntry", "map2Entry");
+            const map2Exit = new MapExit("MapExit", "map2Exit");
+            graph.addNode(a);
+            graph.addNode(b);
+            graph.addNode(map1Entry);
+            graph.addNode(map2Entry);
+            graph.addNode(map1Tasklet1);
+            graph.addNode(map1Tasklet2);
+            graph.addNode(map2Exit);
+            graph.addNode(c);
+            graph.addNode(map1Exit);
+            graph.addNode(d);
+            graph.addNode(e);
+            graph.addNode(f);
+
+            map1Tasklet1.scopeEntry = map1Entry.id;
+            map1Tasklet2.scopeEntry = map1Entry.id;
+            map1Exit.scopeEntry = map1Entry.id;
+            map2Exit.scopeEntry = map2Entry.id;
+
+            graph.addEdge(new Memlet(a.id, map2Entry.id, null, null));
+            graph.addEdge(new Memlet(b.id, map2Entry.id, null, null));
+            graph.addEdge(new Memlet(c.id, e.id, null, null));
+            let edgeId = graph.addEdge(new Memlet(map1Entry.id, map1Tasklet1.id, null, null));
+            graph.edge(edgeId).weight = Number.POSITIVE_INFINITY;
+            edgeId = graph.addEdge(new Memlet(map1Tasklet1.id, map1Tasklet2.id, null, null));
+            graph.edge(edgeId).weight = Number.POSITIVE_INFINITY;
+            edgeId = graph.addEdge(new Memlet(map1Tasklet2.id, map1Exit.id, null, null));
+            graph.edge(edgeId).weight = Number.POSITIVE_INFINITY;
+            graph.addEdge(new Memlet(map2Entry.id, map2Exit.id, null, null));
+            graph.addEdge(new Memlet(map2Exit.id, d.id, null, null));
+            graph.addEdge(new Memlet(map2Exit.id, e.id, null, null));
+            graph.addEdge(new Memlet(map1Exit.id, f.id, null, null));
+            graph.addEdge(new Memlet(d.id, f.id, null, null));
+            graph.addEdge(new Memlet(e.id, f.id, null, null));
 
             // set node sizes
             _.forEach(graph.allNodes(), (node: RenderNode) => {
@@ -97,10 +153,50 @@ export default class Renderer {
             console.log("Total size: " + box.width.toFixed(0) +  "x" + box.height.toFixed(0));
             console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
-            Timer.printTimes();
+            //Timer.printTimes();
 
             this.render(graph);
         });
+    }
+
+    drawSimpleGraph(nodes, heavyEdges, lightEdges) {
+        const GRID = 20;
+        const NODE = 5;
+        _.forEach(nodes, node => {
+            const circle = new PIXI.Graphics();
+            circle.beginFill(0);
+            circle.drawCircle(GRID * node[0], GRID * node[1], NODE / 2);
+            circle.endFill();
+            this._container.addChild(circle);
+        });
+        _.forEach(heavyEdges, edge => {
+            const line = new PIXI.Graphics();
+            line.lineStyle(2);
+            line.moveTo(GRID * edge[0][0], GRID * edge[0][1]);
+            line.lineTo(GRID * edge[1][0], GRID * edge[1][1]);
+            this._container.addChild(line);
+        });
+        _.forEach(lightEdges, edge => {
+            const line = new PIXI.Graphics();
+            line.lineStyle(1);
+            line.moveTo(GRID * edge[0][0], GRID * edge[0][1]);
+            line.lineTo(GRID * edge[1][0], GRID * edge[1][1]);
+            this._container.addChild(line);
+        });
+    }
+
+    /**
+     * Adapted from https://www.html5gamedevs.com/topic/31190-saving-pixi-content-to-image/.
+     */
+    savePng(fileName) {
+        this._app.renderer.extract.canvas(this._viewport.children[0]).toBlob(function(b){
+            var a = document.createElement('a');
+            document.body.append(a);
+            a.download = fileName;
+            a.href = URL.createObjectURL(b);
+            a.click();
+            a.remove();
+        }, 'image/png');
     }
 
     renderLive() {
@@ -149,7 +245,7 @@ export default class Renderer {
      * @param view = {centerX: number, centerY: number, zoom: number}
      */
     render(graph: RenderGraph, view = null) {
-        this._viewport.removeChildren();
+        this._container.removeChildren();
         const box = graph.boundingBox();
         this._viewport.moveCorner((box.width - this._viewport.worldWidth) / 2, (box.height - this._viewport.worldHeight) / 2);
         this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);
@@ -160,7 +256,7 @@ export default class Renderer {
 
         const shapes = this._getShapesForGraph(graph);
         _.forEach(shapes, (shape) => {
-            shape.render(this._viewport);
+            shape.render(this._container);
         });
     }
 

@@ -66,6 +66,10 @@ export default class OrderGraph {
         return this._nodeGraph.addNode(node, id);
     }
 
+    public removeNode(id: number) {
+        this._nodeGraph.removeNode(id);
+    }
+
     public addEdge(edge: Edge<any, any>) {
         return this._nodeGraph.addEdge(edge);
     }
@@ -160,7 +164,7 @@ export default class OrderGraph {
             const neighborsUp = [];
             const weightsUp = [];
             let order = []; // current order of this level (e. g. 2, 0, 1)
-            const positions = []; // inverse of order (e. g. 1, 2, 0)
+            let positions = []; // inverse of order (e. g. 1, 2, 0)
             const crossings = []; // number of crossings above each rank where heavy edges are not so heavy
             const crossingsWithInfinity = []; // number of crossings above each rank where heavy edges are heavy
 
@@ -182,6 +186,7 @@ export default class OrderGraph {
                         order[r][groupOffset[r][g] + n] = groupOrder[n];
                     }
                     _.forEach(group.nodes, (node: OrderNode, n: number) => {
+                        node.rank = r;
                         const pos = groupOffsets[group.id] + n;
                         neighborsDown[r][pos] = [];
                         weightsDown[r][pos] = [];
@@ -200,7 +205,10 @@ export default class OrderGraph {
                 _.forEach(order[r], (node, pos) => {
                     positions[r][node] = pos;
                 });
+                Assert.assertNone(positions[r], (pos, p) => order[r][pos] !== p, "positions and orders do not match after init " + positions[r].toString() + " | " + order[r].toString());
+                Assert.assertNone(order[r], (ord, o) => positions[r][ord] !== o, "positions and orders do not match after init " + positions[r].toString() + " | " + order[r].toString());
             });
+
             crossings[0] = 0;
             crossingsWithInfinity[0] = 0;
 
@@ -216,7 +224,7 @@ export default class OrderGraph {
                             if (useInfinity) {
                                 weight = 1000000;
                             } else {
-                                weight = 1;
+                                weight = 1000000;
                             }
                         }
                         edges.push([
@@ -260,6 +268,8 @@ export default class OrderGraph {
                         console.log(downward ? "DOWN" : "UP");
                     }
                     for (let r = firstRank; r - direction !== lastRank; r += direction) {
+                        Assert.assertNone(positions[r], (pos, p) => order[r][pos] !== p, "positions and orders do not match before reorder" + positions[r].toString() + order[r].toString());
+                        Assert.assertNone(order[r], (ord, o) => positions[r][ord] !== o, "positions and orders do not match before reorder" + positions[r].toString() + order[r].toString());
                         if (debug) {
                             console.log("rank", r);
                         }
@@ -337,19 +347,125 @@ export default class OrderGraph {
                                 console.log("same order");
                             }
                         }
+                        Assert.assertNone(positions[r], (pos, p) => order[r][pos] !== p, "positions and orders do not match after reorder" + positions[r].toString() + order[r].toString());
+                        Assert.assertNone(order[r], (ord, o) => positions[r][ord] !== o, "positions and orders do not match after reorder" + positions[r].toString() + order[r].toString());
                     }
                     downward = !downward;
+                }
+
+                for (let r = 1; r < ranks.length; ++r) {
+                    crossingsWithInfinity[r] = countCrossings(order[r], r, "UP", true);
                 }
 
                 Timer.stop("reorder");
             };
 
+            const assertNeighborCoherence = (r: number = null) => {
+                if (r === null) {
+                    _.forEach(_.range(ranks.length), r => assertNeighborCoherence(r));
+                    return;
+                }
+                _.forEach(neighborsDown[r], (neighborsPerNode, n) => {
+                    Assert.assertAll(neighborsPerNode, neighbor => neighborsUp[r + 1][neighbor].indexOf(n) !== -1, "neighbor in rank " + (r + 1) + " is missing upNeighbor");
+                });
+                //console.log("assertNeighborCoherence(" + r + ")", "neighborsUp", _.cloneDeep(neighborsUp), "neighborsDown", _.cloneDeep(neighborsDown));
+                _.forEach(neighborsUp[r], (neighborsPerNode, n) => {
+                    Assert.assertAll(neighborsPerNode, neighbor => neighborsDown[r - 1][neighbor].indexOf(n) !== -1, "neighbor in rank " + (r - 1) + "is missing downNeighbor");
+                });
+            }
+
+            const assertOrderAndPositionCoherence = (r: number = null) => {
+                if (r === null) {
+                    _.forEach(_.range(ranks.length), r => assertOrderAndPositionCoherence(r));
+                }
+                Assert.assertEqual(_.sortBy(order[r]), _.range(0, order[r].length), "order in rank " + r + " not contiguous");
+                Assert.assertEqual(_.sortBy(positions[r]), _.range(0, order[r].length), "positions in rank " + r + " not contiguous");
+                Assert.assertNone(positions[r], (pos, p) => order[r][pos] !== p, "positions and orders do not match");
+                Assert.assertNone(order[r], (ord, o) => positions[r][ord] !== o, "positions and orders do not match");
+            }
+
+            const getIllegalCrossing = () => {
+                for (let r = 1; r < ranks.length; ++r) {
+                    if (crossingsWithInfinity[r] >= 1000000) {
+                        // there is at least one illegal crossing between this and the upper rank
+                        const segmentStarts = [];
+                        const segmentEnds = [];
+                        for (let n = 0; n < Math.max(order[r - 1].length); ++n) {
+                            segmentStarts[n] = [];
+                        }
+                        for (let n = 0; n < Math.max(order[r].length); ++n) {
+                            segmentEnds[n] = [];
+                        }
+                        for (let n = 0; n < order[r].length; ++n) {
+                            const posSouth = positions[r][n];
+                            for (let neighbor = 0; neighbor < neighborsUp[r][n].length; ++neighbor) {
+                                const posNorth = positions[r - 1][neighborsUp[r][n][neighbor]];
+                                const heavy = (weightsUp[r][n][neighbor] === Number.POSITIVE_INFINITY);
+                                const segment = [posNorth, posSouth, heavy];
+                                segmentStarts[posNorth].push(segment);
+                                segmentEnds[posSouth].push(segment);
+                            }
+                        }
+                        const openSegments: Set<[number, number, boolean]> = new Set();
+                        for (let n = 0; n < Math.max(order[r].length, order[r - 1].length); ++n) {
+                            _.forEach(segmentStarts[n], (segment: [number, number, boolean]) => {
+                                const [posNorth, posSouth, heavy] = segment;
+                                if (posNorth >= posSouth) {
+                                    openSegments.delete(segment);
+                                }
+                            });
+                            _.forEach(segmentEnds[n], (segment: [number, number, boolean]) => {
+                                const [posNorth, posSouth, heavy] = segment;
+                                if (posNorth < posSouth) { // equality handled in loop above
+                                    openSegments.delete(segment);
+                                }
+                            });
+                            const newSegments = [];
+                            _.forEach(segmentStarts[n], (segment: [number, number, boolean]) => {
+                                const [posNorth, posSouth, heavy] = segment;
+                                if (posNorth <= posSouth) {
+                                    newSegments.push(segment);
+                                }
+                            });
+                            _.forEach(segmentEnds[n], (segment: [number, number, boolean]) => {
+                                const [posNorth, posSouth, heavy] = segment;
+                                if (posNorth > posSouth) { // equality handled in loop above
+                                    newSegments.push(segment);
+                                }
+                            });
+                            for (let newSegment of newSegments) {
+                                const [posNorth, posSouth, heavy] = newSegment;
+                                let newDir = Math.sign(posSouth - posNorth);
+                                for (let openSegment of openSegments) {
+                                    const [openPosNorth, openPosSouth, openHeavy] = openSegment;
+                                    // dir is
+                                    let openDir = Math.sign(openPosSouth - openPosNorth);
+                                    if ((newDir !== openDir) || (newDir === 1 && posSouth < openPosSouth) || (posNorth < openPosNorth)) {
+                                        // segments have different direction or new segment is more vertical
+                                        if (openHeavy) {
+                                            return [r, openPosNorth, openPosSouth, posNorth, posSouth];
+                                        } else if (heavy) {
+                                            return [r, posNorth, posSouth, openPosNorth, openPosSouth];
+                                        }
+                                    }
+                                }
+                                if (newDir !== 0) {
+                                    openSegments.add(newSegment);
+                                }
+                            }
+                        }
+                    }
+                }
+                return null;
+            }
+
             /**
              * Tries to resolve illegal crossings, i. e. crossings of edges with infinite weight.
              */
-            const resolve = () => {
-                Timer.start("resolve");
-                const resolveCrossing = (r: number, heavyNorth: number, heavySouth: number, otherNorth: number, otherSouth: number) => {
+            const resolveX = () => {
+                Timer.start("resolveX");
+                const resolveCrossing = (crossing) => {
+                    const [r, heavyNorth, heavySouth, otherNorth, otherSouth] = crossing;
                     Assert.assert(groupOffset[r].length === 1, "more than one group");
                     Assert.assert(groupOffset[r - 1].length === 1, "more than one group");
                     if (debug) {
@@ -359,11 +475,9 @@ export default class OrderGraph {
                             ranks[r].groups[0].nodes[order[r][heavySouth]],
                         );
                     }
-                    //Assert.assertEqual(ranks[r - 1].groups[0].nodes[order[r - 1][heavyNorth]].label(), ranks[r].groups[0].nodes[order[r][heavySouth]].label(), "different nodes");
+                    Assert.assertEqual(ranks[r - 1].groups[0].nodes[order[r - 1][heavyNorth]].label(), ranks[r].groups[0].nodes[order[r][heavySouth]].label(), "different nodes");
 
-                    let heavyPerRank = new Map();
-                    heavyPerRank.set(r - 1, heavyNorth);
-                    heavyPerRank.set(r, heavySouth);
+                    let heavyPerRank = new Map([[r - 1, heavyNorth], [r, heavySouth]]);
                     let otherPerRank = new Map([[r - 1, new Set([otherNorth])], [r, new Set([otherSouth])]]);
                     _.forEach([1, -1], direction => {
                         const neighbors = (direction === 1 ? neighborsDown : neighborsUp);
@@ -415,10 +529,11 @@ export default class OrderGraph {
                     const otherPositionsPerRank = (moveDir === 1 ? leftPerRank : rightPerRank);
 
                     if (debug) {
-                        console.log("indexes per rank", "heavy: ", heavyPerRank, "other:", otherPositionsPerRank);
+                        console.log("indexes per rank", "heavy: ", heavyPerRank, "other:", otherPositionsPerRank, "moveDir", moveDir);
                     }
                     _.forEach(otherPositionsPerRank, (rankPositions: [number, Array<number>]) => {
                         let r = rankPositions[0];
+                        assertOrderAndPositionCoherence(r);
                         let movingPositions = rankPositions[1];
                         let positionsPointer = 0;
                         if (moveDir === 1) {
@@ -435,12 +550,15 @@ export default class OrderGraph {
                                 }
                             }
                         } else {
-                            let posMoving = heavyPerRank.get(r);
+                            let posMoving = heavyPerRank.get(r) + movingPositions.length - 1;
                             let offsetNonMoving = 0;
                             for (let p = movingPositions[0]; p >= heavyPerRank.get(r); p--) {
+                                if (r === 84) {
+                                    console.log("posMoving", posMoving, "offsetNonMoving", offsetNonMoving, "p", p, "movingPositions", movingPositions);
+                                }
                                 if (movingPositions[positionsPointer] === p) {
-                                    positions[r][order[r][p]] = posMoving++;
-                                    offsetNonMoving += 1;
+                                    positions[r][order[r][p]] = posMoving--;
+                                    offsetNonMoving++;
                                     positionsPointer++;
                                 } else {
                                     positions[r][order[r][p]] += offsetNonMoving;
@@ -448,8 +566,7 @@ export default class OrderGraph {
                             }
                         }
 
-                        Assert.assertEqual(_.sortBy(positions[r]), _.range(0, positions[r].length), "positions not consistent");
-                        order[r] = _.map(_.sortBy(_.map(positions[r], (pos, n) => [pos, n]), "0"), "1");
+                        assertOrderAndPositionCoherence(r);
                     });
 
                     const rankCrossingsChanged = _.fill(new Array(ranks.length), false);
@@ -467,120 +584,361 @@ export default class OrderGraph {
                     }
                 }
 
-                for (let r = 1; r < ranks.length; ++r) {
-                    crossingsWithInfinity[r] = countCrossings(order[r], r, "UP", true);
-                }
-
                 let counter = 0;
                 let invalid = false;
-                while (_.sum(crossingsWithInfinity) >= 1000000) {
+                let crossing = getIllegalCrossing();
+                while (crossing !== null) {
                     if (counter++ === 100) {
                         invalid = true;
                         break;
                     }
-                    let hasResolved = false;
                     if (debug) {
                         console.log("resolve", _.sum(crossingsWithInfinity));
                     }
-                    for (let r = 1; r < ranks.length; ++r) {
-                        if (crossingsWithInfinity[r] >= 1000000) {
-                            // there is at least one illegal crossing between this and the upper rank
-                            const segmentStarts = [];
-                            const segmentEnds = [];
-                            for (let n = 0; n < Math.max(order[r - 1].length); ++n) {
-                                segmentStarts[n] = [];
+                    resolveCrossing(crossing);
+                    crossing = getIllegalCrossing();
+                }
+
+                Timer.stop("resolveX")
+                return !invalid;
+            }
+
+            const resolveY = () => {
+                Timer.start("resolveY");
+                const resolveCrossing = (crossing) => {
+                    let [r, heavyNorth, heavySouth, otherNorth, otherSouth] = crossing;
+                    Assert.assert(groupOffset[r].length === 1, "more than one group");
+                    Assert.assert(groupOffset[r - 1].length === 1, "more than one group");
+                    //if (debug) {
+                        console.log(
+                            "resolve",
+                            ranks[r - 1].groups[0].nodes[order[r - 1][heavyNorth]],
+                            ranks[r].groups[0].nodes[order[r][heavySouth]],
+                            ranks[r - 1].groups[0].nodes[order[r][otherNorth]],
+                            ranks[r].groups[0].nodes[order[r][otherSouth]],
+                        );
+                    //}
+                    Assert.assertEqual(ranks[r - 1].groups[0].nodes[order[r - 1][heavyNorth]].label(), ranks[r].groups[0].nodes[order[r][heavySouth]].label(), "different nodes");
+
+                    let heavyPerRank: Map<number, number> = new Map([[r - 1, heavyNorth]]);
+                    let otherPerRank: Map<number, number> = new Map([[r - 1, otherNorth]]);
+                    _.forEach([1], direction => {
+                        const neighbors = (direction === 1 ? neighborsDown : neighborsUp);
+                        const weights = (direction === 1 ? weightsDown : weightsUp);
+                        let heavyPos = (direction === 1 ? heavyNorth : heavySouth);
+                        let otherPos = (direction === 1 ? otherNorth : otherSouth);
+                        let tmpR = (direction === 1 ? r - 1 : r);
+                        while (neighbors[tmpR][order[tmpR][heavyPos]].length > 0 && weights[tmpR][order[tmpR][heavyPos]][0] === Number.POSITIVE_INFINITY) {
+                            heavyPos = positions[tmpR + direction][neighbors[tmpR][order[tmpR][heavyPos]][0]];
+                            heavyPerRank.set(tmpR + direction, heavyPos);
+                            otherPos = positions[tmpR + direction][neighbors[tmpR][order[tmpR][otherPos]][0]];
+                            otherPerRank.set(tmpR + direction, otherPos);
+                            tmpR += direction;
+                        }
+                    });
+
+                    let heavyBottomR = 0;
+                    heavyPerRank.forEach((pos, r) => {
+                        heavyBottomR = Math.max(heavyBottomR, r);
+                    });
+
+                    console.log("heavyPerRank", _.cloneDeep(heavyPerRank), "heavyBottomR", heavyBottomR);
+
+                    // remove "other" edge
+                    let northN = order[r - 1][otherNorth];
+                    let southN = order[r][otherSouth];
+                    let neighborIndex = neighborsDown[r - 1][northN].indexOf(southN);
+                    const otherWeight = weightsDown[r - 1][northN][neighborIndex];
+                    weightsDown[r - 1][northN].splice(neighborIndex, 1);
+                    neighborsDown[r - 1][northN].splice(neighborIndex, 1);
+                    neighborIndex = neighborsUp[r][southN].indexOf(northN);
+                    weightsUp[r][southN].splice(neighborIndex, 1);
+                    neighborsUp[r][southN].splice(neighborIndex, 1);
+
+                    assertNeighborCoherence();
+
+                    //_.map(order, (orderR, r) => console.log(r, _.map(orderR, n => ranks[r].groups[0].nodes[n].label()).toString()));
+                    //console.log("order[1]", _.cloneDeep(order[1]));
+
+                    const rOffset = r - 1;
+                    const queue: Array<Map<number, [Map<number, number>, number, boolean]>> = [
+                        new Map([[northN, [new Map(), heavyBottomR - rOffset, true]]]), // 0 => r - 1
+                        new Map([[southN, [new Map(), heavyBottomR - rOffset, false]]]), // 1 => r
+                    ];
+
+                    const addNode = (r: number, pos: number, node: OrderNode) => {
+                        const nextN = numNodesGroup[r][0];
+                        console.log("add node", node, "with n", nextN, "at position", pos, "in rank", r);
+                        console.log("order in rank ", r, ":", _.cloneDeep(order[r]));
+                        for (let tmpPos = numNodesGroup[r][0]; tmpPos >= pos + 1; --tmpPos) {
+                            order[r][tmpPos] = order[r][tmpPos - 1];
+                            console.log("node", ranks[r].groups[0].nodes[order[r][tmpPos]], "moves from position", tmpPos - 1, "to", tmpPos);
+                        }
+                        order[r][pos] = nextN;
+                        console.log("order in rank ", r, ":", _.cloneDeep(order[r]));
+                        neighborsDown[r][nextN] = [];
+                        weightsDown[r][nextN] = [];
+                        neighborsUp[r][nextN] = [];
+                        weightsUp[r][nextN] = [];
+                        ranks[r].groups[0].addNode(node);
+                        numNodesGroup[r][0]++;
+                        node.rank = r;
+                        // update positions
+                        _.forEach(order[r], (n, pos) => {
+                            positions[r][n] = pos;
+                        });
+
+                        assertOrderAndPositionCoherence(r);
+                        assertNeighborCoherence();
+                        console.log("after add node", "neighborsUp", _.cloneDeep(neighborsUp), "neighborsDown", _.cloneDeep(neighborsDown));
+
+                        return nextN;
+                    };
+
+                    const removeNode = (r: number, pos: number, node: OrderNode) => {
+                        const n = order[r][pos];
+                        console.log("remove node", node, "with n", n, "from position", pos, "in rank", r);
+                        console.log("order in rank ", r, ":", _.cloneDeep(order[r]));
+
+                        assertNeighborCoherence();
+
+                        // remove edges
+                        _.forEach(neighborsUp[r][n], neighborNorth => {
+                            _.forEach(neighborsDown[r - 1][neighborNorth], (neighborR, neighborRIndex) => {
+                                if (neighborR === n) {
+                                    neighborsDown[r - 1][neighborNorth].splice(neighborRIndex, 1);
+                                    weightsDown[r - 1][neighborNorth].splice(neighborRIndex, 1);
+                                }
+                            });
+                        });
+                        _.forEach(neighborsDown[r][n], neighborSouth => {
+                            _.forEach(neighborsUp[r + 1][neighborSouth], (neighborR, neighborRIndex) => {
+                                if (neighborR === n) {
+                                    neighborsUp[r + 1][neighborSouth].splice(neighborRIndex, 1);
+                                    weightsUp[r + 1][neighborSouth].splice(neighborRIndex, 1);
+                                }
+                            });
+                        });
+                        neighborsUp[r][n] = [];
+                        neighborsDown[r][n] = [];
+
+                        assertNeighborCoherence();
+
+                        // adjust n's
+                        for (let tmpN = n + 1; tmpN < numNodesGroup[r][0]; ++tmpN) {
+                            const oldN = tmpN;
+                            const newN = oldN - 1;
+                            if (queue[r].has(tmpN)) {
+                                //console.log("move n in queue from", tmpN, "to", tmpN - 1)
+                                queue[r].set(tmpN - 1, queue[r].get(tmpN));
+                                queue[r].delete(tmpN);
                             }
-                            for (let n = 0; n < Math.max(order[r].length); ++n) {
-                                segmentEnds[n] = [];
+                            console.log("adjust n from", oldN , "to", newN);
+                            neighborsDown[r][newN] = neighborsDown[r][oldN];
+                            weightsDown[r][newN] = weightsDown[r][oldN];
+                            neighborsUp[r][newN] = neighborsUp[r][oldN];
+                            weightsUp[r][newN] = weightsUp[r][oldN];
+                            if (oldN === northN) {
+                                console.log("northN = ", newN);
+                                northN = newN;
                             }
-                            for (let n = 0; n < order[r].length; ++n) {
-                                const posSouth = positions[r][n];
-                                for (let neighbor = 0; neighbor < neighborsUp[r][n].length; ++neighbor) {
-                                    const posNorth = positions[r - 1][neighborsUp[r][n][neighbor]];
-                                    const heavy = (weightsUp[r][n][neighbor] === Number.POSITIVE_INFINITY);
-                                    const segment = [posNorth, posSouth, heavy];
-                                    segmentStarts[posNorth].push(segment);
-                                    segmentEnds[posSouth].push(segment);
+                            if (oldN === southN) {
+                                console.log("southN = ", newN);
+                                southN = newN;
+                            }
+                            _.forEach(neighborsUp[r][newN], neighborNorth => {
+                                _.forEach(neighborsDown[r - 1][neighborNorth], (neighborR, neighborRIndex) => {
+                                    if (neighborR === oldN) {
+                                        neighborsDown[r - 1][neighborNorth][neighborRIndex] = newN;
+                                    }
+                                });
+                            });
+                            _.forEach(neighborsDown[r][newN], neighborSouth => {
+                                _.forEach(neighborsUp[r + 1][neighborSouth], (neighborR, neighborRIndex) => {
+                                    if (neighborR === oldN) {
+                                        neighborsUp[r + 1][neighborSouth][neighborRIndex] = newN;
+                                    }
+                                });
+                            });
+                            order[r][positions[r][tmpN]]--;
+                        }
+                        neighborsDown[r].length = numNodesGroup[r][0] - 1;
+                        neighborsUp[r].length = numNodesGroup[r][0] - 1;
+                        assertNeighborCoherence();
+
+                        // adjust positions
+                        for (let tmpPos = pos + 1; tmpPos < numNodesGroup[r][0]; ++tmpPos) {
+                            order[r][tmpPos - 1] = order[r][tmpPos];
+                            console.log("order[" + r + "][" + (tmpPos - 1) + "] = " + order[r][tmpPos]);
+                            console.log("node", ranks[r].groups[0].nodes[order[r][tmpPos] + (order[r][tmpPos] >= order[r][pos] ? 1 : 0)], "moves from position", tmpPos, "to", tmpPos - 1);
+                        }
+                        numNodesGroup[r][0]--;
+                        ranks[r].groups[0].removeNode(node);
+                        order[r].length = numNodesGroup[r][0];
+                        positions[r].length = numNodesGroup[r][0];
+
+                        // update positions
+                        _.forEach(order[r], (n, pos) => {
+                            positions[r][n] = pos;
+                        });
+
+                        assertOrderAndPositionCoherence(r);
+                        console.log("after remove node", "neighborsUp", _.cloneDeep(neighborsUp), "neighborsDown", _.cloneDeep(neighborsDown));
+                    };
+
+                    for (let tmpR = 0; tmpR < queue.length; ++tmpR) {
+                        const r = tmpR + rOffset;
+                        console.log("move rank", r, _.cloneDeep(queue[tmpR]));
+                        for (const [n, value] of queue[tmpR]) {
+                            console.log("neighborsUp", _.cloneDeep(neighborsUp), "neighborsDown", _.cloneDeep(neighborsDown));
+                            queue[r].delete(n);
+                            const pos = positions[r][n];
+                            console.log("n", n, "pos", pos);
+                            const [parents, downForce, isNorth] = value;
+                            const node = ranks[r].groups[0].nodes[n];
+                            console.log("move node ", node, "with parents", parents, "downForce", downForce, "isNorth", isNorth);
+
+                            // mark out-neighbors as next to move
+                            for (let neighbor = 0; neighbor < neighborsDown[r][n]; ++neighbor) {
+                                if (queue.length < tmpR + 2) {
+                                    queue[tmpR + 1] = new Map();
+                                }
+                                if (!queue[tmpR + 1].has(neighborsDown[r][n][neighbor])) {
+                                    queue[tmpR + 1].set(neighborsDown[r][n][neighbor], [new Map([[n, weightsDown[r][n][neighbor]]]), 0, false]);
+                                } else {
+                                    queue[tmpR + 1].get(neighborsDown[r][n][neighbor])[0].set(n, weightsDown[r][n][neighbor]);
+                                }
+                                console.log("mark neighbor", neighborsDown[r][n][neighbor]);
+                            }
+
+                            // store in-neighbors
+                            const inNeighbors = [];
+                            for (let neighbor = 0; neighbor < neighborsUp[r][n].length; ++neighbor) {
+                                if (!parents.has(neighborsUp[r][n][neighbor])) {
+                                    inNeighbors.push([neighborsUp[r][n][neighbor], weightsUp[r][n][neighbor]]);
                                 }
                             }
-                            const openSegments = new Set();
-                            for (let n = 0; n < Math.max(order[r].length, order[r - 1].length); ++n) {
-                                _.forEach(segmentStarts[n], (segment: [number, number, boolean]) => {
-                                    const [posNorth, posSouth, heavy] = segment;
-                                    if (posNorth >= posSouth) {
-                                        openSegments.delete(segment);
-                                    }
-                                });
-                                _.forEach(segmentEnds[n], (segment: [number, number, boolean]) => {
-                                    const [posNorth, posSouth, heavy] = segment;
-                                    if (posNorth < posSouth) { // equality handled in loop above
-                                        openSegments.delete(segment);
-                                    }
-                                });
-                                const newSegments = [];
-                                _.forEach(segmentStarts[n], (segment: [number, number, boolean]) => {
-                                    const [posNorth, posSouth, heavy] = segment;
-                                    if (posNorth <= posSouth) {
-                                        newSegments.push(segment);
-                                    }
-                                });
-                                _.forEach(segmentEnds[n], (segment: [number, number, boolean]) => {
-                                    const [posNorth, posSouth, heavy] = segment;
-                                    if (posNorth > posSouth) { // equality handled in loop above
-                                        newSegments.push(segment);
-                                    }
-                                });
-                                _.forEach(newSegments, newSegment => {
-                                    if (hasResolved) {
-                                        return; // can not break from forEach
-                                    }
-                                    const [posNorth, posSouth, heavy] = newSegment;
-                                    let newDir = Math.sign(posSouth - posNorth);
-                                    openSegments.forEach((openSegment: [number, number, boolean]) => {
-                                        if (hasResolved) {
-                                            return; // can not break from forEach
-                                        }
-                                        const [openPosNorth, openPosSouth, openHeavy] = openSegment;
-                                        // dir is
-                                        let openDir = Math.sign(openPosSouth - openPosNorth);
-                                        if ((newDir !== openDir) || (newDir === 1 && posSouth < openPosSouth) || (posNorth < openPosNorth)) {
-                                            // segments have different direction or new segment is more vertical
-                                            if (openHeavy) {
-                                                resolveCrossing(r, openPosNorth, openPosSouth, posNorth, posSouth);
-                                                hasResolved = true;
-                                            } else if (heavy) {
-                                                resolveCrossing(r, posNorth, posSouth, openPosNorth, openPosSouth);
-                                                hasResolved = true;
-                                            }
-                                        }
-                                    });
-                                    if (newDir !== 0) {
-                                        openSegments.add(newSegment);
-                                    }
-                                });
-                                if (hasResolved) {
-                                    break;
-                                }
+                            console.log("inNeighbors", _.cloneDeep(inNeighbors));
+                            // create rank below if necessary
+                            if (r === order.length - 1) {
+                                const newRank = new OrderRank();
+                                ranks[0].orderGraph.addRank(newRank);
+                                const newGroup = newRank.addGroup(new OrderGroup(null));
+                                ranks.push(newRank);
+                                numNodesGroup[r + 1] = [0];
+                                order[r + 1] = [];
+                                positions[r + 1] = [];
+                                neighborsDown[r + 1] = [];
+                                weightsDown[r + 1] = [];
+                                neighborsUp[r + 1] = [];
+                                weightsUp[r + 1] = [];
+                                crossings[r + 1] = 0;
+                                crossingsWithInfinity[r + 1] = 0;
                             }
-                            if (hasResolved) {
-                                break;
+                            // move node to rank below
+                            removeNode(r, pos, node);
+                            const nextPos = Math.min(pos, numNodesGroup[r + 1][0]);
+                            const nextN = addNode(r + 1, nextPos, node);
+                            console.log("nextPos", nextPos, "nextN", nextN);
+                            // if node is part of the "other" node displacement, create new node in place of current node
+                            if (downForce > 0) {
+                                const newN = addNode(r, pos, new OrderNode(null));
+                                // add in-edges from parents
+                                parents.forEach((inWeight, inNeighbor) => {
+                                    neighborsDown[r - 1][inNeighbor].push(newN);
+                                    weightsDown[r - 1][inNeighbor].push(inWeight);
+                                    neighborsUp[r][newN].push(inNeighbor);
+                                    weightsUp[r][newN].push(inWeight);
+                                });
+                                // create edge between new node and moved node
+                                neighborsDown[r][newN] = [nextN];
+                                weightsDown[r][newN] = [otherWeight];
+                                neighborsUp[r + 1][nextN] = [newN];
+                                weightsUp[r + 1][nextN] = [otherWeight];
+                                // update position of north and south extension to re-add the "other" edge later
+                                if (isNorth) {
+                                    console.log("northN = ", newN);
+                                    northN = newN;
+                                } else {
+                                    console.log("southN = ", newN);
+                                    southN = newN;
+                                }
+                                // mark moved node to be moved again
+                                if (queue.length < tmpR + 2) {
+                                    queue[tmpR + 1] = new Map();
+                                }
+                                queue[tmpR + 1].set(nextN, [new Map([[n, otherWeight]]), downForce - 1, isNorth]);
+                                console.log("mark again", nextN);
+                                assertNeighborCoherence();
+                            }
+                            // for all in-neighbors that are not parents, create new node in place of current node
+                            for (let neighbor = 0; neighbor < inNeighbors.length; ++neighbor) {
+                                const [inNeighbor, inWeight] = inNeighbors[neighbor];
+                                const newN = addNode(r, pos, new OrderNode(null));
+                                // add in-edge
+                                neighborsDown[r - 1][inNeighbor].push(newN);
+                                weightsDown[r - 1][inNeighbor].push(inWeight);
+                                neighborsUp[r][newN].push(inNeighbor);
+                                weightsUp[r][newN].push(inWeight);
+                                // add edge between new node and moved node
+                                neighborsDown[r][newN].push(nextN);
+                                weightsDown[r][newN].push(inWeight);
+                                neighborsUp[r + 1][nextN].push(newN);
+                                weightsUp[r + 1][nextN].push(inWeight);
+                                assertNeighborCoherence();
                             }
                         }
                     }
+                    // add "other" edge
+                    neighborsDown[heavyBottomR][northN].push(southN);
+                    weightsDown[heavyBottomR][northN].push(otherWeight);
+                    neighborsUp[heavyBottomR + 1][southN].push(northN);
+                    weightsUp[heavyBottomR + 1][southN].push(otherWeight);
                 }
-                Timer.stop("resolve")
+
+                let counter = 0;
+                let invalid = false;
+                let crossing = getIllegalCrossing();
+                console.log("illegal crossing", crossing);
+                while (crossing !== null) {
+                    if (counter++ === 1000) {
+                        invalid = true;
+                        break;
+                    }
+                    if (debug) {
+                        console.log("resolve", _.sum(crossingsWithInfinity));
+                    }
+                    resolveCrossing(crossing);
+                    for (let r = 1; r < ranks.length; ++r) {
+                        crossingsWithInfinity[r] = countCrossings(order[r], r, "UP", true);
+                    }
+                    crossing = getIllegalCrossing();
+                }
+
+                Timer.stop("resolveY")
                 return !invalid;
             }
 
             const originalOrder = _.cloneDeep(order);
+            const originalPositions = _.cloneDeep(positions);
 
+            doNothing = true;
             reorder(false);
-            if (!resolve()) {
+            resolveY();
+
+            /*if (!resolveX()) {
                 order = _.cloneDeep(originalOrder);
+                positions = _.cloneDeep(originalPositions);
                 reorder(true);
-                const success = resolve();
-                Assert.assert(success, "illegal crossings when starting from original order");
-            }
+                let success = resolveX();
+                if (!success) {
+                    order = _.cloneDeep(originalOrder);
+                    positions = _.cloneDeep(originalPositions);
+                    reorder(true);
+                    success = resolveY();
+                    Assert.assert(success, "illegal crossings when starting from original order");
+                }
+            }*/
 
             _.forEach(ranks, (rank: OrderRank, r: number) => {
                 _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {

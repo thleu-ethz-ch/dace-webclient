@@ -8,6 +8,7 @@ export default class OrderNode extends Node<Graph<any, any>, OrderEdge>
     public readonly reference: any;
     public group: OrderGroup;
     public position: number = 0;
+    public rank: number = 0;
 
     constructor(reference: any, label: string = "") {
         super(label);

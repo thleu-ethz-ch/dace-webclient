@@ -173,7 +173,7 @@ export default class SugiyamaLayouter extends Layouter
                         edge.graph.addEdge(edge, edge.id);
                     } else {
                         const tmpEdge = new LayoutEdge(tmpSrcId, tmpDstId);
-                        //tmpEdge.weight = Number.POSITIVE_INFINITY;
+                        tmpEdge.weight = Number.POSITIVE_INFINITY;
                         edge.graph.addEdge(tmpEdge);
                     }
                     tmpSrcId = tmpDstId;
@@ -234,8 +234,13 @@ export default class SugiyamaLayouter extends Layouter
                 _.forEach(orderGraph.nodes(), (orderNode: OrderNode) => {
                     Assert.assertNumber(orderNode.position, "position is not a valid number");
                     const levelNode: LevelNode = orderNode.reference;
-                    levelNode.position = orderNode.position;
+                    if (levelNode !== null) {
+                        levelNode.rank = orderNode.rank;
+                        levelNode.position = orderNode.position;
+                    }
                 });
+                component.levelGraph().invalidateRanks();
+                component.levelGraph().storeLocal();
             });
         });
 
@@ -383,7 +388,7 @@ export default class SugiyamaLayouter extends Layouter
      * @private
      */
     private _assignCoordinates(graph: LayoutGraph, offsetX: number = 0, offsetY: number = 0) {
-        // 1. assign y
+        // assign y
         const rankTops = _.fill(new Array(graph.maxRank + 2), Number.POSITIVE_INFINITY);
         const rankBottoms = _.fill(new Array(graph.maxRank + 1), Number.NEGATIVE_INFINITY);
 
@@ -411,15 +416,8 @@ export default class SugiyamaLayouter extends Layouter
             rankTops[r + 1] = maxBottom + this._options["targetEdgeLength"];
         }
 
-        // 2. assign x and set size; assign edge and connector coordinates
+        // assign x and set size; assign edge and connector coordinates
 
-
-
-        /**
-         * Also handles edges completely.
-         * @param subgraph
-         * @param offset
-         */
         const placeSubgraph = (subgraph: LayoutGraph, offset: number) => {
             // place all subgraphs in order to know their size
             _.forEach(subgraph.nodes(), (node: LayoutNode) => {
@@ -642,7 +640,7 @@ export default class SugiyamaLayouter extends Layouter
         _.forEach(component.levelGraph().nodes(), (node: LevelNode) => {
             let xs = _.sortBy(_.map(alignGraphs, alignGraph => alignGraph.node(node.id).x));
             let x = (xs[1] + xs[2]) / 2;
-            x = alignGraphs[1].node(node.id).x;
+            //x = alignGraphs[1].node(node.id).x;
             x -= node.layoutNode.width / 2;
             minX = Math.min(minX, x);
             node.layoutNode.setPosition(new Vector(offset + x, node.layoutNode.y));
@@ -672,12 +670,12 @@ export default class SugiyamaLayouter extends Layouter
         for (let n = 0; n < ranks[r].length; ++n) {
             blockGraph.addNode(new RankNode(blockId.toString()));
             blockPerNode[ranks[r][n].id] = blockId;
-            blockWidths[blockId] = ranks[r][n].width;
+            blockWidths[blockId] = ranks[r][n].layoutNode.width;
             blockId++;
-            if (n > 0) {
-                const edgeLength = (ranks[r][n - 1].width + ranks[r][n].width) / 2 + this._options["targetEdgeLength"];
-                blockGraph.addEdge(new Edge(blockPerNode[ranks[r][n - 1].id], blockPerNode[ranks[r][n].id], edgeLength));
-            }
+        }
+        for (let n = 1; n < ranks[r].length; ++n) {
+            const edgeLength = (ranks[r][n - 1].layoutNode.width + ranks[r][n].width) / 2 + this._options["targetEdgeLength"];
+            blockGraph.addEdge(new Edge(blockPerNode[ranks[r][n - 1].id], blockPerNode[ranks[r][n].id], edgeLength));
         }
 
         for (let r = firstRank; r - verticalDir !== lastRank; r += verticalDir) {

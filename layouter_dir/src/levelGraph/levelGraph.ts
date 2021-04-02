@@ -18,8 +18,6 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
     }
 
     public addLayoutNode(layoutNode: LayoutNode) {
-        this._minRank = Math.min(this._minRank, layoutNode.rank);
-        this._maxRank = Math.max(this._maxRank, layoutNode.rank);
         let node = new LevelNode(layoutNode, layoutNode.rank);
         let src = this.addNode(node);
         this._inNodeMap[layoutNode.id] = node.id;
@@ -46,6 +44,12 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
 
     public ranks(rankSpanning: boolean = true): Array<Array<LevelNode>> {
         if (this._ranks === null) {
+            this._minRank = Number.POSITIVE_INFINITY;
+            this._maxRank = Number.NEGATIVE_INFINITY;
+            _.forEach(this.nodes(), (node: LevelNode) => {
+                this._minRank = Math.min(this._minRank, node.rank);
+                this._maxRank = Math.max(this._maxRank, node.rank);
+            });
             const minRank = this._minRank;
             const maxRank = this._maxRank;
             const numRanks = maxRank - minRank + 1;
