@@ -27,7 +27,7 @@ import Text from "../shapes/text";
 import Timer from "../util/timer";
 import UpwardTrapezoid from "../shapes/upwardTrapezoid";
 import Vector from "../geometry/vector";
-import {Container} from "pixi.js";
+import {Container, Graphics} from "pixi.js";
 import MapEntry from "../renderGraph/mapEntry";
 import MapExit from "../renderGraph/mapExit";
 import Tasklet from "../renderGraph/tasklet";
@@ -239,6 +239,78 @@ export default class Renderer {
         doRender();
     }
 
+    renderOrderGraph(step: number = 0) {
+        const renderGraph = new RenderGraph();
+        let y = 0;
+        const stepObj = JSON.parse(window.localStorage.getItem("orderGraph"))[step];
+        const nodeMap = new Map();
+        const groupsPerRank = [];
+        const widths = [];
+        _.forEach(stepObj.ranks, rank => {
+            const rankY = y;
+            let x = 0;
+            const groups = [];
+            _.forEach(rank, group => {
+                y = rankY;
+                const groupNode = new GenericContainerNode("GenericContainerNode", group.label || "");
+                const groupGraph = new RenderGraph();
+                groupNode.setChildGraph(groupGraph);
+                groupNode.x = x;
+                groupNode.y = y;
+                x += groupNode.childPadding;
+                y += groupNode.childPadding;
+                let groupHeight = 0;
+                _.forEach(group.nodes, nodeObj => {
+                    const node = new GenericNode("GenericNode", nodeObj.label || "");
+                    groupGraph.addNode(node, parseInt(nodeObj.id));
+                    nodeMap.set(node.id, node);
+                    node.x = x;
+                    node.y = y;
+                    const size = this._labelSize(node);
+                    node.width = size.width;
+                    node.height = size.height;
+                    x += node.width + 30;
+                    groupHeight = Math.max(groupHeight, node.height);
+                });
+                x -= 30;
+                x += groupNode.childPadding;
+                y += groupHeight + groupNode.childPadding;
+                groupNode.width = x - groupNode.x;
+                groupNode.height = y - groupNode.y;
+                x += 50;
+                renderGraph.addNode(groupNode);
+                groups.push(groupNode);
+            });
+            x -= 50;
+            widths.push(x);
+            y += 50;
+            groupsPerRank.push(groups);
+        });
+        const maxWidth = _.max(widths);
+        _.forEach(widths, (width, r) => {
+            const offset = (maxWidth - width) / 2
+            _.forEach(groupsPerRank[r], (group: RenderNode) => {
+                group.x += offset;
+                _.forEach(group.childGraph.nodes(), (node: RenderNode) => {
+                    node.x += offset;
+                });
+            });
+        });
+        this.render(renderGraph);
+        _.forEach(stepObj.edges, edgeObj => {
+            const srcNode = nodeMap.get(edgeObj.src);
+            const srcPos = srcNode.boundingBox().bottomCenter();
+            const dstNode = nodeMap.get(edgeObj.dst);
+            const dstPos = dstNode.boundingBox().topCenter();
+            const line = new Graphics();
+            const weight = (edgeObj.weight === "INFINITY" ? Number.POSITIVE_INFINITY : parseInt(edgeObj.weight));
+            line.lineStyle(Math.min(weight, 2));
+            line.moveTo(srcPos.x, srcPos.y);
+            line.lineTo(dstPos.x, dstPos.y);
+            this._container.addChild(line);
+        });
+    }
+
     /**
      * Shows a graph in the designated container.
      * @param graph Graph with layout information for all nodes and edges (x, y, width, height).
@@ -246,8 +318,9 @@ export default class Renderer {
      */
     render(graph: RenderGraph, view = null) {
         this._container.removeChildren();
+
         const box = graph.boundingBox();
-        this._viewport.moveCorner((box.width - this._viewport.worldWidth) / 2, (box.height - this._viewport.worldHeight) / 2);
+        this._viewport.moveCenter((box.width - this._viewport.width) / 2, (box.height - this._viewport.width) / 2);
         this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);
         if (view !== null) {
             this._viewport.moveCenter(view.centerX, view.centerY);

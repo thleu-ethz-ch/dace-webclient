@@ -230,6 +230,11 @@ export default class SugiyamaLayouter extends Layouter
                 // do order
                 orderGraph.order(false, false);
 
+                console.log("NUMNODES", orderGraph.nodes())
+                if (orderGraph.nodes().length === 28) {
+                    orderGraph.storeLocal();
+                }
+
                 // copy node order into layout graph
                 const newOrderNodes = [];
                 _.forEach(orderGraph.nodes(), (orderNode: OrderNode) => {
@@ -256,11 +261,14 @@ export default class SugiyamaLayouter extends Layouter
                         component.addEdge(newEdgeId);
                         component.levelGraph().addLayoutEdge(newEdge);
                     });
+                    _.forEach(orderGraph.outEdges(orderNode.id), outEdge => {
+                        const newEdge = new LayoutEdge(orderGraph.node(outEdge.src).reference.id, orderNode.reference.id);
+                        const newEdgeId = subgraph.addEdge(newEdge);
+                        component.addEdge(newEdgeId);
+                        component.levelGraph().addLayoutEdge(newEdge);
+                    });
                 })
                 component.levelGraph().invalidateRanks();
-                if (component.levelGraph().nodes().length === 12) {
-                    component.levelGraph().storeLocal();
-                }
             });
         });
 
