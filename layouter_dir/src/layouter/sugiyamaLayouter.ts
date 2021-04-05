@@ -231,16 +231,36 @@ export default class SugiyamaLayouter extends Layouter
                 orderGraph.order(false, false);
 
                 // copy node order into layout graph
+                const newOrderNodes = [];
                 _.forEach(orderGraph.nodes(), (orderNode: OrderNode) => {
                     Assert.assertNumber(orderNode.position, "position is not a valid number");
-                    const levelNode: LevelNode = orderNode.reference;
-                    if (levelNode !== null) {
-                        levelNode.rank = orderNode.rank;
-                        levelNode.position = orderNode.position;
+                    let levelNode: LevelNode = orderNode.reference;
+                    if (levelNode === null) {
+                        // virtual node was created by orderGraph.order() => add this node also to layout graph
+                        const newNode = new LayoutNode({width: 0, height: 0}, 0, true);
+                        const newNodeId = subgraph.addNode(newNode);
+                        component.addNode(newNodeId);
+                        orderNode.reference = newNode;
+                        newOrderNodes.push(orderNode);
+                        component.levelGraph().addLayoutNode(newNode);
+                        levelNode = component.levelGraph().inNode(newNodeId);
                     }
+                    levelNode.rank = orderNode.rank;
+                    levelNode.layoutNode.rank = levelNode.rank;
+                    levelNode.position = orderNode.position;
                 });
+                _.forEach(newOrderNodes, (orderNode: OrderNode) => {
+                    _.forEach(orderGraph.inEdges(orderNode.id), inEdge => {
+                        const newEdge = new LayoutEdge(orderGraph.node(inEdge.src).reference.id, orderNode.reference.id);
+                        const newEdgeId = subgraph.addEdge(newEdge);
+                        component.addEdge(newEdgeId);
+                        component.levelGraph().addLayoutEdge(newEdge);
+                    });
+                })
                 component.levelGraph().invalidateRanks();
-                component.levelGraph().storeLocal();
+                if (component.levelGraph().nodes().length === 12) {
+                    component.levelGraph().storeLocal();
+                }
             });
         });
 
@@ -284,6 +304,7 @@ export default class SugiyamaLayouter extends Layouter
                             // add input connectors
                             connectorGroup = new OrderGroup(node, node.label());
                             connectorGroup.position = index;
+                            console.log("node.rank", node.rank, "orderRanks", orderRanks);
                             orderRanks[node.rank].addGroup(connectorGroup);
                             _.forEach(node.inConnectors, (connector: LayoutConnector) => {
                                 const connectorNode = new OrderNode(connector, connector.name);
@@ -686,6 +707,7 @@ export default class SugiyamaLayouter extends Layouter
                 neighbors[n] = [];
                 neighborsUsable[n] = [];
             });
+            console.log("ranks[" + r + "] = ", _.cloneDeep(ranks[r]));
             _.forEach(ranks[r - verticalDir], (neighbor: LevelNode, n) => {
                 _.forEach(levelGraph[neighborOutMethod](neighbor.id), (edge: Edge<any, any>) => {
                     const node = levelGraph.node(edge[neighborEdgeInAttr]);

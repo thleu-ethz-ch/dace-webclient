@@ -5,7 +5,7 @@ import OrderGroup from "./orderGroup";
 
 export default class OrderNode extends Node<Graph<any, any>, OrderEdge>
 {
-    public readonly reference: any;
+    public reference: any;
     public group: OrderGroup;
     public position: number = 0;
     public rank: number = 0;

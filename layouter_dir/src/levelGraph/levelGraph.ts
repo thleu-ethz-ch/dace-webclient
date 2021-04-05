@@ -31,6 +31,10 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
         this._outNodeMap[layoutNode.id] = node.id;
     }
 
+    public inNode(layoutNodeId: number): LevelNode {
+        return this.node(this._inNodeMap[layoutNodeId]);
+    }
+
     public addLayoutEdge(layoutEdge: LayoutEdge) {
         const src = this._outNodeMap[layoutEdge.src];
         const dst = this._inNodeMap[layoutEdge.dst];

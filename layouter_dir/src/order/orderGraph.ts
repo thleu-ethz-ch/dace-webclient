@@ -62,7 +62,7 @@ export default class OrderGraph {
         return this._groupGraph.addNode(group, id);
     }
 
-    public addNode(node: OrderNode, id: number = null) {
+    public addNode(node: OrderNode, id: number = null): number {
         return this._nodeGraph.addNode(node, id);
     }
 
@@ -70,8 +70,12 @@ export default class OrderGraph {
         this._nodeGraph.removeNode(id);
     }
 
-    public addEdge(edge: Edge<any, any>) {
-        return this._nodeGraph.addEdge(edge);
+    public addEdge(edge: Edge<any, any>, id: number = null): number {
+        return this._nodeGraph.addEdge(edge, id);
+    }
+
+    public removeEdge(id: number) {
+        this._nodeGraph.removeEdge(id);
     }
 
     private _addGroupEdges() {
@@ -119,6 +123,10 @@ export default class OrderGraph {
     public edges() {
         return this._nodeGraph.edges();
     }
+
+    public inEdges(id: number) {
+        return this._nodeGraph.inEdges(id);
+}
 
     public outEdges(id: number) {
         return this._nodeGraph.outEdges(id);
@@ -666,7 +674,20 @@ export default class OrderGraph {
                         new Map([[southN, [new Map(), heavyBottomR - rOffset, false]]]), // 1 => r
                     ];
 
-                    const addNode = (r: number, pos: number, node: OrderNode) => {
+                    const addEdge = (srcR: number, srcN: number, dstR: number, dstN: number, weight: number) => {
+                        const srcNode = ranks[srcR].groups[0].nodes[srcN];
+                        const dstNode = ranks[dstR].groups[0].nodes[dstN];
+                        console.log(ranks[srcR].groups[0].nodes[srcN], "srcId", srcNode.id);
+                        const newEdge = new Edge(srcNode.id, dstNode.id);
+                        const newEdgeId = this.addEdge(newEdge);
+                        graph.addEdge(newEdge, newEdgeId);
+                        neighborsDown[srcR][srcN].push(dstN);
+                        weightsDown[srcR][srcN].push(weight);
+                        neighborsUp[dstR][dstN].push(srcN);
+                        weightsUp[dstR][dstN].push(weight);
+                    };
+
+                    const addNode = (r: number, pos: number, node: OrderNode, nodeId: number) => {
                         const nextN = numNodesGroup[r][0];
                         console.log("add node", node, "with n", nextN, "at position", pos, "in rank", r);
                         console.log("order in rank ", r, ":", _.cloneDeep(order[r]));
@@ -680,7 +701,7 @@ export default class OrderGraph {
                         weightsDown[r][nextN] = [];
                         neighborsUp[r][nextN] = [];
                         weightsUp[r][nextN] = [];
-                        ranks[r].groups[0].addNode(node);
+                        ranks[r].groups[0].addNode(node, nodeId);
                         numNodesGroup[r][0]++;
                         node.rank = r;
                         // update positions
@@ -719,6 +740,15 @@ export default class OrderGraph {
                                 }
                             });
                         });
+                        _.forEach(graph.outEdges(node.id), outEdge => {
+                            graph.removeEdge(outEdge.id);
+                            this.removeEdge(outEdge.id);
+                        });
+                        _.forEach(graph.inEdges(node.id), inEdge => {
+                            graph.removeEdge(inEdge.id);
+                            this.removeEdge(inEdge.id);
+                        });
+
                         neighborsUp[r][n] = [];
                         neighborsDown[r][n] = [];
 
@@ -838,30 +868,26 @@ export default class OrderGraph {
                             // move node to rank below
                             removeNode(r, pos, node);
                             const nextPos = Math.min(pos, numNodesGroup[r + 1][0]);
-                            const nextN = addNode(r + 1, nextPos, node);
+                            const nextN = addNode(r + 1, nextPos, node, node.id);
                             console.log("nextPos", nextPos, "nextN", nextN);
                             // if node is part of the "other" node displacement, create new node in place of current node
                             if (downForce > 0) {
-                                const newN = addNode(r, pos, new OrderNode(null));
+                                const newNode = new OrderNode(null);
+                                const newNodeId = this.addNode(newNode);
+                                const newN = addNode(r, pos, newNode, newNodeId);
                                 // add in-edges from parents
                                 parents.forEach((inWeight, inNeighbor) => {
-                                    neighborsDown[r - 1][inNeighbor].push(newN);
-                                    weightsDown[r - 1][inNeighbor].push(inWeight);
-                                    neighborsUp[r][newN].push(inNeighbor);
-                                    weightsUp[r][newN].push(inWeight);
+                                    addEdge(r - 1, inNeighbor, r, newN, inWeight);
                                 });
                                 // create edge between new node and moved node
-                                neighborsDown[r][newN] = [nextN];
-                                weightsDown[r][newN] = [otherWeight];
-                                neighborsUp[r + 1][nextN] = [newN];
-                                weightsUp[r + 1][nextN] = [otherWeight];
+                                addEdge(r, newN, r + 1, nextN, otherWeight);
                                 // update position of north and south extension to re-add the "other" edge later
                                 if (isNorth) {
-                                    console.log("northN = ", newN);
-                                    northN = newN;
+                                    console.log("northN = ", nextN);
+                                    northN = nextN;
                                 } else {
-                                    console.log("southN = ", newN);
-                                    southN = newN;
+                                    console.log("southN = ", nextN);
+                                    southN = nextN;
                                 }
                                 // mark moved node to be moved again
                                 if (queue.length < tmpR + 2) {
@@ -874,17 +900,13 @@ export default class OrderGraph {
                             // for all in-neighbors that are not parents, create new node in place of current node
                             for (let neighbor = 0; neighbor < inNeighbors.length; ++neighbor) {
                                 const [inNeighbor, inWeight] = inNeighbors[neighbor];
-                                const newN = addNode(r, pos, new OrderNode(null));
+                                const newNode = new OrderNode(null);
+                                const newNodeId = this.addNode(newNode);
+                                const newN = addNode(r, pos, newNode, newNodeId);
                                 // add in-edge
-                                neighborsDown[r - 1][inNeighbor].push(newN);
-                                weightsDown[r - 1][inNeighbor].push(inWeight);
-                                neighborsUp[r][newN].push(inNeighbor);
-                                weightsUp[r][newN].push(inWeight);
+                                addEdge(r - 1, inNeighbor, r, newN, inWeight);
                                 // add edge between new node and moved node
-                                neighborsDown[r][newN].push(nextN);
-                                weightsDown[r][newN].push(inWeight);
-                                neighborsUp[r + 1][nextN].push(newN);
-                                weightsUp[r + 1][nextN].push(inWeight);
+                                addEdge(r, newN, r + 1, nextN, inWeight);
                                 assertNeighborCoherence();
                             }
                         }
@@ -892,6 +914,7 @@ export default class OrderGraph {
                     // add "other" edge
                     neighborsDown[heavyBottomR][northN].push(southN);
                     weightsDown[heavyBottomR][northN].push(otherWeight);
+                    console.log(neighborsUp[heavyBottomR + 1]);
                     neighborsUp[heavyBottomR + 1][southN].push(northN);
                     weightsUp[heavyBottomR + 1][southN].push(otherWeight);
                 }
@@ -901,7 +924,7 @@ export default class OrderGraph {
                 let crossing = getIllegalCrossing();
                 console.log("illegal crossing", crossing);
                 while (crossing !== null) {
-                    if (counter++ === 1000) {
+                    if (counter++ === 1 ) {
                         invalid = true;
                         break;
                     }
@@ -973,7 +996,7 @@ export default class OrderGraph {
 
             _.forEach(componentGraph.nodes(), (newNode: OrderNode) => {
                 _.forEach(this.outEdges(newNode.id), (edge: Edge<any, any>) => {
-                    componentGraph.addEdge(edge);
+                    componentGraph.addEdge(edge, edge.id);
                 });
             });
 

@@ -71,6 +71,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         this._outEdges[edge.src].push(id);
         this._inEdges[edge.dst].push(id);
         this._components = null;
+        Assert.assertAll(this._edges, (edge, id) => edge === undefined || edge.id === id, "edge has wrong id");
         return id;
     }
 
@@ -131,6 +132,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         _.pull(this._inEdges[edge.dst], id);
         this._edges[id] = undefined;
         this._components = null;
+        Assert.assertAll(this._edges, (edge, id) => edge === undefined || edge.id === id, "edge has wrong id");
     }
 
     nodes(): Array<NodeT> {
