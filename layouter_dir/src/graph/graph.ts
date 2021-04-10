@@ -39,21 +39,23 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return clone;
     }
 
-    /**
-     * Assumption: Nodes are added with increasing id.
-     */
-    addNode(node: NodeT, id: number = null): number {
+    addNode(node: NodeT, id: number = null, keepComponents: boolean = false): number {
         if (id === null) {
             id = this._nodes.length;
         }
         node.id = id;
         node.graph = this;
         this._nodes[id] = node;
-        this._nodeIds.push(id);
-        this._nodesDense.push(node);
-        this._outEdges[id] = [];
-        this._inEdges[id] = [];
-        this._components = null;
+        const index = _.sortedIndex(this._nodeIds, id);
+        this._nodeIds.splice(index, 0, id);
+        this._nodesDense.splice(index, 0, node);
+        if (this._outEdges[id] === undefined) {
+            this._outEdges[id] = [];
+            this._inEdges[id] = [];
+        }
+        if (!keepComponents) {
+            this._components = null;
+        }
         this._numNodes++;
         return id;
     }
@@ -61,7 +63,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
     /**
      * Assumption: Both end nodes of the edge have been added before.
      */
-    addEdge(edge: EdgeT, id: number = null): number {
+    addEdge(edge: EdgeT, id: number = null, keepComponents: boolean = false): number {
         if (id === null) {
             id = this._edges.length;
         }
@@ -70,8 +72,9 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         this._edges[id] = edge;
         this._outEdges[edge.src].push(id);
         this._inEdges[edge.dst].push(id);
-        this._components = null;
-        Assert.assertAll(this._edges, (edge, id) => edge === undefined || edge.id === id, "edge has wrong id");
+        if (!keepComponents) {
+            this._components = null;
+        }
         return id;
     }
 
@@ -115,6 +118,10 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return undefined;
     }
 
+    edgesBetween(srcId: number, dstId: number): Array<EdgeT> {
+        return _.filter(this.edges(), edge => edge.src === srcId && edge.dst === dstId);
+    }
+
     removeNode(id: number): void {
         this._nodes[id] = undefined;
         const index = _.sortedIndexOf(this._nodeIds, id);
@@ -126,12 +133,14 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         this._components = null;
     }
 
-    removeEdge(id: number): void {
+    removeEdge(id: number, keepComponents: boolean = false): void {
         const edge = this.edge(id);
         _.pull(this._outEdges[edge.src], id);
         _.pull(this._inEdges[edge.dst], id);
         this._edges[id] = undefined;
-        this._components = null;
+        if (!keepComponents) {
+            this._components = null;
+        }
         Assert.assertAll(this._edges, (edge, id) => edge === undefined || edge.id === id, "edge has wrong id");
     }
 
@@ -396,7 +405,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         const nodeSet = new Set();
         _.forEach(this._components, component => {
             _.forEach(component.nodes(), node => {
-                Assert.assert(!nodeSet.has(node), "NODE IN MULTIPLE COMPONENTS", this._components);
+                Assert.assert(!nodeSet.has(node), "node is in multiple components", this._components);
                 nodeSet.add(node);
             });
         });

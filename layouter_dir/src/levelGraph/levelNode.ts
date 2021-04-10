@@ -11,11 +11,13 @@ export default class LevelNode extends Node<LevelGraph, Edge<any, any>>
     public x: number = null;
 
     public readonly layoutNode: LayoutNode;
+    public readonly isFirst: boolean;
 
-    constructor(layoutNode: LayoutNode, rank) {
+    constructor(layoutNode: LayoutNode, rank: number, isFirst: boolean = false) {
         super(layoutNode.label());
         this.layoutNode = layoutNode;
         this.rank = rank;
         this.width = layoutNode.width;
+        this.isFirst = isFirst;
     }
 }

@@ -15,6 +15,7 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
     public maxRank = 0;
 
     private _ranks = null;
+    public readonly removedEdges: Map<string, Set<LayoutEdge>> = new Map();
 
     constructor(mayHaveCycles: boolean = false) {
         super();

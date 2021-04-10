@@ -10,17 +10,17 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
     private _ranks: Array<Array<LevelNode>> = null;
     private _minRank: number = Number.POSITIVE_INFINITY;
     private _maxRank: number = Number.NEGATIVE_INFINITY;
-    private _inNodeMap: Array<number> = [];
-    private _outNodeMap: Array<number> = [];
+    private _firstNodeMap: Array<number> = [];
+    private _lastNodeMap: Array<number> = [];
 
     constructor() {
         super();
     }
 
-    public addLayoutNode(layoutNode: LayoutNode) {
-        let node = new LevelNode(layoutNode, layoutNode.rank);
+    public addLayoutNode(layoutNode: LayoutNode): LevelNode {
+        let node = new LevelNode(layoutNode, layoutNode.rank, true);
         let src = this.addNode(node);
-        this._inNodeMap[layoutNode.id] = node.id;
+        this._firstNodeMap[layoutNode.id] = node.id;
         for (let r = layoutNode.rank + 1; r < layoutNode.rank + layoutNode.rankSpan; ++r) {
             this._maxRank = Math.max(this._maxRank, r);
             node = new LevelNode(layoutNode, r);
@@ -28,16 +28,17 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
             this.addEdge(new Edge(src, dst, Number.POSITIVE_INFINITY));
             src = dst;
         }
-        this._outNodeMap[layoutNode.id] = node.id;
+        this._lastNodeMap[layoutNode.id] = node.id;
+        return node;
     }
 
-    public inNode(layoutNodeId: number): LevelNode {
-        return this.node(this._inNodeMap[layoutNodeId]);
+    public firstNode(layoutNodeId: number): LevelNode {
+        return this.node(this._firstNodeMap[layoutNodeId]);
     }
 
     public addLayoutEdge(layoutEdge: LayoutEdge) {
-        const src = this._outNodeMap[layoutEdge.src];
-        const dst = this._inNodeMap[layoutEdge.dst];
+        const src = this._lastNodeMap[layoutEdge.src];
+        const dst = this._firstNodeMap[layoutEdge.dst];
         let existingEdge = this.edgeBetween(src, dst);
         if (existingEdge === undefined) {
             this.addEdge(new Edge(src, dst, layoutEdge.weight));

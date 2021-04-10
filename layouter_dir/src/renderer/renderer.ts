@@ -91,6 +91,7 @@ export default class Renderer {
             const map1Exit = new MapExit("MapExit", "map1Exit");
             const map2Entry = new MapEntry("MapEntry", "map2Entry");
             const map2Exit = new MapExit("MapExit", "map2Exit");
+            map2Entry.setConnectors(["in1", "in2", "in3"], []);
             graph.addNode(a);
             graph.addNode(b);
             graph.addNode(map1Entry);
@@ -109,8 +110,9 @@ export default class Renderer {
             map1Exit.scopeEntry = map1Entry.id;
             map2Exit.scopeEntry = map2Entry.id;
 
-            graph.addEdge(new Memlet(a.id, map2Entry.id, null, null));
-            graph.addEdge(new Memlet(b.id, map2Entry.id, null, null));
+            graph.addEdge(new Memlet(a.id, map2Entry.id, null, "in1"));
+            graph.addEdge(new Memlet(b.id, map2Entry.id, null, "in2"));
+            //graph.addEdge(new Memlet(b.id, map2Entry.id, null, "in3"));
             graph.addEdge(new Memlet(c.id, e.id, null, null));
             let edgeId = graph.addEdge(new Memlet(map1Entry.id, map1Tasklet1.id, null, null));
             graph.edge(edgeId).weight = Number.POSITIVE_INFINITY;
@@ -243,6 +245,7 @@ export default class Renderer {
         const renderGraph = new RenderGraph();
         let y = 0;
         const stepObj = JSON.parse(window.localStorage.getItem("orderGraph"))[step];
+        console.log(stepObj);
         const nodeMap = new Map();
         const groupsPerRank = [];
         const widths = [];
@@ -304,7 +307,7 @@ export default class Renderer {
             const dstPos = dstNode.boundingBox().topCenter();
             const line = new Graphics();
             const weight = (edgeObj.weight === "INFINITY" ? Number.POSITIVE_INFINITY : parseInt(edgeObj.weight));
-            line.lineStyle(Math.min(weight, 2));
+            line.lineStyle(Math.min(weight, 4));
             line.moveTo(srcPos.x, srcPos.y);
             line.lineTo(dstPos.x, dstPos.y);
             this._container.addChild(line);

@@ -130,6 +130,7 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     }
 
     updateRank(newRank: number) {
+        console.log("node", this.label(), "changes rank from", this.rank, "to", newRank);
         if (this.rank !== null && this.childGraph !== null && this.rank !== newRank) {
             this.childGraph.updateRank(newRank);
         }

@@ -20,13 +20,18 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
     }
 
     addNode(node: OrderNode, id: number = null): number {
+        const nextIndex = this.nodes.length;
         this.nodes.push(node);
         node.group = this;
+        node.index = nextIndex;
         return this.rank.orderGraph.addNode(node, id);
     }
 
     removeNode(node: OrderNode) {
         this.rank.orderGraph.removeNode(node.id);
+        for (let i = node.index + 1; i < this.nodes.length; ++i) {
+            this.nodes[i].index--;
+        }
         _.pull(this.nodes, node);
     }
 

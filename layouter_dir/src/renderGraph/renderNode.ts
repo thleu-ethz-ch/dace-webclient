@@ -45,11 +45,11 @@ export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
         this.height = Math.max(this.height, minimumSize.height);
     }
 
-    setConnectors(inConnectors, outConnectors) {
-        _.forEach(inConnectors, (name) => {
+    setConnectors(inConnectors: Array<string>, outConnectors: Array<string>) {
+        _.forEach(inConnectors, (name: string) => {
             this.inConnectors.push(new RenderConnector(name.toString(), this));
         });
-        _.forEach(outConnectors, (name) => {
+        _.forEach(outConnectors, (name: string) => {
             this.outConnectors.push(new RenderConnector(name.toString(), this));
         });
 

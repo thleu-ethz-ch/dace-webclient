@@ -46,6 +46,10 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
         return edges;
     }
 
+    public removeEdge(id: number) {
+        _.pull(this._edgeIds, id);
+    }
+
     public induceEdges(): void {
         this._nodeIds = _.sortBy(this._nodeIds);
         _.forEach(this.nodes(), node => {
