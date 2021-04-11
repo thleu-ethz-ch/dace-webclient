@@ -78,7 +78,7 @@ export default class Renderer {
     show(layouter: Layouter, name: string) {
         Loader.load(name).then((graph) => {
 
-            graph = new RenderGraph();
+            /*graph = new RenderGraph();
             const a = new AccessNode("AccessNode", "a");
             const b = new AccessNode("AccessNode", "b");
             const c = new AccessNode("AccessNode", "c");
@@ -128,7 +128,7 @@ export default class Renderer {
             graph.addEdge(new Memlet(map2Exit.id, e.id, null, null));
             graph.addEdge(new Memlet(map1Exit.id, f.id, null, null));
             graph.addEdge(new Memlet(d.id, f.id, null, null));
-            graph.addEdge(new Memlet(e.id, f.id, null, null));
+            graph.addEdge(new Memlet(e.id, f.id, null, null));*/
 
             // set node sizes
             _.forEach(graph.allNodes(), (node: RenderNode) => {

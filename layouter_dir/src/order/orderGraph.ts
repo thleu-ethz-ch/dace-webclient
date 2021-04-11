@@ -381,9 +381,7 @@ export default class OrderGraph {
                 _.forEach(neighborsDown[r], (neighborsPerNode, n) => {
                     Assert.assertAll(neighborsPerNode, neighbor => neighborsUp[r + 1][neighbor].indexOf(n) !== -1, "neighbor in rank " + (r + 1) + " is missing upNeighbor");
                 });
-                //console.log("assertNeighborCoherence(" + r + ")", "neighborsUp", _.cloneDeep(neighborsUp), "neighborsDown", _.cloneDeep(neighborsDown));
                 _.forEach(neighborsUp[r], (neighborsPerNode, n) => {
-                    console.log("r", r);
                     Assert.assertAll(neighborsPerNode, neighbor => neighborsDown[r - 1][neighbor].indexOf(n) !== -1, "neighbor in rank " + (r - 1) + "is missing downNeighbor");
                 });
             }
@@ -573,9 +571,6 @@ export default class OrderGraph {
                             let posMoving = heavyPerRank.get(r) + movingPositions.length - 1;
                             let offsetNonMoving = 0;
                             for (let p = movingPositions[0]; p >= heavyPerRank.get(r); p--) {
-                                if (r === 84) {
-                                    console.log("posMoving", posMoving, "offsetNonMoving", offsetNonMoving, "p", p, "movingPositions", movingPositions);
-                                }
                                 if (movingPositions[positionsPointer] === p) {
                                     positions[r][order[r][p]] = posMoving--;
                                     offsetNonMoving++;
@@ -630,7 +625,7 @@ export default class OrderGraph {
                     let [r, heavyNorth, heavySouth, otherNorth, otherSouth] = crossing;
                     Assert.assert(groupOffset[r].length === 1, "more than one group");
                     Assert.assert(groupOffset[r - 1].length === 1, "more than one group");
-                    //if (debug) {
+                    if (debug) {
                         console.log(
                             "resolve",
                             ranks[r - 1].groups[0].nodes[order[r - 1][heavyNorth]],
@@ -638,22 +633,18 @@ export default class OrderGraph {
                             ranks[r - 1].groups[0].nodes[order[r][otherNorth]],
                             ranks[r].groups[0].nodes[order[r][otherSouth]],
                         );
-                    //}
-                    Assert.assertEqual(ranks[r - 1].groups[0].nodes[order[r - 1][heavyNorth]].label(), ranks[r].groups[0].nodes[order[r][heavySouth]].label(), "different nodes");
+                    }
+                    //graph.storeLocal();
 
                     let heavyPerRank: Map<number, number> = new Map([[r - 1, heavyNorth]]);
-                    let otherPerRank: Map<number, number> = new Map([[r - 1, otherNorth]]);
                     _.forEach([1], direction => {
                         const neighbors = (direction === 1 ? neighborsDown : neighborsUp);
                         const weights = (direction === 1 ? weightsDown : weightsUp);
                         let heavyPos = (direction === 1 ? heavyNorth : heavySouth);
-                        let otherPos = (direction === 1 ? otherNorth : otherSouth);
                         let tmpR = (direction === 1 ? r - 1 : r);
                         while (neighbors[tmpR][order[tmpR][heavyPos]].length > 0 && weights[tmpR][order[tmpR][heavyPos]][0] === Number.POSITIVE_INFINITY) {
                             heavyPos = positions[tmpR + direction][neighbors[tmpR][order[tmpR][heavyPos]][0]];
                             heavyPerRank.set(tmpR + direction, heavyPos);
-                            otherPos = positions[tmpR + direction][neighbors[tmpR][order[tmpR][otherPos]][0]];
-                            otherPerRank.set(tmpR + direction, otherPos);
                             tmpR += direction;
                         }
                     });
@@ -662,8 +653,6 @@ export default class OrderGraph {
                     heavyPerRank.forEach((pos, r) => {
                         heavyBottomR = Math.max(heavyBottomR, r);
                     });
-
-                    console.log("heavyPerRank", _.cloneDeep(heavyPerRank), "heavyBottomR", heavyBottomR);
 
                     const addEdge = (srcNode: OrderNode, dstNode: OrderNode, weight: number) => {
                         if (srcNode.isVirtual && dstNode.isVirtual) {
@@ -676,16 +665,19 @@ export default class OrderGraph {
 
                     const removeEdge = (srcNode: OrderNode, dstNode: OrderNode) => {
                         const edge = graph.edgeBetween(srcNode.id, dstNode.id);
+                        /*if (edge === undefined) {
+                            return;
+                        }*/
                         graph.removeEdge(edge.id);
                         this.removeEdge(edge.id);
                     };
 
                     const addNode = (r: number, pos: number, node: OrderNode, nodeId: number) => {
                         const nextN = numNodesGroup[r][0];
-                        console.log("add node", node, "with n", nextN, "at position", pos, "in rank", r);
+                        // console.log("add node", node, "with n", nextN, "at position", pos, "in rank", r);
                         for (let tmpPos = numNodesGroup[r][0]; tmpPos >= pos + 1; --tmpPos) {
                             order[r][tmpPos] = order[r][tmpPos - 1];
-                            console.log("node", ranks[r].groups[0].nodes[order[r][tmpPos]], "moves from position", tmpPos - 1, "to", tmpPos);
+                            //console.log("node", ranks[r].groups[0].nodes[order[r][tmpPos]], "moves from position", tmpPos - 1, "to", tmpPos);
                         }
                         order[r][pos] = nextN;
                         ranks[r].groups[0].addNode(node, nodeId);
@@ -704,29 +696,19 @@ export default class OrderGraph {
 
                     const removeNode = (r: number, pos: number, node: OrderNode) => {
                         const n = order[r][pos];
-                        console.log("remove node", node, "with n", n, "from position", pos, "in rank", r);
-
-                        // remove edges
-                        /*_.forEach(graph.outEdges(node.id), outEdge => {
-                            graph.removeEdge(outEdge.id);
-                            this.removeEdge(outEdge.id);
-                        });
-                        _.forEach(graph.inEdges(node.id), inEdge => {
-                            graph.removeEdge(inEdge.id);
-                            this.removeEdge(inEdge.id);
-                        });*/
+                        //console.log("remove node", node, "with n", n, "from position", pos, "in rank", r);
 
                         // adjust n's
                         for (let tmpN = n + 1; tmpN < numNodesGroup[r][0]; ++tmpN) {
                             order[r][positions[r][tmpN]]--;
-                            console.log("node", ranks[r].groups[0].nodes[tmpN], "changes index from", ranks[r].groups[0].nodes[tmpN].index + 1, "to", ranks[r].groups[0].nodes[tmpN].index);
+                            //console.log("node", ranks[r].groups[0].nodes[tmpN], "changes index from", ranks[r].groups[0].nodes[tmpN].index + 1, "to", ranks[r].groups[0].nodes[tmpN].index);
                         }
                         ranks[r].groups[0].removeNode(node);
 
                         // adjust positions
                         for (let tmpPos = pos + 1; tmpPos < numNodesGroup[r][0]; ++tmpPos) {
                             order[r][tmpPos - 1] = order[r][tmpPos];
-                            console.log("node", ranks[r].groups[0].nodes[order[r][tmpPos]], "moves from position", tmpPos, "to", tmpPos - 1);
+                            //console.log("node", ranks[r].groups[0].nodes[order[r][tmpPos]], "moves from position", tmpPos, "to", tmpPos - 1);
                         }
 
                         numNodesGroup[r][0]--;
@@ -780,19 +762,18 @@ export default class OrderGraph {
                         window.localStorage.setItem("orderGraph", JSON.stringify(obj));
                     };
 
-                    storeLocal();
+                    if (debug) {
+                        storeLocal();
+                    }
 
                     // remove "other" edge
                     const otherNorthN = order[r - 1][otherNorth];
-                    const otherNorthNode = ranks[r - 1].groups[0].nodes[otherNorthN];
+                    let otherNorthNode = ranks[r - 1].groups[0].nodes[otherNorthN];
                     const otherSouthN = order[r][otherSouth];
-                    const otherSouthNode = ranks[r].groups[0].nodes[otherSouthN];
+                    let otherSouthNode = ranks[r].groups[0].nodes[otherSouthN];
                     const otherEdge = graph.edgeBetween(otherNorthNode.id, otherSouthNode.id);
                     const otherEdgeWeight = otherEdge.weight;
                     removeEdge(otherNorthNode, otherSouthNode);
-
-                    //_.map(order, (orderR, r) => console.log(r, _.map(orderR, n => ranks[r].groups[0].nodes[n].label()).toString()));
-                    //console.log("order[1]", _.cloneDeep(order[1]));
 
                     const northParents = new Map();
                     _.forEach(graph.inEdges(otherNorthNode.id), inEdge => {
@@ -808,18 +789,20 @@ export default class OrderGraph {
                         new Map([[otherSouthNode, [southParents, heavyBottomR - r + 1, false]]]), // 1 => r
                     ];
 
-                    storeLocal();
+                    if (debug) {
+                        storeLocal();
+                    }
 
                     for (let tmpR = 0; tmpR < queue.length; ++tmpR) {
                         const r = tmpR + rOffset;
-                        //console.log("MOVE RANK", r, _.cloneDeep(queue[tmpR]));
-                        for (const [node, data] of queue[tmpR]) {
+                        console.log("MOVE RANK", r, _.cloneDeep(queue[tmpR]));
+                        for (let [node, data] of queue[tmpR]) {
                             queue[tmpR].delete(node);
                             const n = node.index;
                             const pos = positions[r][n];
                             const [parents, downForce, isNorth] = data;
 
-                            console.log("move node", node, "with n", n, "pos", pos, "parents", parents, "downForce", downForce, "isNorth", isNorth);
+                            //console.log("move node", node, "with n", n, "pos", pos, "parents", parents, "downForce", downForce, "isNorth", isNorth);
 
                             // create rank below if necessary
                             if (r === order.length - 1) {
@@ -857,7 +840,6 @@ export default class OrderGraph {
 
                             // if node is part of the "other" node displacement, create new node in place of current node
                             // (only if node has in-edges)
-                            let newNodeId = null;
                             const nonParentInEdges = [];
                             _.forEach(graph.inEdges(node.id), inEdge => {
                                 if (!parents.has(graph.node(inEdge.src))) {
@@ -869,15 +851,44 @@ export default class OrderGraph {
                                 const nextParents: Map<OrderNode, number> = new Map();
                                 if (parents.size > 0) {
                                     const newNode = new OrderNode(null, true, node.label() + "'");
-                                    newNode.initialRank = r;
-                                    newNodeId = this.addNode(newNode);
-                                    const newN = addNode(r, pos, newNode, newNodeId);
-                                    // route edges from parents through new node to original node
-                                    parents.forEach((parentWeight: number, parentNode: OrderNode) => {
-                                        removeEdge(parentNode, node);
-                                        addEdge(parentNode, newNode, parentWeight);
-                                    });
-                                    addEdge(newNode, node, otherEdgeWeight);
+                                    this.addNode(newNode);
+                                    if (parents.size === 1 && parents.values().next().value === Number.POSITIVE_INFINITY && !parents.keys().next().value.isVirtual) {
+                                        // SPECIAL CASE:
+                                        // "other" edge is outgoing of a child graph
+                                        // => we may not move the last node of the child graph down
+                                        // instead we move it up again and insert the new virtual node below
+                                        removeNode(r + 1, nextPos, node);
+                                        addNode(r, pos, node, node.id);
+                                        newNode.initialRank = r + 1;
+                                        addNode(r + 1, nextPos, newNode, newNode.id);
+                                        Assert.assert(nonParentInEdges.length === 0, "special case does not look as assumed");
+                                        addEdge(node, newNode, otherEdgeWeight);
+                                        // for each out edge add an extra virtual node
+                                        _.forEach(graph.outEdges(node.id), outEdge => {
+                                            if (outEdge.dst !== newNode.id) {
+                                                removeEdge(node, graph.node(outEdge.dst));
+                                                const additionalNode = new OrderNode(null, true, graph.node(outEdge.dst).label() + "'");
+                                                this.addNode(additionalNode);
+                                                addNode(r + 1, nextPos, additionalNode, additionalNode.id);
+                                                addEdge(node, additionalNode, outEdge.weight);
+                                                addEdge(additionalNode, graph.node(outEdge.dst), outEdge.weight);
+                                                queue[tmpR + 1].set(graph.node(outEdge.dst), [new Map([[additionalNode, outEdge.weight]]), 0, false]);
+                                            }
+                                        });
+                                        otherNorthNode = newNode;
+                                        nextParents.set(node, otherEdgeWeight);
+                                        node = newNode;
+                                    } else {
+                                        // otherwise create virtual node above
+                                        newNode.initialRank = r;
+                                        addNode(r, pos, newNode, newNode.id);
+                                        // route edges from parents through new node to original node
+                                        parents.forEach((parentWeight: number, parentNode: OrderNode) => {
+                                            removeEdge(parentNode, node);
+                                            addEdge(parentNode, newNode, parentWeight);
+                                        });
+                                        addEdge(newNode, node, otherEdgeWeight);
+                                    }
                                     nextParents.set(newNode, otherEdgeWeight);
                                 }
                                 if (downForce > 1) {
@@ -886,7 +897,6 @@ export default class OrderGraph {
                                         queue[tmpR + 1] = new Map();
                                     }
                                     queue[tmpR + 1].set(node, [nextParents, downForce - 1, isNorth]);
-                                    console.log("mark again", node);
                                 }
                             }
                             // for all in-neighbors that are not parents, create new node in place of current node
@@ -923,13 +933,17 @@ export default class OrderGraph {
                                     queue[tmpR + 1].get(dstNode)[0].set(node, outEdge.weight);
                                 }
                             });
-                            storeLocal();
+                            if (debug) {
+                                storeLocal();
+                            }
                         }
                     }
                     // add "other" edge
                     addEdge(otherNorthNode, otherSouthNode, otherEdgeWeight);
 
-                    storeLocal();
+                    if (debug) {
+                        storeLocal();
+                    }
 
                     // recreate neighbors data structure
                     for (let r = 0; r < ranks.length; ++r) {
@@ -952,7 +966,6 @@ export default class OrderGraph {
                         neighborsUp[dstNode.rank][dstNode.index].push(srcNode.index);
                         weightsUp[dstNode.rank][dstNode.index].push(edge.weight);
                     });
-                    console.log(neighborsDown, neighborsUp);
 
                     assertNeighborCoherence();
                 }
@@ -974,7 +987,9 @@ export default class OrderGraph {
                     for (let r = 1; r < ranks.length; ++r) {
                         crossingsWithInfinity[r] = countCrossings(order[r], r, "UP", true);
                     }
+                    reorder(true);
                     crossing = getIllegalCrossing();
+                    console.log("illegal crossing", crossing);
                 }
 
                 Timer.stop("resolveY")
@@ -984,9 +999,10 @@ export default class OrderGraph {
             const originalOrder = _.cloneDeep(order);
             const originalPositions = _.cloneDeep(positions);
 
-            doNothing = true;
+            //doNothing = true;
             reorder(false);
-            resolveY();
+            const success = resolveY();
+            Assert.assert(success, "y resolution failed");
 
             /*if (!resolveX()) {
                 order = _.cloneDeep(originalOrder);

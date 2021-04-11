@@ -129,8 +129,16 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         return new Box(this.x, this.y, this.width, this.height);
     }
 
+    offsetRank(offset: number) {
+        this.rank += offset;
+        if (this.childGraph !== null) {
+            _.forEach(this.childGraph.nodes(), node => {
+                node.offsetRank(offset);
+            });
+        }
+    }
+
     updateRank(newRank: number) {
-        console.log("node", this.label(), "changes rank from", this.rank, "to", newRank);
         if (this.rank !== null && this.childGraph !== null && this.rank !== newRank) {
             this.childGraph.updateRank(newRank);
         }
