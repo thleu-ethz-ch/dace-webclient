@@ -85,6 +85,7 @@ export default class Renderer {
             const d = new AccessNode("AccessNode", "d");
             const e = new AccessNode("AccessNode", "e");
             const f = new AccessNode("AccessNode", "f");
+            const aboveB = new AccessNode("AccessNode", "aboveB");
             const map1Entry = new MapEntry("MapEntry", "map1Entry");
             const map1Tasklet1 = new Tasklet("Tasklet", "map1Tasklet1");
             const map1Tasklet2 = new Tasklet("Tasklet", "map1Tasklet2");
@@ -92,6 +93,7 @@ export default class Renderer {
             const map2Entry = new MapEntry("MapEntry", "map2Entry");
             const map2Exit = new MapExit("MapExit", "map2Exit");
             map2Entry.setConnectors(["in1", "in2", "in3"], []);
+            graph.addNode(aboveB);
             graph.addNode(a);
             graph.addNode(b);
             graph.addNode(map1Entry);
@@ -110,9 +112,10 @@ export default class Renderer {
             map1Exit.scopeEntry = map1Entry.id;
             map2Exit.scopeEntry = map2Entry.id;
 
+            graph.addEdge(new Memlet(aboveB.id, b.id, null, null));
             graph.addEdge(new Memlet(a.id, map2Entry.id, null, "in1"));
             graph.addEdge(new Memlet(b.id, map2Entry.id, null, "in2"));
-            //graph.addEdge(new Memlet(b.id, map2Entry.id, null, "in3"));
+            graph.addEdge(new Memlet(b.id, map2Entry.id, null, "in3"));
             graph.addEdge(new Memlet(c.id, e.id, null, null));
             let edgeId = graph.addEdge(new Memlet(map1Entry.id, map1Tasklet1.id, null, null));
             graph.edge(edgeId).weight = Number.POSITIVE_INFINITY;

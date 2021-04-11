@@ -136,6 +136,10 @@ export default class OrderGraph {
         return this._nodeGraph.edgeBetween(srcId, dstId);
     }
 
+    public maxId() {
+        return this._nodeGraph.maxId();
+    }
+
     public groupEdges() {
         this._addGroupEdges();
         return this._groupGraph.edges();
@@ -661,8 +665,10 @@ export default class OrderGraph {
 
                     console.log("heavyPerRank", _.cloneDeep(heavyPerRank), "heavyBottomR", heavyBottomR);
 
-
                     const addEdge = (srcNode: OrderNode, dstNode: OrderNode, weight: number) => {
+                        if (srcNode.isVirtual && dstNode.isVirtual) {
+                            weight = Number.POSITIVE_INFINITY;
+                        }
                         const newEdge = new Edge(srcNode.id, dstNode.id, weight);
                         const newEdgeId = this.addEdge(newEdge);
                         graph.addEdge(newEdge, newEdgeId);
@@ -774,6 +780,8 @@ export default class OrderGraph {
                         window.localStorage.setItem("orderGraph", JSON.stringify(obj));
                     };
 
+                    storeLocal();
+
                     // remove "other" edge
                     const otherNorthN = order[r - 1][otherNorth];
                     const otherNorthNode = ranks[r - 1].groups[0].nodes[otherNorthN];
@@ -791,27 +799,27 @@ export default class OrderGraph {
                         northParents.set(graph.node(inEdge.src), inEdge.weight);
                     });
                     const southParents = new Map();
-                    _.forEach(graph.inEdges(otherNorthNode.id), inEdge => {
+                    /*_.forEach(graph.inEdges(otherSouthNode.id), inEdge => {
                         southParents.set(graph.node(inEdge.src), inEdge.weight);
-                    });
+                    });*/
                     const rOffset = r - 1;
                     const queue: Array<Map<OrderNode, [Map<OrderNode, number>, number, boolean]>> = [
-                        new Map([[otherNorthNode, [northParents, heavyBottomR - r, true]]]), // 0 => r - 1
-                        new Map([[otherSouthNode, [southParents, heavyBottomR - r, false]]]), // 1 => r
+                        new Map([[otherNorthNode, [northParents, heavyBottomR - r + 1, true]]]), // 0 => r - 1
+                        new Map([[otherSouthNode, [southParents, heavyBottomR - r + 1, false]]]), // 1 => r
                     ];
 
                     storeLocal();
 
                     for (let tmpR = 0; tmpR < queue.length; ++tmpR) {
                         const r = tmpR + rOffset;
-                        console.log("MOVE RANK", r, _.cloneDeep(queue[tmpR]));
+                        //console.log("MOVE RANK", r, _.cloneDeep(queue[tmpR]));
                         for (const [node, data] of queue[tmpR]) {
-                            queue[r].delete(node);
+                            queue[tmpR].delete(node);
                             const n = node.index;
                             const pos = positions[r][n];
-                            console.log("node", node, "n", n, "pos", pos, graph.node(node.id) === node);
                             const [parents, downForce, isNorth] = data;
-                            console.log("move node ", node, "with parents", parents, "downForce", downForce, "isNorth", isNorth);
+
+                            console.log("move node", node, "with n", n, "pos", pos, "parents", parents, "downForce", downForce, "isNorth", isNorth);
 
                             // create rank below if necessary
                             if (r === order.length - 1) {
@@ -845,43 +853,53 @@ export default class OrderGraph {
                                 nextPos = pos;
                             }
                             nextPos = Math.max(Math.min(nextPos, numNodesGroup[r + 1][0]), 0);
-                            console.log("nextPos", nextPos);
                             addNode(r + 1, nextPos, node, node.id);
 
                             // if node is part of the "other" node displacement, create new node in place of current node
                             // (only if node has in-edges)
                             let newNodeId = null;
+                            const nonParentInEdges = [];
+                            _.forEach(graph.inEdges(node.id), inEdge => {
+                                if (!parents.has(graph.node(inEdge.src))) {
+                                    nonParentInEdges.push(inEdge);
+                                }
+                            });
+
                             if (downForce > 0) {
-                                let parents = [];
-                                if (graph.inEdges(node.id).length > 0) {
-                                    const newNode = new OrderNode(null, node.label() + "'");
+                                const nextParents: Map<OrderNode, number> = new Map();
+                                if (parents.size > 0) {
+                                    const newNode = new OrderNode(null, true, node.label() + "'");
                                     newNode.initialRank = r;
                                     newNodeId = this.addNode(newNode);
                                     const newN = addNode(r, pos, newNode, newNodeId);
-                                    // route edges from in-neighbors through new node to original node
-                                    _.forEach(graph.inEdges(node.id), inEdge => {
-                                        const inNeighbor = graph.node(inEdge.src);
-                                        removeEdge(inNeighbor, node);
-                                        addEdge(inNeighbor, newNode, inEdge.weight);
+                                    // route edges from parents through new node to original node
+                                    parents.forEach((parentWeight: number, parentNode: OrderNode) => {
+                                        removeEdge(parentNode, node);
+                                        addEdge(parentNode, newNode, parentWeight);
                                     });
                                     addEdge(newNode, node, otherEdgeWeight);
-                                    parents = [[newN, otherEdgeWeight]];
+                                    nextParents.set(newNode, otherEdgeWeight);
                                 }
-                                // mark moved node to be moved again
-                                if (queue.length < tmpR + 2) {
-                                    queue[tmpR + 1] = new Map();
+                                if (downForce > 1) {
+                                    // mark moved node to be moved again
+                                    if (queue.length < tmpR + 2) {
+                                        queue[tmpR + 1] = new Map();
+                                    }
+                                    queue[tmpR + 1].set(node, [nextParents, downForce - 1, isNorth]);
+                                    console.log("mark again", node);
                                 }
-                                queue[tmpR + 1].set(node, [new Map(parents), downForce - 1, isNorth]);
-                                console.log("mark again", node);
                             }
                             // for all in-neighbors that are not parents, create new node in place of current node
-                            _.forEach(graph.inEdges(node.id), inEdge => {
-                                if (inEdge.src === newNodeId) {
-                                    return;
-                                }
+                            // (only if node has in-edges)
+                            _.forEach(nonParentInEdges, inEdge => {
                                 const inNeighbor = graph.node(inEdge.src);
-                                if (!parents.has(inNeighbor)) {
-                                    const newNode = new OrderNode(null, inNeighbor.label() + "'");
+                                // if in-neighbor has no in-edges, move in-neighbor instead of creating a new virtual node
+                                if (graph.inEdges(inNeighbor.id).length === 0) {
+                                    removeNode(r - 1, positions[r - 1][inNeighbor.index], inNeighbor);
+                                    inNeighbor.rank = r;
+                                    addNode(r, pos, inNeighbor, inNeighbor.id);
+                                } else {
+                                    const newNode = new OrderNode(null, true, inNeighbor.label() + "'");
                                     newNode.initialRank = r;
                                     const newNodeId = this.addNode(newNode);
                                     addNode(r, pos, newNode, newNodeId);

@@ -130,20 +130,7 @@ export default class SugiyamaLayouter extends Layouter
             graph.maxRank = Math.max(graph.maxRank, component.maxRank());
         });
 
-        // finally, transform relative ranks to absolute
-        if (graph.parentNode === null) {
-            const transformSubgraph = (subgraph: LayoutGraph, offset: number) => {
-                subgraph.minRank += offset;
-                subgraph.maxRank += offset;
-                _.forEach(subgraph.nodes(), (node: LayoutNode) => {
-                    if (node.childGraph !== null) {
-                        transformSubgraph(node.childGraph, offset + node.rank);
-                    }
-                    node.rank += offset;
-                });
-            };
-            transformSubgraph(graph, 0);
-        }
+
     }
 
     private _addVirtualNodes(graph: LayoutGraph) {
@@ -203,7 +190,8 @@ export default class SugiyamaLayouter extends Layouter
 
         const nodeMap: Map<number, number> = new Map(); // map from level node to corresponding order node
 
-        _.forEach(graph.allGraphs(), (subgraph: LayoutGraph) => {
+        // child graphs are visited before their parents
+        _.forEachRight(graph.allGraphs(), (subgraph: LayoutGraph) => {
             _.forEach(subgraph.components(), (component: LayoutComponent) => {
                 const levelGraph = component.levelGraph();
 
@@ -219,7 +207,7 @@ export default class SugiyamaLayouter extends Layouter
 
                 // add nodes
                 _.forEach(levelGraph.nodes(), (levelNode: LevelNode) => {
-                    const orderNode = new OrderNode(levelNode, levelNode.label());
+                    const orderNode = new OrderNode(levelNode, levelNode.layoutNode.isVirtual, levelNode.label());
                     orderGroups[levelNode.rank].addNode(orderNode, levelNode.id);
                     nodeMap.set(levelNode.id, orderNode.id);
                 });
@@ -232,24 +220,16 @@ export default class SugiyamaLayouter extends Layouter
                 // do order
                 orderGraph.order(false, false);
 
-                console.log("NUMNODES", orderGraph.nodes())
-                if (orderGraph.nodes().length === 39) {
-                    orderGraph.storeLocal();
-                }
-
                 // copy node order into layout graph
                 const newOrderNodes = new Set();
                 _.forEach(orderGraph.nodes(), (orderNode: OrderNode) => {
                     Assert.assertNumber(orderNode.position, "position is not a valid number");
                     let levelNode: LevelNode = orderNode.reference;
                     if (levelNode === null) {
-                        // virtual node was created by orderGraph.order() => add this node also to layout graph
+                        // virtual node was created by orderGraph.order() => add this node to layout graph
                         const newLayoutNode = new LayoutNode({width: 0, height: 0}, 0, true);
                         newLayoutNode.setLabel(orderNode.label());
                         newLayoutNode.rank = orderNode.rank;
-                        if (subgraph.parentNode !== null) {
-                            newLayoutNode.updateRank(newLayoutNode.rank + subgraph.parentNode.rank);
-                        }
                         const newNodeId = subgraph.addNode(newLayoutNode, null, true);
                         component.addNode(newNodeId);
                         newOrderNodes.add(orderNode);
@@ -257,28 +237,35 @@ export default class SugiyamaLayouter extends Layouter
                         orderNode.reference = levelNode;
                     } else {
                         if (levelNode.isFirst) {
-                            levelNode.layoutNode.updateRank(levelNode.layoutNode.rank + orderNode.rank - orderNode.initialRank); // update rank also moves child nodes
+                            levelNode.layoutNode.rank = levelNode.layoutNode.rank + orderNode.rank - orderNode.initialRank;
                         }
                     }
                     levelNode.rank = orderNode.rank;
+                    subgraph.maxRank = Math.max(subgraph.maxRank, levelNode.rank);
+                    console.log("maxRank of subgraph", subgraph, "is now", subgraph.maxRank)
                     levelNode.position = orderNode.position;
                     Assert.assert(levelNode.position !== null, "position is null");
-                    graph.maxRank = Math.max(graph.maxRank, levelNode.rank);
                 });
+                if (subgraph.parentNode !== null) {
+                    subgraph.parentNode.rankSpan = subgraph.maxRank - subgraph.minRank + 1;
+                    subgraph.parentNode.graph.maxRank = Math.max(subgraph.parentNode.graph.maxRank, subgraph.parentNode.rank + subgraph.parentNode.rankSpan - 1);
+                }
 
                 // find for all new nodes the dominating and dominated non-new node
-                const startNodeMap = new Map();
-                const nodesByEnds = new Map();
+                const visited = _.fill(new Array(orderGraph.maxId() + 1), false);
+                const newNodesPerEdge: Map<string, Array<LevelNode>> = new Map();
+                console.log("NEWNODES", newOrderNodes);
                 newOrderNodes.forEach((orderNode: OrderNode) => {
-                    if (startNodeMap.has(orderNode)) {
+                    if (visited[orderNode.id]) {
                         return; // start and end node already set
                     }
                     let tmpOrderNode = orderNode;
-                    const nodes = [orderNode];
+                    const nodes = [orderNode.reference];
                     while (newOrderNodes.has(tmpOrderNode) && orderGraph.inEdges(tmpOrderNode.id).length > 0) {
                         tmpOrderNode = orderGraph.node(orderGraph.inEdges(tmpOrderNode.id)[0].src);
                         if (newOrderNodes.has(tmpOrderNode)) {
-                            nodes.push(tmpOrderNode);
+                            nodes.push(tmpOrderNode.reference);
+                            visited[orderNode.id] = true;
                         }
                     }
                     const startNode = tmpOrderNode;
@@ -287,85 +274,77 @@ export default class SugiyamaLayouter extends Layouter
                     while (newOrderNodes.has(tmpOrderNode) && orderGraph.outEdges(tmpOrderNode.id).length > 0) {
                         tmpOrderNode = orderGraph.node(orderGraph.outEdges(tmpOrderNode.id)[0].dst);
                         if (newOrderNodes.has(tmpOrderNode)) {
-                            nodes.push(tmpOrderNode);
+                            nodes.push(tmpOrderNode.reference);
+                            visited[orderNode.id] = true;
                         }
                     }
                     const endNode = tmpOrderNode;
                     const key = startNode.id + "_" + endNode.id;
-                    nodesByEnds.set(key, nodes);
-                    _.forEach(nodes, (node: OrderNode) => {
-                        startNodeMap.set(node, startNode);
-                    });
+                    newNodesPerEdge.set(key, nodes);
+                    Assert.assertAll(nodes, levelNode => levelNode.layoutNode.isVirtual, "non-virtual node in new path");
                     Assert.assertAll(nodes, (node, n) => n === 0 || orderGraph.edgeBetween(nodes[n - 1].id, nodes[n].id) !== undefined, "no edge between new nodes");
                 });
+
+                levelGraph.invalidateRanks();
+                const ranks = levelGraph.ranks();
 
                 // remove from layout graph edges that were removed in order graph
                 _.forEach(levelGraph.edges(), levelEdge => {
                     const orderSrcNodeId = nodeMap.get(levelEdge.src);
                     const orderDstNodeId = nodeMap.get(levelEdge.dst);
                     if (orderGraph.edgeBetween(orderSrcNodeId, orderDstNodeId) === undefined) {
+                        console.log("remove level edge", levelGraph.node(levelEdge.src), levelGraph.node(levelEdge.dst));
                         levelGraph.removeEdge(levelEdge.id);
                         const srcLayoutNodeId = levelGraph.node(levelEdge.src).layoutNode.id;
                         const dstLayoutNodeId = levelGraph.node(levelEdge.dst).layoutNode.id;
+                        const key = orderSrcNodeId + "_" + orderDstNodeId;
                         _.forEach(subgraph.edgesBetween(srcLayoutNodeId, dstLayoutNodeId), (layoutEdge: LayoutEdge, e) => {
+                            let newNodes = _.clone(newNodesPerEdge.get(key));
                             const dstConnector = layoutEdge.dstConnector;
-                            const key = orderSrcNodeId + "_" + orderDstNodeId;
-                            const newOrderNodes = nodesByEnds.get(key);
-                            newOrderNodes.push(orderGraph.node(orderDstNodeId));
+                            Assert.assertAll(newNodes, levelNode => levelNode.layoutNode.isVirtual, "non-virtual node in new path");
+                            if (e > 0) {
+                                let clonedNewNodes = [];
+                                // create a copy of all new nodes because each edge needs its own virtual nodes
+                                _.forEach(newNodes, (levelNode: LevelNode) => {
+                                    // virtual node was created by orderGraph.order() => add this node to layout graph
+                                    const newLayoutNode = new LayoutNode({width: 0, height: 0}, 0, true);
+                                    newLayoutNode.setLabel(levelNode.label());
+                                    newLayoutNode.rank = levelNode.layoutNode.rank;
+                                    subgraph.addNode(newLayoutNode, null, true);
+                                    component.addNode(newLayoutNode.id);
+                                    const newLevelNode = levelGraph.addLayoutNode(newLayoutNode);
+                                    const rank = ranks[newLayoutNode.rank];
+                                    for (let pos = levelNode.position; pos < rank.length; ++pos) {
+                                        rank[pos].position++;
+                                    }
+                                    rank.splice(levelNode.position - 1, 0, newLevelNode);
+                                    newLevelNode.position = levelNode.position - 1;
+                                    clonedNewNodes.push(newLevelNode);
+                                });
+                                newNodes = clonedNewNodes;
+                            }
+                            newNodes.push(orderGraph.node(orderDstNodeId).reference);
                             subgraph.removeEdge(layoutEdge.id, true);
-                            layoutEdge.dst = newOrderNodes[0].reference.layoutNode.id;
+                            layoutEdge.dst = newNodes[0].layoutNode.id;
                             layoutEdge.dstConnector = null;
                             subgraph.addEdge(layoutEdge, layoutEdge.id, true);
-                            for (let n = 1; n < newOrderNodes.length; ++n) {
-                                const tmpSrcLayoutNodeId = newOrderNodes[n - 1].reference.layoutNode.id;
-                                const tmpDstLayoutNodeId = newOrderNodes[n].reference.layoutNode.id;
-                                const tmpDstConnector = ((n === newOrderNodes.length - 1) ? dstConnector : null);
-                                console.log("tmpDstConnector", tmpDstConnector);
-                                const newEdge = new LayoutEdge(tmpSrcLayoutNodeId, tmpDstLayoutNodeId, null, tmpDstConnector);
-                                const newEdgeId = subgraph.addEdge(newEdge, null, true);
-                                component.addEdge(newEdgeId);
-                                component.levelGraph().addLayoutEdge(newEdge);
+                            levelGraph.addLayoutEdge(layoutEdge);
+                            for (let n = 1; n < newNodes.length; ++n) {
+                                const tmpSrcLayoutNodeId = newNodes[n - 1].layoutNode.id;
+                                const tmpDstLayoutNodeId = newNodes[n].layoutNode.id;
+                                const tmpDstConnector = ((n === newNodes.length - 1) ? dstConnector : null);
+                                const newLayoutEdge = new LayoutEdge(tmpSrcLayoutNodeId, tmpDstLayoutNodeId, null, tmpDstConnector);
+                                subgraph.addEdge(newLayoutEdge, null, true);
+                                component.addEdge(newLayoutEdge.id);
+                                levelGraph.addLayoutEdge(newLayoutEdge);
                             }
-                            console.log("EDGENUM", e);
                         });
                     }
                 });
 
-                // add new edges
-                /*newOrderNodes.forEach((orderNode: OrderNode) => {
-                    _.forEach(orderGraph.inEdges(orderNode.id), inEdge => {
-                        const srcLayoutNodeId = orderGraph.node(inEdge.src).reference.layoutNode.id;
-                        const dstLayoutNodeId = orderNode.reference.layoutNode.id;
-                        if (subgraph.edgeBetween(srcLayoutNodeId, dstLayoutNodeId) === undefined) {
-                            const newEdge = new LayoutEdge(srcLayoutNodeId, dstLayoutNodeId);
-                            const newEdgeId = subgraph.addEdge(newEdge, null, true);
-                            component.addEdge(newEdgeId);
-                            component.levelGraph().addLayoutEdge(newEdge);
-                        }
-                    });
-                    _.forEach(orderGraph.outEdges(orderNode.id), outEdge => {
-                        const srcLayoutNodeId = orderNode.reference.layoutNode.id;
-                        const dstLayoutNodeId = orderGraph.node(outEdge.dst).reference.layoutNode.id;
-                        if (subgraph.edgeBetween(srcLayoutNodeId, dstLayoutNodeId) === undefined) {
-                            const newEdge = new LayoutEdge(srcLayoutNodeId, dstLayoutNodeId);
-                            const newEdgeId = subgraph.addEdge(newEdge, null, true);
-                            component.addEdge(newEdgeId);
-                            component.levelGraph().addLayoutEdge(newEdge);
-                        }
-                    });
-                });*/
-
-                component.levelGraph().invalidateRanks();
+                levelGraph.invalidateRanks();
 
                 Assert.assert(subgraph.components()[0] === component, "component has changed");
-            });
-        });
-
-        _.forEach(graph.allGraphs(), (subgraph: LayoutGraph) => {
-            _.forEach(subgraph.components(), (component: LayoutComponent) => {
-                _.forEach(component.levelGraph().ranks(), rank => {
-                    Assert.assertAll(rank, node => node.position !== null, "position is null");
-                });
             });
         });
 
@@ -373,6 +352,19 @@ export default class SugiyamaLayouter extends Layouter
             const srcNode = edge.graph.node(edge.src)
             return srcNode.rank + srcNode.rankSpan !== edge.graph.node(edge.dst).rank;
         }, "edge not between neighboring ranks");
+
+        // transform relative ranks to absolute
+        const makeRanksAbsolute = (subgraph: LayoutGraph, offset: number) => {
+            subgraph.minRank += offset;
+            subgraph.maxRank += offset;
+            _.forEach(subgraph.nodes(), (node: LayoutNode) => {
+                if (node.childGraph !== null) {
+                    makeRanksAbsolute(node.childGraph, offset + node.rank);
+                }
+                node.rank += offset;
+            });
+        };
+        makeRanksAbsolute(graph, 0);
 
         /**
          * STEP 2: ORDER CONNECTORS
@@ -394,7 +386,7 @@ export default class SugiyamaLayouter extends Layouter
         // add edges
         const addConnectorsForSubgraph = (subgraph: LayoutGraph) => {
             _.forEach(subgraph.components(), (component: LayoutComponent) => {
-                // handle children first
+                // visit child graphs first
                 _.forEach(component.nodes(), (node: LayoutNode) => {
                     if (node.childGraph !== null) {
                         addConnectorsForSubgraph(node.childGraph);
@@ -414,10 +406,9 @@ export default class SugiyamaLayouter extends Layouter
                             // add input connectors
                             connectorGroup = new OrderGroup(node, node.label());
                             connectorGroup.position = index;
-                            console.log("node.rank", node.rank, "orderRanks", orderRanks);
                             orderRanks[node.rank].addGroup(connectorGroup);
                             _.forEach(node.inConnectors, (connector: LayoutConnector) => {
-                                const connectorNode = new OrderNode(connector, connector.name);
+                                const connectorNode = new OrderNode(connector, false, connector.name);
                                 connectorGroup.addNode(connectorNode);
                                 connectorMap.set(connector, connectorNode.id);
                                 if (connector.isScoped) {
@@ -425,7 +416,7 @@ export default class SugiyamaLayouter extends Layouter
                                 }
                             });
                             if (node.inConnectors.length === 0) {
-                                const inNode = new OrderNode(null, "generalInConnector");
+                                const inNode = new OrderNode(null, false, "generalInConnector");
                                 connectorGroup.addNode(inNode);
                                 generalInMap.set(node, inNode.id);
                             }
@@ -441,13 +432,13 @@ export default class SugiyamaLayouter extends Layouter
                             // add output connectors
                             _.forEach(node.outConnectors, (connector: LayoutConnector) => {
                                 if (!connector.isScoped) {
-                                    const connectorNode = new OrderNode(connector, connector.name);
+                                    const connectorNode = new OrderNode(connector, false, connector.name);
                                     connectorGroup.addNode(connectorNode);
                                     connectorMap.set(connector, connectorNode.id);
                                 }
                             });
                             if (node.outConnectors.length === 0) {
-                                const outNode = new OrderNode(null, "generalOutConnector");
+                                const outNode = new OrderNode(null, false, "generalOutConnector");
                                 connectorGroup.addNode(outNode);
                                 generalOutMap.set(node, outNode.id);
                             }
@@ -480,7 +471,6 @@ export default class SugiyamaLayouter extends Layouter
             } else {
                 dstOrderNodeId = generalInMap.get(dstNode);
             }
-            console.log("srcOrderNodeId", srcOrderNodeId, "dstOrderNodeId", dstOrderNodeId, "edge.dstConnector", edge.dstConnector, "dstNode", dstNode);
             orderGraph.addEdge(new Edge(srcOrderNodeId, dstOrderNodeId, 1));
         });
 
@@ -510,8 +500,6 @@ export default class SugiyamaLayouter extends Layouter
                 }
             }
         });
-
-
     }
 
     /**
@@ -752,6 +740,16 @@ export default class SugiyamaLayouter extends Layouter
             component.levelGraph().clone(),
             component.levelGraph().clone(),
         ];
+
+        /*const componentGraph = new LayoutGraph();
+        _.forEach(component.nodes(), (node: LayoutNode) => {
+            componentGraph.addNode(_.clone(node), node.id);
+        });
+        _.forEach(component.edges(), (edge: LayoutEdge) => {
+            componentGraph.addEdge(_.clone(edge), edge.id);
+        });
+        componentGraph.storeLocal();*/
+
         this._alignMedian(alignGraphs[0], "UP", "LEFT");
         this._alignMedian(alignGraphs[1], "UP", "RIGHT");
         this._alignMedian(alignGraphs[2], "DOWN", "LEFT");
@@ -778,7 +776,7 @@ export default class SugiyamaLayouter extends Layouter
         _.forEach(component.levelGraph().nodes(), (node: LevelNode) => {
             let xs = _.sortBy(_.map(alignGraphs, alignGraph => alignGraph.node(node.id).x));
             let x = (xs[1] + xs[2]) / 2;
-            //x = alignGraphs[1].node(node.id).x;
+            //x = alignGraphs[0].node(node.id).x;
             x -= node.layoutNode.width / 2;
             minX = Math.min(minX, x);
             node.layoutNode.setPosition(new Vector(offset + x, node.layoutNode.y));
@@ -896,6 +894,12 @@ export default class SugiyamaLayouter extends Layouter
         }
 
         // compact
+        console.log("ranks", ranks);
+        blockPerNode.forEach((value, key) => {
+            console.log(levelGraph.node(key).label(), ":", value);
+        });
+        console.log("blockPerNode", blockPerNode);
+        //levelGraph.storeLocal();
         blockGraph.rank();
         _.forEach(levelGraph.nodes(), (node: LevelNode) => {
             node.x = blockGraph.node(blockPerNode[node.id]).rank;
