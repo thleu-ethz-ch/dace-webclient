@@ -267,7 +267,7 @@ export default class Renderer {
                 y += groupNode.childPadding;
                 let groupHeight = 0;
                 _.forEach(group.nodes, nodeObj => {
-                    const node = new GenericNode("GenericNode", nodeObj.label || "");
+                    const node = new GenericNode("GenericNode", nodeObj.id.toString() || "");
                     groupGraph.addNode(node, parseInt(nodeObj.id));
                     nodeMap.set(node.id, node);
                     node.x = x;
@@ -326,11 +326,13 @@ export default class Renderer {
         this._container.removeChildren();
 
         const box = graph.boundingBox();
-        this._viewport.moveCenter((box.width - this._viewport.width) / 2, (box.height - this._viewport.width) / 2);
-        this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);
+
         if (view !== null) {
             this._viewport.moveCenter(view.centerX, view.centerY);
             this._viewport.setZoom(view.zoom, true);
+        } else {
+            //this._viewport.moveCenter((box.width - this._viewport.width) / 2, (box.height - this._viewport.width) / 2);
+            //this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);
         }
 
         const shapes = this._getShapesForGraph(graph);

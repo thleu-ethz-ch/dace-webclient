@@ -17,11 +17,12 @@ export default abstract class Layouter {
 
     constructor(options: object = {}) {
         this._options = _.defaults(options, {
+            connectorSize: 10,
             connectorSpacing: 10,
             targetEdgeLength: 50,
             withLabels: false,
-            bundle: false,
-            maximizeAngles: false,
+            bundle: true,
+            maximizeAngles: true,
             alignInAndOut: false
         });
     }
@@ -44,9 +45,6 @@ export default abstract class Layouter {
             this._placeConnectorsCenter(layoutGraph);
             this._matchEdgesToConnectors(layoutGraph);
         }*/
-        if (this._options['maximizeAngles']) {
-            this._maximizeAngles(layoutGraph);
-        }
         this._copyLayoutInfo(layoutGraph, renderGraph);
 
         return layoutGraph;
@@ -317,107 +315,6 @@ export default abstract class Layouter {
                     edge.bundle = bundle;
                 }
             });
-        });
-    }
-
-    private _maximizeAngles(layoutGraph: LayoutGraph) {
-        const segments = [];
-        const endpoints = [];
-        let segmentId = 0;
-        _.forEach(layoutGraph.allEdges(), (edge: LayoutEdge) => {
-            if (edge.graph.mayHaveCycles) {
-                return; // skip state graph edges
-            }
-            _.forEach(edge.rawSegments(), (segment: Segment) => {
-                endpoints.push([segment.start, segmentId]);
-                endpoints.push([segment.end, segmentId]);
-                segments[segmentId++] = segment;
-            });
-        });
-        const intersections = [[], []];
-        const dimensions = ["x", "y"];
-        _.forEach(dimensions, (dimension, i) => {
-            const pointsSorted = _.sortBy(endpoints, ([point, segmentId]) => {
-                return point[dimension];
-            });
-            const openSegments: Set<number> = new Set();
-            _.forEach(pointsSorted, ([point, segmentId]) => {
-                if (openSegments.has(segmentId)) {
-                    openSegments.delete(segmentId);
-                } else {
-                    openSegments.forEach((otherSegmentId) => {
-                        let key = Math.min(segmentId, otherSegmentId) + "_" + Math.max(segmentId, otherSegmentId);
-                        intersections[i].push(key)
-                    });
-                    openSegments.add(segmentId);
-                }
-            });
-        });
-        const crossings = _.intersection(intersections[0], intersections[1]);
-        const forces = [];
-        _.forEach(crossings, key => {
-            const ids = key.split("_");
-            const segmentA = segments[ids[0]];
-            const segmentB = segments[ids[1]];
-            const vectorA = segmentA.vector();
-            const vectorB = segmentB.vector();
-            if (vectorA.x === 0 || vectorB.x === 0 || Math.sign(vectorA.x) !== -Math.sign(vectorB.x)) {
-                return; // only consider "head-on" crossings -> <-
-            }
-            const y1y2 = vectorA.y * vectorB.y;
-            const x1x2 = vectorA.x * vectorB.x;
-            const b = vectorA.y + vectorB.y;
-            const force = (-b + Math.sqrt(b * b - 4 * (y1y2 + x1x2))) / 2;
-            const t = (segmentA.start.x - segmentB.start.x) / (vectorB.x - vectorA.x);
-            const intersectionY = segmentA.start.y + t * vectorA.y;
-            forces.push([intersectionY, force]);
-        });
-        const sortedForces = _.sortBy(forces, ([intersectionY, force]) => intersectionY);
-        const points = [];
-        const oldTops = new Map();
-        _.forEach(layoutGraph.allNodes(), (node: LayoutNode) => {
-            points.push([node.y, "NODE", node, "TOP"]);
-            points.push([node.y + node.height, "NODE", node, "BOTTOM"]);
-            oldTops.set(node, node.y);
-        });
-        _.forEach(layoutGraph.allEdges(), (edge: LayoutEdge) => {
-            _.forEach(edge.points, (point: Vector, i: number) => {
-                points.push([point.y, "EDGE", edge, i]);
-            });
-        });
-        const pointsSorted = _.sortBy(points, ([pointY, type, object, position]) => pointY);
-        let forcePointer = 0;
-        let totalForce = 0;
-        const movedSet = new Set();
-        _.forEach(pointsSorted, ([pointY, type, object, position]) => {
-            let forceSum = 0;
-            let forceCount = 0;
-            while (forcePointer < sortedForces.length && sortedForces[forcePointer][0] < pointY) {
-                forceSum += sortedForces[forcePointer][1];
-                forceCount++;
-                forcePointer++;
-            }
-            if (forceCount > 0) {
-                totalForce += forceSum / forceCount;
-            }
-            if (type === "NODE") {
-                if (position === "TOP") {
-                    object.translateWithoutChildren(0, totalForce);
-                } else { // "BOTTOM"
-                    const oldHeight = object.height;
-                    object.height += totalForce + oldTops.get(object) - object.y; // new_height = old_height + totalForce + old_top - new_top
-                    const heightDiff = object.height - oldHeight;
-                    _.forEach(object.outConnectors, (connector: LayoutConnector) => {
-                        connector.y += heightDiff;
-                    });
-                }
-            } else { // "EDGE"
-                if (movedSet.has(object.points[position])) {
-                    throw new Error("MOVE TWICE");
-                }
-                movedSet.add(object.points[position]);
-                object.points[position].y += totalForce;
-            }
         });
     }
 

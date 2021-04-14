@@ -58,19 +58,14 @@ export default class LayoutAnalysis {
      * Returns the cost for segment crossings in the graph.
      * For every pairwise crossing, the cost is between 1 and 2 depending on the crossing angle.
      * Orthogonal crossings have a cost of 1, almost parallel segments a cost very close to 2.
-     * @param K Determines the shape of the crossing angle cost function. Must be in the interval (0, π/2).
-     *        When close to 0, the function is close to linear. When close to π/2, the function is close to a step
-     *        function where everything below 45 degrees gets maximal malus and anything above none.
      */
-    segmentCrossingsWithAngles(K: number = 1) {
+    segmentCrossingsWithAngles() {
         let cost = 0;
-        const tanK = Math.tan(K);
-        const tanK4Pi = 4 * tanK / Math.PI;
         for (let i = 0; i < this._segments.length; ++i) {
             for (let j = i + 1; j < this._segments.length; ++j) {
                 if (this._segments[i].intersects(this._segments[j])) {
                     const angle = this._segments[i].vector().acuteAngleTo(this._segments[j].vector());
-                    const angleCost = (1 + Math.atan(tanK - tanK4Pi * angle)) / 2;
+                    const angleCost = (1 + Math.cos(2 * angle + 1)) / 2;
                     cost += 1 + angleCost;
                 }
             }

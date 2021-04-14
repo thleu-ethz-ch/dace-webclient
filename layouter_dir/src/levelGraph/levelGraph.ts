@@ -42,10 +42,8 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
         let existingEdge = this.edgeBetween(src, dst);
         if (existingEdge === undefined) {
             this.addEdge(new Edge(src, dst, layoutEdge.weight));
-            console.log("add level edge", this.node(src).label(), this.node(dst).label());
         } else {
             existingEdge.weight += layoutEdge.weight;
-            console.log("extend level edge", this.node(src).label(), this.node(dst).label());
         }
     }
 

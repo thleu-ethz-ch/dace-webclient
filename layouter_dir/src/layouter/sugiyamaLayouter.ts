@@ -21,9 +21,14 @@ import Vector from "../geometry/vector";
 import LayoutBundle from "../layoutGraph/layoutBundle";
 import LevelNode from "../levelGraph/levelNode";
 import LevelGraph from "../levelGraph/levelGraph";
+import Segment from "../geometry/segment";
 
 export default class SugiyamaLayouter extends Layouter
 {
+    private _crossings = [];
+    private _segments = [];
+    private _segmentId = 0;
+
     protected doLayout(graph: LayoutGraph): void {
         if (graph.nodes().length === 0) {
             return;
@@ -61,6 +66,11 @@ export default class SugiyamaLayouter extends Layouter
         Timer.stop("assignCoordinates");
         Assert.assertNone(graph.allNodes(), node => typeof node.y !== "number" || isNaN(node.y), "invalid y assignment");
         Assert.assertNone(graph.allNodes(), node => typeof node.x !== "number" || isNaN(node.x), "invalid x assignment");
+
+        // STEP 4b (OPTIONAL): MAXIMIZE ANGLES
+        if (this._options['maximizeAngles']) {
+            this._maximizeAngles(graph);
+        }
 
         // STEP 5: RESTORE CYCLES
         Timer.start("restoreCycles");
@@ -129,8 +139,6 @@ export default class SugiyamaLayouter extends Layouter
             }
             graph.maxRank = Math.max(graph.maxRank, component.maxRank());
         });
-
-
     }
 
     private _addVirtualNodes(graph: LayoutGraph) {
@@ -159,7 +167,7 @@ export default class SugiyamaLayouter extends Layouter
                         edge.graph.addEdge(edge, edge.id);
                     } else {
                         const tmpEdge = new LayoutEdge(tmpSrcId, tmpDstId);
-                        tmpEdge.weight = Number.POSITIVE_INFINITY;
+                        //tmpEdge.weight = Number.POSITIVE_INFINITY;
                         edge.graph.addEdge(tmpEdge);
                     }
                     tmpSrcId = tmpDstId;
@@ -305,7 +313,6 @@ export default class SugiyamaLayouter extends Layouter
                     const orderSrcNodeId = nodeMap.get(levelEdge.src);
                     const orderDstNodeId = nodeMap.get(levelEdge.dst);
                     if (orderGraph.edgeBetween(orderSrcNodeId, orderDstNodeId) === undefined) {
-                        console.log("remove level edge", levelGraph.node(levelEdge.src), levelGraph.node(levelEdge.dst));
                         levelGraph.removeEdge(levelEdge.id);
                         const srcLayoutNodeId = levelGraph.node(levelEdge.src).layoutNode.id;
                         const dstLayoutNodeId = levelGraph.node(levelEdge.dst).layoutNode.id;
@@ -528,7 +535,6 @@ export default class SugiyamaLayouter extends Layouter
         const rankBottoms = _.fill(new Array(graph.maxRank + 1), Number.NEGATIVE_INFINITY);
 
         const globalRanks = graph.globalRanks();
-        console.log("globalRanks", globalRanks);
 
         rankTops[0] = 0;
         for (let r = 0; r < globalRanks.length; ++r) {
@@ -541,6 +547,13 @@ export default class SugiyamaLayouter extends Layouter
                     }
                 });
                 let height = node.height;
+                if (node.inConnectors.length > 0) {
+                    node.y += this._options["connectorSize"] / 2;
+                    height += this._options["connectorSize"] / 2;
+                }
+                if (node.outConnectors.length > 0) {
+                    height += this._options["connectorSize"] / 2;
+                }
                 _.forEach(node.parents(), (parent: LayoutNode) => {
                     if (parent.childGraph.maxRank === node.rank) {
                         height += parent.padding;
@@ -551,7 +564,6 @@ export default class SugiyamaLayouter extends Layouter
             rankBottoms[r] = maxBottom;
             rankTops[r + 1] = maxBottom + this._options["targetEdgeLength"];
         }
-        console.log(_.cloneDeep(graph));
 
         // assign x and set size; assign edge and connector coordinates
 
@@ -673,7 +685,6 @@ export default class SugiyamaLayouter extends Layouter
                     }
                 }
                 if (edge.bundle !== null && edge.bundle.connectors.length > 1 && edge.dstConnector !== null) {
-                    //console.log(edge.bundle);
                     edge.points.push(new Vector(edge.bundle.x, edge.bundle.y));
                 } else {
                     const startBottom = rankBottoms[startNode.rank + startNode.rankSpan - 1];
@@ -710,6 +721,11 @@ export default class SugiyamaLayouter extends Layouter
                 }
 
             });
+
+            // mark crossings for later maximization angles
+            if (this._options['maximizeAngles']) {
+                this._markCrossings(subgraph, rankTops, rankBottoms);
+            }
         };
         placeSubgraph(graph, 0);
     }
@@ -1012,6 +1028,112 @@ export default class SugiyamaLayouter extends Layouter
             outBundle.x = _.mean(_.map(outBundle.connectors, (name: string) => node.connector("OUT", name).x));
             const bottom = rankBottoms[node.rank + node.rankSpan - 1];
             outBundle.y = Math.max(bottom, node.y + node.height + this._options["targetEdgeLength"] / 2);
+        });
+    }
+
+    private _markCrossings(layoutGraph: LayoutGraph, rankTops: Array<number>, rankBottoms: Array<number>) {
+        const endpointsPerRank = new Array(rankTops.length);
+        for (let r = 1; r < rankTops.length; ++r) {
+            endpointsPerRank[r] = [];
+        }
+        _.forEach(layoutGraph.edges(), (edge: LayoutEdge) => {
+            /*if (edge.graph.mayHaveCycles) {
+                return; // skip state graph edges
+            }*/
+            _.forEach(edge.rawSegments(), (segment: Segment) => {
+                let startRank = _.sortedIndexOf(rankBottoms, segment.start.y);
+                let endRank = _.sortedIndexOf(rankTops, segment.end.y);
+                if (startRank > -1 && endRank > -1 && startRank + 1 === endRank) {
+                    endpointsPerRank[endRank].push([segment.start, this._segmentId]);
+                    endpointsPerRank[endRank].push([segment.end, this._segmentId]);
+                    this._segments[this._segmentId++] = segment;
+                }
+            });
+        });
+        for (let r = 1; r < rankTops.length; ++r) {
+            const pointsSorted = _.sortBy(endpointsPerRank[r], ([point, segmentId]) => {
+                return point.x;
+            });
+            const openSegments: Set<number> = new Set();
+            _.forEach(pointsSorted, ([point, segmentId]) => {
+                if (openSegments.has(segmentId)) {
+                    openSegments.delete(segmentId);
+                } else {
+                    openSegments.forEach((otherSegmentId) => {
+                        if (this._segments[segmentId].end.x !== this._segments[otherSegmentId].end.x) {
+                            this._crossings.push([Math.min(segmentId, otherSegmentId), Math.max(segmentId, otherSegmentId)]);
+                        }
+                    });
+                    openSegments.add(segmentId);
+                }
+            });
+        }
+    }
+    private _maximizeAngles(layoutGraph: LayoutGraph) {
+        const forces = [];
+        _.forEach(this._crossings, ids => {
+            const segmentA = this._segments[ids[0]];
+            const segmentB = this._segments[ids[1]];
+            const vectorA = segmentA.vector();
+            const vectorB = segmentB.vector();
+            if (vectorA.x === 0 || vectorB.x === 0 || Math.sign(vectorA.x) !== -Math.sign(vectorB.x)) {
+                return; // only consider "head-on" crossings -> <-
+            }
+            const y1y2 = vectorA.y * vectorB.y;
+            const x1x2 = vectorA.x * vectorB.x;
+            const b = vectorA.y + vectorB.y;
+            const force = (-b + Math.sqrt(b * b - 4 * (y1y2 + x1x2))) / 2;
+            const t = (segmentA.start.x - segmentB.start.x) / (vectorB.x - vectorA.x);
+            const intersectionY = segmentA.start.y + t * vectorA.y;
+            forces.push([intersectionY, force]);
+        });
+        const sortedForces = _.sortBy(forces, ([intersectionY, force]) => intersectionY);
+
+        const points = [];
+        const oldTops = new Map();
+        _.forEach(layoutGraph.allNodes(), (node: LayoutNode) => {
+            points.push([node.y, "NODE", node, "TOP"]);
+            points.push([node.y + node.height, "NODE", node, "BOTTOM"]);
+            oldTops.set(node, node.y);
+        });
+        _.forEach(layoutGraph.allEdges(), (edge: LayoutEdge) => {
+            _.forEach(edge.points, (point: Vector, i: number) => {
+                points.push([point.y, "EDGE", edge, i]);
+            });
+        });
+        const pointsSorted = _.sortBy(points, ([pointY, type, object, position]) => pointY);
+        let forcePointer = 0;
+        let totalForce = 0;
+        const movedSet = new Set();
+        _.forEach(pointsSorted, ([pointY, type, object, position]) => {
+            let forceSum = 0;
+            let forceCount = 0;
+            while (forcePointer < sortedForces.length && sortedForces[forcePointer][0] < pointY) {
+                forceSum += sortedForces[forcePointer][1];
+                forceCount++;
+                forcePointer++;
+            }
+            if (forceCount > 0) {
+                totalForce += forceSum / forceCount;
+            }
+            if (type === "NODE") {
+                if (position === "TOP") {
+                    object.translateWithoutChildren(0, totalForce);
+                } else { // "BOTTOM"
+                    const oldHeight = object.height;
+                    object.height += totalForce + oldTops.get(object) - object.y; // new_height = old_height + totalForce + old_top - new_top
+                    const heightDiff = object.height - oldHeight;
+                    _.forEach(object.outConnectors, (connector: LayoutConnector) => {
+                        connector.y += heightDiff;
+                    });
+                }
+            } else { // "EDGE"
+                if (movedSet.has(object.points[position])) {
+                    throw new Error("MOVE TWICE");
+                }
+                movedSet.add(object.points[position]);
+                object.points[position].y += totalForce;
+            }
         });
     }
 }
