@@ -25,7 +25,8 @@ import Segment from "../geometry/segment";
 
 export default class SugiyamaLayouter extends Layouter
 {
-    private _crossings = [];
+    private _crossingsPerRank = [];
+    private _segmentsPerRank = [];
     private _segments = [];
     private _segmentId = 0;
 
@@ -569,6 +570,8 @@ export default class SugiyamaLayouter extends Layouter
 
         rankTops[0] = 0;
         for (let r = 0; r < globalRanks.length; ++r) {
+            this._crossingsPerRank[r] = [];
+            this._segmentsPerRank[r] = [];
             let maxBottom = 0;
             _.forEach(globalRanks[r], (node: LayoutNode) => {
                 node.y = rankTops[r];
@@ -1087,6 +1090,7 @@ export default class SugiyamaLayouter extends Layouter
                     endpointsPerRank[endRank].push([segment.start, this._segmentId]);
                     endpointsPerRank[endRank].push([segment.end, this._segmentId]);
                     this._segments[this._segmentId++] = segment;
+                    this._segmentsPerRank[endRank].push(segment);
                 }
             });
         });
@@ -1101,7 +1105,8 @@ export default class SugiyamaLayouter extends Layouter
                 } else {
                     openSegments.forEach((otherSegmentId) => {
                         if (this._segments[segmentId].end.x !== this._segments[otherSegmentId].end.x) {
-                            this._crossings.push([Math.min(segmentId, otherSegmentId), Math.max(segmentId, otherSegmentId)]);
+                            console.log("CROSSING");
+                            this._crossingsPerRank[r].push([Math.min(segmentId, otherSegmentId), Math.max(segmentId, otherSegmentId)]);
                         }
                     });
                     openSegments.add(segmentId);
@@ -1109,25 +1114,71 @@ export default class SugiyamaLayouter extends Layouter
             });
         }
     }
+
     private _maximizeAngles(layoutGraph: LayoutGraph) {
         const forces = [];
-        _.forEach(this._crossings, ids => {
-            const segmentA = this._segments[ids[0]];
-            const segmentB = this._segments[ids[1]];
-            const vectorA = segmentA.vector();
-            const vectorB = segmentB.vector();
-            if (vectorA.x === 0 || vectorB.x === 0 || Math.sign(vectorA.x) !== -Math.sign(vectorB.x)) {
-                return; // only consider "head-on" crossings -> <-
+        _.forEach(this._crossingsPerRank, (crossings, r) => {
+            let maxForce = Number.NEGATIVE_INFINITY;
+            let maxY = Number.NEGATIVE_INFINITY;
+            const deltaXs = [];
+            _.forEach(crossings, ids => {
+                const segmentA = this._segments[ids[0]];
+                const segmentB = this._segments[ids[1]];
+                const vectorA = segmentA.vector();
+                const vectorB = segmentB.vector();
+                if (vectorA.x === 0 || vectorB.x === 0 || Math.sign(vectorA.x) !== -Math.sign(vectorB.x)) {
+                    return; // only consider "head-on" crossings -> <-
+                }
+                const y1y2 = vectorA.y * vectorB.y;
+                const x1x2 = vectorA.x * vectorB.x;
+                const b = vectorA.y + vectorB.y;
+                const force = (-b + Math.sqrt(b * b - 4 * (y1y2 + x1x2))) / 2;
+                const t = (segmentA.start.x - segmentB.start.x) / (vectorB.x - vectorA.x);
+                const intersectionY = segmentA.start.y + t * vectorA.y;
+                maxForce = Math.max(maxForce, force);
+                maxY = Math.max(maxY, intersectionY);
+                deltaXs.push([Math.abs(vectorA.x), Math.abs(vectorB.x)])
+            });
+            if (maxForce > 0) {
+                const allDeltaXsSquared = [];
+                _.forEach(this._segmentsPerRank[r], (segment: Segment) => {
+                    const vector = segment.vector();
+                    allDeltaXsSquared.push(vector.x * vector.x);
+                });
+                // golden-section search; adapted from https://en.wikipedia.org/wiki/Golden-section_search
+                const goldenRatio = (Math.sqrt(5) + 1) / 2;
+                let a = this._options["targetEdgeLength"];
+                let b = this._options["targetEdgeLength"] + maxForce;
+                let f = (deltaY) => {
+                    let cost = 0;
+                    _.forEach(deltaXs, ([deltaXA, deltaXB]) => {
+                        const angle = Math.atan(deltaY / deltaXA) + Math.atan(deltaY / deltaXB);
+                        cost += this._options["weightCrossings"] * (1 + Math.cos(2 * angle + 1)) / 2;
+                    });
+                    const deltaYSquared = deltaY * deltaY;
+                    _.forEach(allDeltaXsSquared, deltaXSquared => {
+                        cost += this._options["weightLenghts"] * Math.sqrt(deltaYSquared + deltaXSquared) / this._options["targetEdgeLength"];
+                    });
+                    return cost;
+                }
+                let c = b - (b - a) / goldenRatio;
+                let d = a + (b - a) / goldenRatio
+                while (Math.abs(b - a) > 1e-5) {
+                    if (f(c) < f(d)) {
+                        b = d;
+                    } else {
+                        a = c
+                    }
+                    // recompute c and d to counter loss of precision
+                    c = b - (b - a) / goldenRatio
+                    d = a + (b - a) / goldenRatio
+                }
+                forces.push([maxY, (b + a) / 2 - this._options["targetEdgeLength"]]);
             }
-            const y1y2 = vectorA.y * vectorB.y;
-            const x1x2 = vectorA.x * vectorB.x;
-            const b = vectorA.y + vectorB.y;
-            const force = (-b + Math.sqrt(b * b - 4 * (y1y2 + x1x2))) / 2;
-            const t = (segmentA.start.x - segmentB.start.x) / (vectorB.x - vectorA.x);
-            const intersectionY = segmentA.start.y + t * vectorA.y;
-            forces.push([intersectionY, force]);
         });
+
         const sortedForces = _.sortBy(forces, ([intersectionY, force]) => intersectionY);
+        Assert.assertEqual(sortedForces, forces, "forces are not sorted?");
 
         const points = [];
         const oldTops = new Map();
@@ -1146,15 +1197,10 @@ export default class SugiyamaLayouter extends Layouter
         let totalForce = 0;
         const movedSet = new Set();
         _.forEach(pointsSorted, ([pointY, type, object, position]) => {
-            let forceSum = 0;
-            let forceCount = 0;
+            let maxForce = 0;
             while (forcePointer < sortedForces.length && sortedForces[forcePointer][0] < pointY) {
-                forceSum += sortedForces[forcePointer][1];
-                forceCount++;
+                totalForce += sortedForces[forcePointer][1];
                 forcePointer++;
-            }
-            if (forceCount > 0) {
-                totalForce += forceSum / forceCount;
             }
             if (type === "NODE") {
                 if (position === "TOP") {

@@ -23,12 +23,20 @@ export default abstract class Layouter {
             withLabels: false,
             bundle: false,
             maximizeAngles: true,
-            alignInAndOut: false
+            alignInAndOut: false,
+            weightBends: 0.2,
+            weightCrossings: 1,
+            weightLenghts: 0.1,
         });
     }
 
     public getOptionsForAnalysis(): object {
-        return _.pick(this._options, ['targetEdgeLength']);
+        return _.pick(this._options, [
+            'targetEdgeLength',
+            'weightBends',
+            'weightCrossings',
+            'weightLenghts',
+        ]);
     }
 
     public layout(renderGraph: RenderGraph): LayoutGraph {
