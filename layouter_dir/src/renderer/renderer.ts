@@ -267,7 +267,7 @@ export default class Renderer {
                 y += groupNode.childPadding;
                 let groupHeight = 0;
                 _.forEach(group.nodes, nodeObj => {
-                    const node = new GenericNode("GenericNode", nodeObj.id.toString() || "");
+                    const node = new GenericNode("GenericNode", nodeObj.label || ""); // might use nodeObj.id.toString() instead of nodeObj.label
                     groupGraph.addNode(node, parseInt(nodeObj.id));
                     nodeMap.set(node.id, node);
                     node.x = x;
@@ -302,7 +302,7 @@ export default class Renderer {
                 });
             });
         });
-        this.render(renderGraph);
+        this.render(renderGraph, step === 0 ? "auto" : null);
         _.forEach(stepObj.edges, edgeObj => {
             const srcNode = nodeMap.get(edgeObj.src);
             const srcPos = srcNode.boundingBox().bottomCenter();
@@ -322,17 +322,19 @@ export default class Renderer {
      * @param graph Graph with layout information for all nodes and edges (x, y, width, height).
      * @param view = {centerX: number, centerY: number, zoom: number}
      */
-    render(graph: RenderGraph, view = null) {
+    render(graph: RenderGraph, view: any = "auto") {
         this._container.removeChildren();
 
         const box = graph.boundingBox();
 
         if (view !== null) {
-            this._viewport.moveCenter(view.centerX, view.centerY);
-            this._viewport.setZoom(view.zoom, true);
-        } else {
-            //this._viewport.moveCenter((box.width - this._viewport.width) / 2, (box.height - this._viewport.width) / 2);
-            //this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);
+            if (view === "auto") {
+                this._viewport.moveCenter((box.width - this._viewport.width) / 2, (box.height - this._viewport.width) / 2);
+                this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);
+            } else {
+                this._viewport.moveCenter(view.centerX, view.centerY);
+                this._viewport.setZoom(view.zoom, true);
+            }
         }
 
         const shapes = this._getShapesForGraph(graph);

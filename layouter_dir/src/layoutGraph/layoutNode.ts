@@ -13,6 +13,8 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public outConnectors: Array<LayoutConnector> = [];
     public inConnectorBundles: Array<LayoutBundle> = [];
     public outConnectorBundles: Array<LayoutBundle> = [];
+    public bottomInConnectorIndex = null;
+    public topOutConnectorIndex = null;
 
     public x: number = null;
     public y: number = null;

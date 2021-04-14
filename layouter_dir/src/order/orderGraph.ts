@@ -178,7 +178,6 @@ export default class OrderGraph {
             let order = []; // current order of this level (e. g. 2, 0, 1)
             let positions = []; // inverse of order (e. g. 1, 2, 0)
             const crossings = []; // number of crossings above each rank
-
             // set neighbors
             _.forEach(ranks, (rank: OrderRank, r: number) => {
                 groupOffset[r] = [];
@@ -510,7 +509,7 @@ export default class OrderGraph {
                     });
                     stepObj.ranks.push(rankObj);
                 });
-                _.forEach(this.edges(), edge => {
+                _.forEach(graph.edges(), edge => {
                     stepObj.edges.push({src: edge.src, dst: edge.dst, weight: edge.weight === Number.POSITIVE_INFINITY ? "INFINITY" : edge.weight});
                 });
                 obj.push(stepObj);
