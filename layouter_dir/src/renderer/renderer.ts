@@ -73,12 +73,19 @@ export default class Renderer {
         }
 
         this._viewport.drag().pinch().wheel().decelerate();
+
+        document.addEventListener("keydown", (e) => {
+            if (e.ctrlKey && e.key === "s") {
+                e.preventDefault();
+                this.savePng("screenshot.png");
+            }
+        });
     }
 
     show(layouter: Layouter, name: string) {
         Loader.load(name).then((graph) => {
 
-            /*graph = new RenderGraph();
+            graph = new RenderGraph();
             const a = new AccessNode("AccessNode", "a");
             const b = new AccessNode("AccessNode", "b");
             const c = new AccessNode("AccessNode", "c");
@@ -128,7 +135,7 @@ export default class Renderer {
             graph.addEdge(new Memlet(map2Exit.id, e.id, null, null));
             graph.addEdge(new Memlet(map1Exit.id, f.id, null, null));
             graph.addEdge(new Memlet(d.id, f.id, null, null));
-            graph.addEdge(new Memlet(e.id, f.id, null, null));*/
+            graph.addEdge(new Memlet(e.id, f.id, null, null));
 
             // set node sizes
             _.forEach(graph.allNodes(), (node: RenderNode) => {
@@ -244,69 +251,12 @@ export default class Renderer {
         doRender();
     }
 
-    renderOrderGraph(step: number = 0) {
-        const renderGraph = new RenderGraph();
-        let y = 0;
-        const stepObj = JSON.parse(window.localStorage.getItem("orderGraph"))[step];
-        console.log(stepObj);
-        const nodeMap = new Map();
-        const groupsPerRank = [];
-        const widths = [];
-        _.forEach(stepObj.ranks, rank => {
-            const rankY = y;
-            let x = 0;
-            const groups = [];
-            _.forEach(rank, group => {
-                y = rankY;
-                const groupNode = new GenericContainerNode("GenericContainerNode", group.label || "");
-                const groupGraph = new RenderGraph();
-                groupNode.setChildGraph(groupGraph);
-                groupNode.x = x;
-                groupNode.y = y;
-                x += groupNode.childPadding;
-                y += groupNode.childPadding;
-                let groupHeight = 0;
-                _.forEach(group.nodes, nodeObj => {
-                    const node = new GenericNode("GenericNode", nodeObj.label || ""); // might use nodeObj.id.toString() instead of nodeObj.label
-                    groupGraph.addNode(node, parseInt(nodeObj.id));
-                    nodeMap.set(node.id, node);
-                    node.x = x;
-                    node.y = y;
-                    const size = this._labelSize(node);
-                    node.width = size.width;
-                    node.height = size.height;
-                    x += node.width + 30;
-                    groupHeight = Math.max(groupHeight, node.height);
-                });
-                x -= 30;
-                x += groupNode.childPadding;
-                y += groupHeight + groupNode.childPadding;
-                groupNode.width = x - groupNode.x;
-                groupNode.height = y - groupNode.y;
-                x += 50;
-                renderGraph.addNode(groupNode);
-                groups.push(groupNode);
-            });
-            x -= 50;
-            widths.push(x);
-            y += 50;
-            groupsPerRank.push(groups);
-        });
-        const maxWidth = _.max(widths);
-        _.forEach(widths, (width, r) => {
-            const offset = (maxWidth - width) / 2
-            _.forEach(groupsPerRank[r], (group: RenderNode) => {
-                group.x += offset;
-                _.forEach(group.childGraph.nodes(), (node: RenderNode) => {
-                    node.x += offset;
-                });
-            });
-        });
-        this.render(renderGraph, step === 0 ? "auto" : null);
-        _.forEach(stepObj.edges, edgeObj => {
-            const srcNode = nodeMap.get(edgeObj.src);
+    renderOrderGraph(renderGraph: RenderGraph, edges: Array<any>, centerView: boolean = false) {
+        this.render(renderGraph, centerView ? "auto" : null);
+        _.forEach(edges, edgeObj => {
+            const srcNode = renderGraph.node(edgeObj.src);
             const srcPos = srcNode.boundingBox().bottomCenter();
-            const dstNode = nodeMap.get(edgeObj.dst);
+            const dstNode = renderGraph.node(edgeObj.dst);
             const dstPos = dstNode.boundingBox().topCenter();
             const line = new Graphics();
             const weight = (edgeObj.weight === "INFINITY" ? Number.POSITIVE_INFINITY : parseInt(edgeObj.weight));

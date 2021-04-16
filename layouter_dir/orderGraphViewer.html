@@ -17,24 +17,127 @@
         canvas {
             display: block;
         }
+        #stepBox {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            background: rgba(200, 200, 200, 0.5);
+            padding: 10px;
+            font-family: monospace, sans-serif;
+            font-size: 12px;
+        }
     </style>
     <script src="./dist/renderLib.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
     <script>
         window.addEventListener("load", function () {
             const renderer = new renderLib.Renderer(document.body);
+            const steps = JSON.parse(window.localStorage.getItem("orderGraph"));
+            const stepBox = document.getElementById("stepBox");
             let step = 0;
-            renderer.renderOrderGraph(step);
+            stepBox.innerHTML = (step + 1) + ' / ' + steps.length;
+
+            const renderGraph = new renderLib.RenderGraph();
+
+            let edges = new Set();
+            _.forEach(steps[0].edges, edge => {
+                edges.add(JSON.stringify(edge));
+            });
+
+            const next = () => {
+
+            }
+
+            const prev = () => {
+
+            }
+
+            const getEdges = () => {
+                const edgeArr = [];
+                edges.forEach(edge => {
+                    const edgeObj = this.edgeObj;
+                    edgeArr.push(edgeObj);
+                });
+                return edgeArr;
+            }
+
+            let y = 0;
+
+            const initial = () => {
+                const stepObj = steps[0];
+                const nodeMap = new Map();
+                const groupsPerRank = [];
+                const widths = [];
+                _.forEach(stepObj.ranks, rank => {
+                    const rankY = y;
+                    let x = 0;
+                    const groups = [];
+                    _.forEach(rank, group => {
+                        y = rankY;
+                        const groupNode = new GenericContainerNode("GenericContainerNode", group.label || "");
+                        const groupGraph = new RenderGraph();
+                        groupNode.setChildGraph(groupGraph);
+                        groupNode.x = x;
+                        groupNode.y = y;
+                        x += groupNode.childPadding;
+                        y += groupNode.childPadding;
+                        let groupHeight = 0;
+                        _.forEach(group.nodes, nodeObj => {
+                            const node = new GenericNode("GenericNode", nodeObj.label || ""); // might use nodeObj.id.toString() instead of nodeObj.label
+                            groupGraph.addNode(node, parseInt(nodeObj.id));
+                            nodeMap.set(node.id, node);
+                            node.x = x;
+                            node.y = y;
+                            const size = this._labelSize(node);
+                            node.width = size.width;
+                            node.height = size.height;
+                            x += node.width + 30;
+                            groupHeight = Math.max(groupHeight, node.height);
+                        });
+                        x -= 30;
+                        x += groupNode.childPadding;
+                        y += groupHeight + groupNode.childPadding;
+                        groupNode.width = x - groupNode.x;
+                        groupNode.height = y - groupNode.y;
+                        x += 50;
+                        renderGraph.addNode(groupNode);
+                        groups.push(groupNode);
+                    });
+                    x -= 50;
+                    widths.push(x);
+                    y += 50;
+                    groupsPerRank.push(groups);
+                });
+                const maxWidth = _.max(widths);
+                _.forEach(widths, (width, r) => {
+                    const offset = (maxWidth - width) / 2
+                    _.forEach(groupsPerRank[r], group => {
+                        group.x += offset;
+                        _.forEach(group.childGraph.nodes(), node => {
+                            node.x += offset;
+                        });
+                    });
+                });
+                renderer.renderOrderGraph(renderGraph, getEdges(), true);
+            }
+
+            initial();
 
             document.addEventListener("keyup", function(e) {
                 if (e.which === 37) {
-                    renderer.renderOrderGraph(--step);
+                    step = Math.max(step - 1, 0);
+                    renderer.renderOrderGraph(step);
                 }
                 if (e.which === 39) {
-                    renderer.renderOrderGraph(++step);
+                    step = Math.min(steps.length - 1, step + 1);
+                    renderer.renderOrderGraph(step);
                 }
+                stepBox.innerHTML = (step + 1) + ' / ' + steps.length;
             }, false);
         });
     </script>
 </head>
-<body></body>
+<body>
+    <div id="stepBox"></div>
+</body>
 </html>

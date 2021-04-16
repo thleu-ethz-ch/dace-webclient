@@ -5,4 +5,5 @@ module.exports = {
         MagneticSpringLayouter: require('./layouter/magneticSpringLayouter').default,
     },
     Renderer: require('./renderer/renderer').default,
+    RenderGraph: require('./renderGraph/renderGraph').default,
 };

@@ -120,6 +120,10 @@ export default class OrderGraph {
         return this._groupGraph.nodes();
     }
 
+    public ranks() {
+        return this._rankGraph.toposort();
+    }
+
     public edges() {
         return this._nodeGraph.edges();
     }
@@ -473,20 +477,14 @@ export default class OrderGraph {
             }
 
             let step = 0;
+            let prevRanks, prevGroups, prevNodes, prevEdges, prevRankMap, prevPositionMap;
 
             const storeLocal = () => {
                 if (typeof window === "undefined") {
                     return;
                 }
                 step++;
-                if (step === 1) {
-                    const obj = [];
-                    window.localStorage.setItem("orderGraph", JSON.stringify(obj));
-                }
-                if (step < 1000) {
-                    //return;
-                }
-                const obj = JSON.parse(window.localStorage.getItem("orderGraph"));
+                // write positions to attributes
                 _.forEach(ranks, (rank: OrderRank, r: number) => {
                     _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {
                         group.order = _.map(_.slice(order[r], groupOffset[r][g], groupOffset[r][g] + numNodesGroup[r][g]),
@@ -497,22 +495,102 @@ export default class OrderGraph {
                         });
                     });
                 });
-                const stepObj = {ranks: [], edges: []};
-                _.forEach(ranks, (rank: OrderRank) => {
-                    const rankObj = [];
-                    _.forEach(rank.orderedGroups(), (group: OrderGroup) => {
-                        const groupObj = {label: group.label(), nodes: []};
-                        _.forEach(group.orderedNodes(), (node: OrderNode) => {
-                            groupObj.nodes.push({id: node.id, label: node.label()});
+                let obj, stepObj;
+                if (step === 1) {
+                    obj = [];
+                    prevRanks = new Set();
+                    prevGroups = new Set();
+                    prevNodes = new Set();
+                    prevEdges = new Set();
+                    prevRankMap = new Map();
+                    prevPositionMap = new Map();
+                    stepObj = {ranks: [], edges: []};
+                    _.forEach(ranks, (rank: OrderRank, r) => {
+                        prevRanks.add(rank);
+                        const rankObj = [];
+                        _.forEach(rank.orderedGroups(), (group: OrderGroup) => {
+                            prevGroups.add(group);
+                            const groupObj = {label: group.label(), nodes: []};
+                            _.forEach(group.orderedNodes(), (node: OrderNode) => {
+                                prevNodes.add(node);
+                                prevRankMap.set(node, r);
+                                prevPositionMap.set(node, node.position)
+                                groupObj.nodes.push({id: node.id, label: node.label()});
+                            });
+                            rankObj.push(groupObj);
                         });
-                        rankObj.push(groupObj);
+                        stepObj.ranks.push(rankObj);
                     });
-                    stepObj.ranks.push(rankObj);
-                });
-                _.forEach(graph.edges(), edge => {
-                    stepObj.edges.push({src: edge.src, dst: edge.dst, weight: edge.weight === Number.POSITIVE_INFINITY ? "INFINITY" : edge.weight});
-                });
+                    _.forEach(graph.edges(), edge => {
+                        prevEdges.add(JSON.stringify({src: edge.src, dst: edge.dst, weight: edge.weight === Number.POSITIVE_INFINITY ? "INFINITY" : edge.weight}));
+                        stepObj.edges.push({src: edge.src, dst: edge.dst, weight: edge.weight === Number.POSITIVE_INFINITY ? "INFINITY" : edge.weight});
+                    });
+                } else {
+                    obj = JSON.parse(window.localStorage.getItem("orderGraph"));
+                    stepObj = {
+                        newRanks: [],
+                        newGroups: [],
+                        newNodes: [],
+                        deletedNodes: [],
+                        movedNodes: [],
+                        newEdges: [],
+                        deletedEdges: [],
+                    }
+                    const remainingNodes = new Set();
+                    _.forEach(prevNodes, prevNode => remainingNodes.add(prevNode));
+                    _.forEach(ranks, (rank: OrderRank, r) => {
+                        if (!prevRanks.has(rank)) {
+                            stepObj.newRanks.push(r);
+                            prevRanks.add(rank);
+                        }
+                        _.forEach(rank.orderedGroups(), (group: OrderGroup) => {
+                            if (!prevGroups.has(group)) {
+                                stepObj.newGroups.push(group.label());
+                                prevGroups.add(group);
+                            }
+                            _.forEach(group.orderedNodes(), (node: OrderNode) => {
+                                if (!prevNodes.has(node)) {
+                                    stepObj.newNodes.push({id: node.id, label: node.label(), rank: r});
+                                    prevNodes.add(node);
+                                } else {
+                                    remainingNodes.delete(node);
+                                    if (prevRankMap.get(node) !== group || prevPositionMap.get(node) !== node.position) {
+                                        stepObj.movedNodes.push({
+                                            id: node.id,
+                                            oldRank: prevRankMap.get(node),
+                                            newRank: r,
+                                            oldPosition: prevPositionMap.get(node),
+                                            newPosition: node.position,
+                                        });
+                                    }
+                                }
+                                prevRankMap.set(node, r);
+                                prevPositionMap.set(node, node.position);
+                            });
+                        });
+                    });
+                    remainingNodes.forEach((node: OrderNode) => {
+                        console.log(node, prevRankMap, prevRankMap.get(node));
+                        stepObj.deletedNodes.push({rank: prevRankMap.get(node).rank, id: node.id});
+                        prevNodes.delete(node);
+                    });
+                    const remainingEdges = _.cloneDeep(prevEdges);
+                    _.forEach(graph.edges(), edge => {
+                        const string = JSON.stringify({src: edge.src, dst: edge.dst, weight: edge.weight === Number.POSITIVE_INFINITY ? "INFINITY" : edge.weight});
+                        if (!prevEdges.has(string)) {
+                            stepObj.newEdges.push({src: edge.src, dst: edge.dst, weight: edge.weight === Number.POSITIVE_INFINITY ? "INFINITY" : edge.weight});
+                            prevEdges.add(string);
+                        } else {
+                            remainingEdges.delete(string);
+                        }
+                    });
+                    remainingEdges.forEach(edge => {
+                        stepObj.deletedEdges.push(JSON.parse(edge));
+                        prevEdges.delete(edge);
+                    });
+                }
                 obj.push(stepObj);
+                console.log(stepObj);
                 window.localStorage.setItem("orderGraph", JSON.stringify(obj));
             };
 
@@ -562,6 +640,7 @@ export default class OrderGraph {
                             const newEdge = new Edge(srcNode.id, dstNode.id, weight);
                             const newEdgeId = this.addEdge(newEdge);
                             graph.addEdge(newEdge, newEdgeId);
+                            Assert.assert(srcNode.rank + 1 === dstNode.rank, "edge not between neighboring ranks", srcNode, dstNode);
                         };
 
                         const removeEdge = (srcNode: OrderNode, dstNode: OrderNode) => {
@@ -675,71 +754,105 @@ export default class OrderGraph {
                                     crossings[r + 1] = 0;
                                 }
 
-                                // move node to rank below
-                                removeNode(r, pos, node);
-
                                 let nextPos;
-                                if (heavyPerRank.get(r + 1) !== undefined) {
-                                    const posRelToHeavy = (heavyPerRank.get(r) - pos);
-                                    nextPos = heavyPerRank.get(r + 1) - posRelToHeavy + (posRelToHeavy > 0 ? 1 : 0);
+                                const nonParentInEdges = [];
+
+                                if (!node.isVirtual) {
+                                    // move node to rank below
+                                    removeNode(r, pos, node);
+
+                                    if (heavyPerRank.get(r + 1) !== undefined) {
+                                        const posRelToHeavy = (heavyPerRank.get(r) - pos);
+                                        nextPos = heavyPerRank.get(r + 1) - posRelToHeavy + (posRelToHeavy > 0 ? 1 : 0);
+                                    } else {
+                                        nextPos = pos;
+                                    }
+                                    nextPos = Math.max(Math.min(nextPos, numNodesGroup[r + 1][0]), 0);
+                                    addNode(r + 1, nextPos, node, node.id);
+
+                                    _.forEach(graph.inEdges(node.id), inEdge => {
+                                        if (!parents.has(graph.node(inEdge.src))) {
+                                            nonParentInEdges.push(inEdge);
+                                        }
+                                    });
                                 } else {
-                                    nextPos = pos;
+                                    // remove in-edge
+                                    _.forEach(graph.inEdges(node.id), inEdge => {
+                                        removeEdge(graph.node(inEdge.src), node);
+                                    });
                                 }
-                                nextPos = Math.max(Math.min(nextPos, numNodesGroup[r + 1][0]), 0);
-                                addNode(r + 1, nextPos, node, node.id);
 
                                 // if node is part of the "other" node displacement, create new node in place of current node
                                 // (only if node has in-edges)
-                                const nonParentInEdges = [];
-                                _.forEach(graph.inEdges(node.id), inEdge => {
-                                    if (!parents.has(graph.node(inEdge.src))) {
-                                        nonParentInEdges.push(inEdge);
-                                    }
-                                });
-
+                                let addOutNeighbors = true;
                                 if (downForce > 0) {
                                     const nextParents: Map<OrderNode, number> = new Map();
-                                    if (parents.size > 0) {
-                                        const newNode = new OrderNode(null, true, node.label() + "'");
-                                        this.addNode(newNode);
-                                        if (parents.size === 1 && parents.values().next().value === Number.POSITIVE_INFINITY && !parents.keys().next().value.isVirtual) {
-                                            // SPECIAL CASE:
-                                            // "other" edge is outgoing of a child graph
-                                            // => we may not move the last node of the child graph down
-                                            // instead we move it up again and insert the new virtual node below
-                                            removeNode(r + 1, nextPos, node);
-                                            addNode(r, pos, node, node.id);
-                                            newNode.initialRank = r + 1;
-                                            addNode(r + 1, nextPos, newNode, newNode.id);
-                                            Assert.assert(nonParentInEdges.length === 0, "special case does not look as assumed");
-                                            addEdge(node, newNode, otherEdgeWeight);
-                                            // for each out edge add an extra virtual node
-                                            _.forEach(graph.outEdges(node.id), outEdge => {
-                                                if (outEdge.dst !== newNode.id) {
-                                                    removeEdge(node, graph.node(outEdge.dst));
-                                                    const additionalNode = new OrderNode(null, true, graph.node(outEdge.dst).label() + "'");
-                                                    this.addNode(additionalNode);
-                                                    addNode(r + 1, nextPos, additionalNode, additionalNode.id);
-                                                    addEdge(node, additionalNode, outEdge.weight);
-                                                    addEdge(additionalNode, graph.node(outEdge.dst), outEdge.weight);
-                                                    queue[tmpR + 1].set(graph.node(outEdge.dst), [new Map([[additionalNode, outEdge.weight]]), 0, false]);
-                                                }
-                                            });
-                                            otherNorthNode = newNode;
-                                            nextParents.set(node, otherEdgeWeight);
-                                            node = newNode;
-                                        } else {
-                                            // otherwise create virtual node above
-                                            newNode.initialRank = r;
-                                            addNode(r, pos, newNode, newNode.id);
-                                            // route edges from parents through new node to original node
-                                            parents.forEach((parentWeight: number, parentNode: OrderNode) => {
-                                                removeEdge(parentNode, node);
-                                                addEdge(parentNode, newNode, parentWeight);
-                                            });
-                                            addEdge(newNode, node, otherEdgeWeight);
+                                    // "other north" node has all in-edges as parents
+                                    // "other south" node has no parents, but may have non-parent in-edges
+                                    if (!node.isVirtual) {
+                                        if (parents.size > 0) {
+                                            const newNode = new OrderNode(null, true, node.label() + "'");
+                                            this.addNode(newNode);
+                                            if (parents.size === 1 && parents.values().next().value === Number.POSITIVE_INFINITY && !parents.keys().next().value.isVirtual) {
+                                                // SPECIAL CASE:
+                                                // "other" edge is outgoing of a child graph
+                                                // => we may not move the last node of the child graph down
+                                                // instead we move it up again and insert the new virtual node below
+                                                removeNode(r + 1, nextPos, node);
+                                                addNode(r, pos, node, node.id);
+                                                newNode.initialRank = r + 1;
+                                                addNode(r + 1, nextPos, newNode, newNode.id);
+                                                Assert.assert(nonParentInEdges.length === 0, "special case does not look as assumed");
+                                                Assert.assert(node === otherNorthNode, "special case does not look as assumed");
+                                                addEdge(node, newNode, otherEdgeWeight);
+                                                // for each out edge add an extra virtual node
+                                                _.forEach(graph.outEdges(node.id), outEdge => {
+                                                    if (outEdge.dst !== newNode.id) {
+                                                        removeEdge(node, graph.node(outEdge.dst));
+                                                        const additionalNode = new OrderNode(null, true, graph.node(outEdge.dst).label() + "'");
+                                                        this.addNode(additionalNode);
+                                                        addNode(r + 1, nextPos, additionalNode, additionalNode.id);
+                                                        addEdge(node, additionalNode, outEdge.weight);
+                                                        addEdge(additionalNode, graph.node(outEdge.dst), outEdge.weight);
+                                                        queue[tmpR + 1].set(graph.node(outEdge.dst), [new Map([[additionalNode, outEdge.weight]]), 0, false]);
+                                                    }
+                                                });
+                                                otherNorthNode = newNode;
+                                                nextParents.set(node, otherEdgeWeight);
+                                                node = newNode;
+                                            } else {
+                                                // otherwise create virtual node above
+                                                newNode.initialRank = r;
+                                                addNode(r, pos, newNode, newNode.id);
+                                                // route edges from parents through new node to original node
+                                                parents.forEach((parentWeight: number, parentNode: OrderNode) => {
+                                                    removeEdge(parentNode, node);
+                                                    addEdge(parentNode, newNode, parentWeight);
+                                                });
+                                                addEdge(newNode, node, otherEdgeWeight);
+                                            }
+                                            nextParents.set(newNode, otherEdgeWeight);
                                         }
-                                        nextParents.set(newNode, otherEdgeWeight);
+                                    } else {
+                                        // node is virtual
+                                        console.log("node is virtual");
+                                        Assert.assert(nonParentInEdges.length === 0, "virtual node has non-parent in-edges");
+                                        const outEdge = graph.outEdges(node.id)[0];
+                                        nextParents.set(node, outEdge.weight);
+                                        if (node === otherNorthNode) {
+                                            otherNorthNode = graph.node(outEdge.dst);
+                                        }
+                                        if (node === otherSouthNode) {
+                                            otherSouthNode = graph.node(outEdge.dst);
+                                        }
+                                        const nextNode = graph.node(outEdge.dst);
+                                        // remove node and out-edge
+                                        removeEdge(node, nextNode);
+                                        removeNode(r, pos, node);
+                                        graph.removeNode(node.id);
+                                        this.removeNode(node.id);
+                                        node = nextNode;
+                                        addOutNeighbors = false;
                                     }
                                     if (downForce > 1) {
                                         // mark moved node to be moved again
@@ -772,19 +885,21 @@ export default class OrderGraph {
                                     }
                                 });
                                 // mark out-neighbors as next to move
-                                _.forEach(graph.outEdges(node.id), outEdge => {
-                                    if (queue.length < tmpR + 2) {
-                                        queue[tmpR + 1] = new Map();
-                                    }
-                                    const dstNode = graph.node(outEdge.dst);
-                                    if (!queue[tmpR + 1].has(dstNode)) {
-                                        queue[tmpR + 1].set(dstNode, [new Map([[node, outEdge.weight]]), 0, false]);
-                                    } else {
-                                        queue[tmpR + 1].get(dstNode)[0].set(node, outEdge.weight);
-                                    }
-                                });
+                                if (addOutNeighbors) {
+                                    _.forEach(graph.outEdges(node.id), outEdge => {
+                                        if (queue.length < tmpR + 2) {
+                                            queue[tmpR + 1] = new Map();
+                                        }
+                                        const dstNode = graph.node(outEdge.dst);
+                                        if (!queue[tmpR + 1].has(dstNode)) {
+                                            queue[tmpR + 1].set(dstNode, [new Map([[node, outEdge.weight]]), 0, false]);
+                                        } else {
+                                            queue[tmpR + 1].get(dstNode)[0].set(node, outEdge.weight);
+                                        }
+                                    });
+                                }
                                 if (debug) {
-                                    storeLocal();
+                                    //storeLocal();
                                 }
                             }
                         }
@@ -807,13 +922,11 @@ export default class OrderGraph {
                                 neighborsUp[r][n] = [];
                                 weightsUp[r][n] = [];
                             });
-                            if (r === 46) {
-                                console.log("neighbors[46] = ", neighborsDown[46], "rank nodes = ", ranks[46].groups[0].nodes, "rank order = ", order[46]);
-                            }
                         }
                         _.forEach(graph.edges(), edge => {
                             const srcNode = graph.node(edge.src);
                             const dstNode = graph.node(edge.dst);
+                            Assert.assert(srcNode.rank + 1 === dstNode.rank, "edge not between neighboring ranks", srcNode, dstNode);
                             neighborsDown[srcNode.rank][srcNode.index].push(dstNode.index);
                             weightsDown[srcNode.rank][srcNode.index].push(edge.weight);
                             neighborsUp[dstNode.rank][dstNode.index].push(srcNode.index);
@@ -827,48 +940,77 @@ export default class OrderGraph {
 
                     const checkXResolution = (side: "LEFT" | "RIGHT") => {
                         const nodesPerRank = new Array(ranks.length);
-                        const minMiddleNodePerRank: Array<number> = new Array(ranks.length);
-                        const maxMiddleNodePerRank: Array<number> = new Array(ranks.length);
+                        const minHeavyNodePerRank: Array<number> = new Array(ranks.length);
+                        const maxOtherNodePerRank: Array<number> = new Array(ranks.length);
                         let conflict = false;
                         for (let r = 0; r < ranks.length; ++r) {
-                            nodesPerRank[r] = {
-                                "MIDDLE":new Set(),
-                                "MOVING": new Set(),
-                                "OTHER": new Set(),
-                            };
-                            minMiddleNodePerRank[r] = Number.POSITIVE_INFINITY;
-                            maxMiddleNodePerRank[r] = Number.NEGATIVE_INFINITY;
+                            nodesPerRank[r] = new Map();
+                            minHeavyNodePerRank[r] = (side === "RIGHT" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY);
+                            maxOtherNodePerRank[r] = (side === "RIGHT" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
                         }
                         const queue: Array<[OrderNode, string]> = [];
-                        let firstPos = heavyNorth;//(heavyNorth < otherNorth ? heavyNorth : otherNorth + 1);
-                        let lastPos = heavyNorth;//(heavyNorth < otherNorth ? otherNorth - 1 : heavyNorth);
-                        for (let pos = firstPos; pos <= lastPos; ++pos) {
-                            nodesPerRank[r - 1]["MIDDLE"].add(ranks[r - 1].groups[0].nodes[order[r - 1][pos]]);
-                            queue.push([ranks[r - 1].groups[0].nodes[order[r - 1][pos]], "MIDDLE"]);
-                        }
-                        firstPos = heavySouth;//(heavySouth < otherSouth ? heavySouth : otherSouth + 1);
-                        lastPos = heavySouth;//(heavySouth < otherSouth ? otherSouth - 1 : heavySouth);
-                        for (let pos = firstPos; pos <= lastPos; ++pos) {
-                            nodesPerRank[r]["MIDDLE"].add(ranks[r].groups[0].nodes[order[r][pos]]);
-                            queue.push([ranks[r].groups[0].nodes[order[r][pos]], "MIDDLE"]);
-                        }
                         let minRank = r - 1;
                         let maxRank = r;
-                        let minMiddleRank = r - 1;
-                        if ((side === "LEFT") === (heavyNorth > otherNorth)) {
-                            nodesPerRank[r - 1]["MOVING"].add(otherNorthNode);
-                            nodesPerRank[r]["OTHER"].add(otherSouthNode);
-                            queue.push([otherNorthNode, "MOVING"]);
-                            queue.push([otherSouthNode, "OTHER"]);
-                        } else {
-                            nodesPerRank[r]["MOVING"].add(otherSouthNode);
-                            nodesPerRank[r - 1]["OTHER"].add(otherNorthNode);
-                            queue.push([otherSouthNode, "MOVING"]);
-                            queue.push([otherNorthNode, "OTHER"]);
-                        }
+                        const moveDir = (side === "LEFT" ? 1 : -1);
+                        const minFun = (side === "RIGHT" ? Math.min : Math.max);
+                        const maxFun = (side === "RIGHT" ? Math.max : Math.min);
+                        const geFun = (side === "RIGHT" ? ((a, b) => a >= b) : ((a, b) => a <= b));
+                        const addNodeToGroup = (r: number, node: OrderNode, group: string) => {
+                            //if (side === "LEFT") console.log("node " + node.id + " now is in group " + group);
+                            nodesPerRank[r].set(node, group);
+                            queue.push([node, group]);
+                            const addIntermediate = () => {
+                                if (geFun(maxOtherNodePerRank[r], minHeavyNodePerRank[r])) {
+                                    //if (side === "LEFT") console.log(maxOtherNodePerRank[r], "ge", minHeavyNodePerRank[r]);
+                                    const intermediate = [];
+                                    for (let pos = maxOtherNodePerRank[r]; pos !== minHeavyNodePerRank[r]; pos += moveDir) {
+                                        const node = ranks[r].groups[0].nodes[order[r][pos]];
+                                        if (node === undefined) {
+                                            //console.log("undefined", "pos", pos, "nodes", ranks[r].groups[0].nodes, order[r][pos], "order", order[r], "moveDir", moveDir, "maxOtherNodePerRank[r]", maxOtherNodePerRank[r], "minHeavyNodePerRank[r]", minHeavyNodePerRank[r]);
+                                        }
+                                        if (!nodesPerRank[r].has(node)) {
+                                            intermediate.push([node, "ANY"]);
+                                        } else if (node.rank === minRank) {
+                                            intermediate.push([node, nodesPerRank[r].get(node)]); // check boundaries again
+                                        }
+                                    }
+                                    _.forEach(intermediate, ([node, group]) => {
+                                        addNodeToGroup(r, node, group);
+                                    });
+                                }
+                            }
+                            if (group === "OTHER") {
+                                const prev = maxOtherNodePerRank[r];
+                                maxOtherNodePerRank[r] = maxFun(maxOtherNodePerRank[r], positions[r][node.index]);
+                                if (maxOtherNodePerRank[r] !== prev) {
+                                    //if (side === "LEFT") console.log("maxMovingNodePerRank[" + r + "] = ", maxOtherNodePerRank[r]);
+                                }
+                                if (maxOtherNodePerRank[r] !== prev && minHeavyNodePerRank[r] !== Number.POSITIVE_INFINITY && minHeavyNodePerRank[r] !== Number.NEGATIVE_INFINITY) {
+                                    addIntermediate();
+                                }
+                            } else {
+                                // potentially heavy
+                                const prev = minHeavyNodePerRank[r];
+                                minHeavyNodePerRank[r] = minFun(minHeavyNodePerRank[r], positions[r][node.index]);
+                                if (minHeavyNodePerRank[r] !== prev) {
+                                    //if (side === "LEFT") console.log("minHeavyNodePerRank[" + r + "] = ", minHeavyNodePerRank[r]);
+                                }
+                                if (minHeavyNodePerRank[r] !== prev && maxOtherNodePerRank[r] !== Number.POSITIVE_INFINITY && maxOtherNodePerRank[r] !== Number.NEGATIVE_INFINITY) {
+                                    addIntermediate();
+                                }
+                            }
+                        };
+                        addNodeToGroup(r - 1, heavyNorthNode, "HEAVY");
+                        addNodeToGroup(r, heavySouthNode, "HEAVY");
+                        addNodeToGroup(r - 1, otherNorthNode, "OTHER");
+                        addNodeToGroup(r, otherSouthNode, "OTHER");
+
                         let queuePointer = 0;
-                        while (queuePointer < queue.length) {
-                            const [node, type] = queue[queuePointer++];
+                        while (queuePointer < queue.length && !conflict) {
+                            const [node, group] = queue[queuePointer++];
+                            if (nodesPerRank[node.rank].get(node) !== group) {
+                                continue; // group has changed in the meantime
+                            }
                             const addNeighbors = (neighborMethod: "inEdges" | "outEdges", neighborProperty: "src" | "dst", rankOffset: 1 | -1) => {
                                 _.forEach(graph[neighborMethod](node.id), edge => {
                                     if (edge === otherEdge) {
@@ -876,79 +1018,96 @@ export default class OrderGraph {
                                     }
                                     const neighborRank = node.rank + rankOffset;
                                     const neighbor = graph.node(edge[neighborProperty]);
-                                    if (!nodesPerRank[neighborRank][type].has(neighbor)) {
-                                        nodesPerRank[neighborRank][type].add(neighbor);
-                                        queue.push([neighbor, type]);
-                                    }
-                                    if (type === "MIDDLE") {
-                                        let foundNewExtremum = false;
-                                        if (positions[neighborRank][neighbor.index] < minMiddleNodePerRank[neighborRank]) {
-                                            minMiddleNodePerRank[neighborRank] = positions[neighborRank][neighbor.index];
-                                            foundNewExtremum = true;
-                                        }
-                                        if (positions[neighborRank][neighbor.index] > maxMiddleNodePerRank[neighborRank]) {
-                                            maxMiddleNodePerRank[neighborRank] = positions[neighborRank][neighbor.index];
-                                            foundNewExtremum = true;
-                                        }
-                                        if (foundNewExtremum) {
-                                            for (let pos = minMiddleNodePerRank[neighborRank]; pos <= maxMiddleNodePerRank[neighborRank]; ++pos) {
-                                                const middleNeighbor = ranks[neighborRank].groups[0].nodes[order[neighborRank][pos]];
-                                                if (!nodesPerRank[neighborRank]["MIDDLE"].has(middleNeighbor)) {
-                                                    nodesPerRank[neighborRank]["MIDDLE"].add(middleNeighbor);
-                                                    queue.push([middleNeighbor, "MIDDLE"])
-                                                }
-                                            }
-                                        }
+                                    if (!nodesPerRank[neighborRank].has(neighbor)) {
+                                        // add neighbor to same group as this node
+                                        addNodeToGroup(neighborRank, neighbor, group);
                                     } else {
-                                        if (nodesPerRank[neighborRank]["MIDDLE"].has(neighbor)) {
-                                            // edge between "middle" and one of the sides => not possible to move side
-                                            conflict = true;
+                                        // check for conflict or group change
+                                        const neighborGroup = nodesPerRank[neighborRank].get(neighbor);
+                                        if (neighborGroup !== group) {
+                                            if (neighborGroup === "ANY") {
+                                                addNodeToGroup(neighborRank, neighbor, group);
+                                            } else if (group === "ANY") {
+                                                addNodeToGroup(node.rank, node, neighborGroup);
+                                            } else {
+                                                // one is "HEAVY" and the other is "OTHER"
+                                                conflict = true;
+                                            }
                                         }
                                     }
                                 });
                             };
+                            //if (side === "LEFT") console.log("node", node.id, "minRank", minRank);
                             if (node.rank > minRank) {
                                 addNeighbors("inEdges", "src", -1);
                             }
-                            if (type !== "OTHER" && node.rank === minRank) {
+                            if (node.rank === minRank && geFun(positions[node.rank][node.index], minHeavyNodePerRank[node.rank])) {
                                 let foundNewMinRank = false;
                                 _.forEach(graph.inEdges(node.id), inEdge => {
-                                    if (inEdge === otherEdge) {
-                                        return;
-                                    }
                                     if (inEdge.weight === Number.POSITIVE_INFINITY) {
                                         foundNewMinRank = true;
                                     }
                                 });
                                 if (foundNewMinRank) {
                                     minRank--;
-                                    _.forEach(["MIDDLE", "MOVING", "OTHER"], type => {
-                                        nodesPerRank[node.rank][type].forEach(borderNode => {
-                                            queue.push([borderNode, type]);
-                                        });
+                                    nodesPerRank[node.rank].forEach((group, borderNode) => {
+                                        queue.push([borderNode, group]);
                                     });
                                 }
                             }
                             if (node.rank < maxRank) {
                                 addNeighbors("outEdges", "dst", 1);
                             }
-                            if (type === "MIDDLE") {
-                                minMiddleRank = Math.min(minMiddleRank, node.rank);
-                            }
                         }
-                        if (minMiddleRank > minRank) {
-                            conflict = true;
+                        if (conflict) {
+                            return null;
                         }
-                        return (conflict ? null : nodesPerRank);
+                        let minHeavyRank = Number.POSITIVE_INFINITY;
+                        _.forEach(nodesPerRank, (nodes, r) => {
+                            nodes.forEach(group => {
+                                if (group === "HEAVY" || group === "ANY") {
+                                    minHeavyRank = Math.min(minHeavyRank, r);
+                                }
+                            });
+                        });
+                        if (minHeavyRank > minRank) {
+                            return null;
+                        }
+                        // group nodes
+                        const nodesPerRankGrouped = [];
+                        _.forEach(nodesPerRank, (nodes, r) => {
+                            nodesPerRankGrouped[r] = {
+                                "HEAVY": new Set(),
+                                "MOVING": new Set(),
+                            };
+                            //if (side === "RIGHT") console.log("rank", r, "nodes", nodes);
+                            minHeavyNodePerRank[r] = (side === "RIGHT" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY);
+                            //if (side === "LEFT") console.log("rank", r, ":", _.map(order[r], n => ranks[r].groups[0].nodes[n].id).toString());
+                            nodes.forEach((group, node) => {
+                                if (group !== "OTHER") {
+                                    // "HEAVY" or "ANY"
+                                    // because we want to move as few nodes as possible, we count the "ANY" nodes to the "HEAVY" nodes
+                                    nodesPerRankGrouped[r]["HEAVY"].add(node);
+                                    //if (side === "LEFT") console.log("rank", r, "node", node.id, "group", group, "position", positions[r][node.index]);
+                                    minHeavyNodePerRank[r] = minFun(minHeavyNodePerRank[r], positions[r][node.index]);
+                                }
+                            });
+                            nodes.forEach((group, node) => {
+                                if (group === "OTHER" && geFun(positions[r][node.index], minHeavyNodePerRank[node.rank])) {
+                                    nodesPerRankGrouped[r]["MOVING"].add(node);
+                                }
+                            });
+                        });
+                        return nodesPerRankGrouped;
                     };
 
                     const resolveX = (side: "LEFT" | "RIGHT", nodesPerRank) => {
                         console.log("resolveX by moving nodes on the " + side.toLowerCase());
                         _.forEach(nodesPerRank, (rank, r) => {
-                            if (rank["MOVING"].size === 0 || rank["MIDDLE"].size === 0) {
+                            if (rank["MOVING"].size === 0 || rank["HEAVY"].size === 0) {
                                 return;
                             }
-                            const middle: Array<OrderNode> = _.sortBy(Array.from(rank["MIDDLE"]), node => positions[r][node.index]);
+                            const heavy: Array<OrderNode> = _.sortBy(Array.from(rank["HEAVY"]), node => positions[r][node.index]);
                             const moving: Array<OrderNode> = _.sortBy(Array.from(rank["MOVING"]), node => positions[r][node.index]);
                             const newOrder = [];
                             _.forEach(order[r], n => {
@@ -956,13 +1115,13 @@ export default class OrderGraph {
                                 if (rank["MOVING"].has(node)) {
                                     return; // do nothing
                                 }
-                                if (side === "RIGHT" && n === middle[0].index) {
+                                if (side === "RIGHT" && n === heavy[0].index) {
                                     _.forEach(moving, movingNode => {
                                         newOrder.push(movingNode.index);
                                     });
                                 }
                                 newOrder.push(n);
-                                if (side === "LEFT" && n === _.last(middle).index) {
+                                if (side === "LEFT" && n === _.last(heavy).index) {
                                     _.forEach(moving, movingNode => {
                                         newOrder.push(movingNode.index);
                                     });
@@ -981,7 +1140,7 @@ export default class OrderGraph {
                     const leftResolution = checkXResolution("LEFT");
                     const rightResolution = checkXResolution("RIGHT");
                     console.log("leftResolution", leftResolution, "rightResolution", rightResolution);
-                    if (leftResolution === null) {
+                    /*if (leftResolution === null) {
                         if (rightResolution === null) {
                             resolveY();
                         } else {
@@ -999,6 +1158,13 @@ export default class OrderGraph {
                                 resolveX("RIGHT", rightResolution);
                             }
                         }
+                    }*/
+
+                    resolveY();
+                    doNothing = false;
+                    //reorder(true);
+                    if (debug) {
+                        storeLocal();
                     }
 
                     for (let r = 1; r < ranks.length; ++r) {
@@ -1013,9 +1179,11 @@ export default class OrderGraph {
                 let counter = 0;
                 let invalid = false;
                 let crossing = getIllegalCrossing();
-                console.log("illegal crossing", crossing);
+                if (debug) {
+                    console.log("illegal crossing", crossing);
+                }
                 while (crossing !== null) {
-                    if (counter++ === 2000) {
+                    if (counter++ === 10) {
                         invalid = true;
                         break;
                     }
@@ -1027,7 +1195,7 @@ export default class OrderGraph {
                     crossing = getIllegalCrossing();
                     console.log("illegal crossing", crossing);
                     if (crossing !== null) {
-                        Assert.assert(crossing[0] >= prevCrossing[0], "created crossing in lower rank");
+                        //Assert.assert(crossing[0] >= prevCrossing[0], "created crossing in lower rank");
                     }
                 }
 
@@ -1038,7 +1206,7 @@ export default class OrderGraph {
             const originalOrder = _.cloneDeep(order);
             const originalPositions = _.cloneDeep(positions);
 
-            //doNothing = true;
+            doNothing = true;
             reorder(false);
             /*const success = resolveY();
             Assert.assert(success, "y resolution failed");*/

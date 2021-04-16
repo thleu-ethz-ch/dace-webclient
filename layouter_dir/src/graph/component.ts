@@ -46,6 +46,12 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
         return edges;
     }
 
+    public removeNode(id: number) {
+        let index = this._nodeIds.indexOf(id);
+        this._nodeIds.splice(index, 1);
+        this._nodes.splice(index, 1);
+    }
+
     public removeEdge(id: number) {
         _.pull(this._edgeIds, id);
     }
