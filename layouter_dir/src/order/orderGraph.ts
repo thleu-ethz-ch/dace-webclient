@@ -487,8 +487,8 @@ export default class OrderGraph {
                     const obj = [];
                     window.localStorage.setItem("orderGraph", JSON.stringify(obj));
                 }
-                if (step < 1000) {
-                    //return;
+                if (step < 50) {
+                    return;
                 }
                 const obj = JSON.parse(window.localStorage.getItem("orderGraph"));
                 _.forEach(ranks, (rank: OrderRank, r: number) => {
@@ -683,7 +683,7 @@ export default class OrderGraph {
                                 let nextPos;
                                 const nonParentInEdges = [];
 
-                                if (!node.isVirtual) {
+                                if (!node.isVirtual || (downForce > 0 && parents.size > 0)) {
                                     // move node to rank below
                                     removeNode(r, pos, node);
 
@@ -715,56 +715,52 @@ export default class OrderGraph {
                                     const nextParents: Map<OrderNode, number> = new Map();
                                     // "other north" node has all in-edges as parents
                                     // "other south" node has no parents, but may have non-parent in-edges
-                                    if (!node.isVirtual) {
-                                        if (parents.size > 0) {
-                                            const newNode = new OrderNode(null, true, node.label() + "'");
-                                            this.addNode(newNode);
-                                            if (parents.size === 1 && parents.values().next().value === Number.POSITIVE_INFINITY && !parents.keys().next().value.isVirtual) {
-                                                // SPECIAL CASE:
-                                                // "other" edge is outgoing of a child graph
-                                                // => we may not move the last node of the child graph down
-                                                // instead we move it up again and insert the new virtual node below
-                                                removeNode(r + 1, nextPos, node);
-                                                addNode(r, pos, node, node.id);
-                                                newNode.initialRank = r + 1;
-                                                addNode(r + 1, nextPos, newNode, newNode.id);
-                                                Assert.assert(nonParentInEdges.length === 0, "special case does not look as assumed");
-                                                Assert.assert(node === otherNorthNode, "special case does not look as assumed");
-                                                addEdge(node, newNode, otherEdgeWeight);
-                                                // for each out edge add an extra virtual node
-                                                _.forEach(graph.outEdges(node.id), outEdge => {
-                                                    if (outEdge.dst !== newNode.id) {
-                                                        removeEdge(node, graph.node(outEdge.dst));
-                                                        const additionalNode = new OrderNode(null, true, graph.node(outEdge.dst).label() + "'");
-                                                        this.addNode(additionalNode);
-                                                        addNode(r + 1, nextPos, additionalNode, additionalNode.id);
-                                                        addEdge(node, additionalNode, outEdge.weight);
-                                                        addEdge(additionalNode, graph.node(outEdge.dst), outEdge.weight);
-                                                        queue[tmpR + 1].set(graph.node(outEdge.dst), [new Map([[additionalNode, outEdge.weight]]), 0, false]);
-                                                    }
-                                                });
-                                                otherNorthNode = newNode;
-                                                nextParents.set(node, otherEdgeWeight);
-                                                node = newNode;
-                                            } else {
-                                                // otherwise create virtual node above
-                                                newNode.initialRank = r;
-                                                addNode(r, pos, newNode, newNode.id);
-                                                // route edges from parents through new node to original node
-                                                parents.forEach((parentWeight: number, parentNode: OrderNode) => {
-                                                    removeEdge(parentNode, node);
-                                                    addEdge(parentNode, newNode, parentWeight);
-                                                });
-                                                addEdge(newNode, node, otherEdgeWeight);
-                                            }
+                                    if (!node.isVirtual || parents.size > 0) {
+                                        const newNode = new OrderNode(null, true, node.label() + "'");
+                                        this.addNode(newNode);
+                                        if (parents.size === 1 && parents.values().next().value === Number.POSITIVE_INFINITY && !parents.keys().next().value.isVirtual) {
+                                            // SPECIAL CASE:
+                                            // "other" edge is outgoing of a child graph
+                                            // => we may not move the last node of the child graph down
+                                            // instead we move it up again and insert the new virtual node below
+                                            removeNode(r + 1, nextPos, node);
+                                            addNode(r, pos, node, node.id);
+                                            newNode.initialRank = r + 1;
+                                            addNode(r + 1, nextPos, newNode, newNode.id);
+                                            Assert.assert(nonParentInEdges.length === 0, "special case does not look as assumed");
+                                            Assert.assert(node === otherNorthNode, "special case does not look as assumed");
+                                            addEdge(node, newNode, otherEdgeWeight);
+                                            // for each out edge add an extra virtual node
+                                            _.forEach(graph.outEdges(node.id), outEdge => {
+                                                if (outEdge.dst !== newNode.id) {
+                                                    removeEdge(node, graph.node(outEdge.dst));
+                                                    const additionalNode = new OrderNode(null, true, graph.node(outEdge.dst).label() + "'");
+                                                    this.addNode(additionalNode);
+                                                    addNode(r + 1, nextPos, additionalNode, additionalNode.id);
+                                                    addEdge(node, additionalNode, outEdge.weight);
+                                                    addEdge(additionalNode, graph.node(outEdge.dst), outEdge.weight);
+                                                    queue[tmpR + 1].set(graph.node(outEdge.dst), [new Map([[additionalNode, outEdge.weight]]), 0, false]);
+                                                }
+                                            });
+                                            otherNorthNode = newNode;
+                                            nextParents.set(node, otherEdgeWeight);
+                                            node = newNode;
+                                        } else {
+                                            // otherwise create virtual node above
+                                            newNode.initialRank = r;
+                                            addNode(r, pos, newNode, newNode.id);
+                                            // route edges from parents through new node to original node
+                                            parents.forEach((parentWeight: number, parentNode: OrderNode) => {
+                                                removeEdge(parentNode, node);
+                                                addEdge(parentNode, newNode, parentWeight);
+                                            });
+                                            addEdge(newNode, node, otherEdgeWeight);
                                             nextParents.set(newNode, otherEdgeWeight);
                                         }
                                     } else {
-                                        // node is virtual
-                                        console.log("node is virtual");
+                                        // node is virtual and parents are empty => "other south" displacement
                                         Assert.assert(nonParentInEdges.length === 0, "virtual node has non-parent in-edges");
                                         const outEdge = graph.outEdges(node.id)[0];
-                                        nextParents.set(node, outEdge.weight);
                                         if (node === otherNorthNode) {
                                             otherNorthNode = graph.node(outEdge.dst);
                                         }
@@ -786,6 +782,30 @@ export default class OrderGraph {
                                             queue[tmpR + 1] = new Map();
                                         }
                                         queue[tmpR + 1].set(node, [nextParents, downForce - 1, isNorth]);
+                                    }
+                                } else {
+                                    if (node.isVirtual) {
+                                        // node is virtual and down force is zero
+                                        Assert.assert(nonParentInEdges.length === 0, "virtual node has non-parent in-edges");
+                                        Assert.assert(parents.size === 1, "virtual node has not exactly one parent");
+                                        const outEdge = graph.outEdges(node.id)[0];
+                                        if (node === otherNorthNode) {
+                                            otherNorthNode = graph.node(outEdge.dst);
+                                        }
+                                        if (node === otherSouthNode) {
+                                            otherSouthNode = graph.node(outEdge.dst);
+                                        }
+                                        const nextNode = graph.node(outEdge.dst);
+                                        // remove node and out-edge
+                                        removeEdge(node, nextNode);
+                                        removeNode(r, pos, node);
+                                        graph.removeNode(node.id);
+                                        this.removeNode(node.id);
+                                        if (queue.length < tmpR + 2) {
+                                            queue[tmpR + 1] = new Map();
+                                        }
+                                        queue[tmpR + 1].set(nextNode, [new Map([[parents.keys().next().value, outEdge.weight]]), 0, false]);
+                                        addOutNeighbors = false;
                                     }
                                 }
                                 // for all in-neighbors that are not parents, create new node in place of current node

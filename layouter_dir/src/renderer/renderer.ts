@@ -84,7 +84,6 @@ export default class Renderer {
 
     show(layouter: Layouter, name: string) {
         Loader.load(name).then((graph) => {
-
             /*graph = new RenderGraph();
             const a = new AccessNode("AccessNode", "a");
             const b = new AccessNode("AccessNode", "b");

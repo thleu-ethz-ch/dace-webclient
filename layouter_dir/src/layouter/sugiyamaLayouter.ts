@@ -251,7 +251,6 @@ export default class SugiyamaLayouter extends Layouter
                         newLayoutNode.setLabel(orderNode.label());
                         newLayoutNode.rank = orderNode.rank;
                         const newNodeId = subgraph.addNode(newLayoutNode, null, true);
-                        console.log("new node", newNodeId, _.cloneDeep(subgraph));
                         component.addNode(newNodeId);
                         newOrderNodes.add(orderNode);
                         levelNode = component.levelGraph().addLayoutNode(newLayoutNode);
@@ -275,7 +274,6 @@ export default class SugiyamaLayouter extends Layouter
                     _.forEach(subgraph.parentNode.graph.bfs(subgraph.parentNode.id), (node: LayoutNode) => {
                         if (node !== subgraph.parentNode) {
                             if (diff > 0) {
-                                console.log("offset", node.label(), "by", diff);
                                 node.offsetRank(diff);
                             }
                         }
