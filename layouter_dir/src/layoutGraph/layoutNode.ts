@@ -133,11 +133,6 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
 
     offsetRank(offset: number) {
         this.rank += offset;
-        if (this.childGraph !== null) {
-            _.forEach(this.childGraph.nodes(), node => {
-                node.offsetRank(offset);
-            });
-        }
     }
 
     updateRank(newRank: number) {

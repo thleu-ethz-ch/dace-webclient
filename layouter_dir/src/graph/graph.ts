@@ -122,7 +122,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return _.filter(this.edges(), edge => edge.src === srcId && edge.dst === dstId);
     }
 
-    removeNode(id: number): void {
+    removeNode(id: number, keepComponents: boolean = false): void {
         this._nodes[id] = undefined;
         const index = _.sortedIndexOf(this._nodeIds, id);
         for (let i = index; i < this._numNodes - 1; ++i) {
@@ -130,7 +130,11 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
             this._nodesDense[i] = this._nodesDense[i + 1];
         }
         this._numNodes--;
-        this._components = null;
+        this._nodeIds.length = this._numNodes;
+        this._nodesDense.length = this._numNodes;
+        if (!keepComponents) {
+            this._components = null;
+        }
     }
 
     removeEdge(id: number, keepComponents: boolean = false): void {

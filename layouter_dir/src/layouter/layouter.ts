@@ -53,7 +53,9 @@ export default abstract class Layouter {
             this._placeConnectorsCenter(layoutGraph);
             this._matchEdgesToConnectors(layoutGraph);
         }*/
+
         this._copyLayoutInfo(layoutGraph, renderGraph);
+        Assert.assertAll(renderGraph.allEdges(), (edge: RenderEdge) => edge.points.length > 0, "edge has no points assigned");
 
         return layoutGraph;
     }

@@ -73,6 +73,13 @@ export default class Renderer {
         }
 
         this._viewport.drag().pinch().wheel().decelerate();
+
+        document.addEventListener("keydown", (e) => {
+            if (e.ctrlKey && e.key === "s") {
+                e.preventDefault();
+                this.savePng("screenshot.png");
+            }
+        });
     }
 
     show(layouter: Layouter, name: string) {
