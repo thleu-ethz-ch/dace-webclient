@@ -403,11 +403,6 @@ export default class SugiyamaLayouter extends Layouter
             });
         });
 
-        _.forEach(graph.allGraphs(), (subgraph: LayoutGraph) => {
-            if (subgraph.parentNode !== null && subgraph.parentNode.label() === "spmv_compute_nested")
-            console.log("subgraph", subgraph.minRank, subgraph.maxRank, _.min(_.map(subgraph.nodes(), node => node.rank)), _.max(_.map(subgraph.nodes(), node => node.rank + node.rankSpan - 1)), _.cloneDeep(subgraph));
-        });
-
         //this._addVirtualNodes(graph);
         Assert.assertNone(graph.allEdges(), edge => {
             const srcNode = edge.graph.node(edge.src)
@@ -431,21 +426,12 @@ export default class SugiyamaLayouter extends Layouter
         };
         makeRanksAbsolute(graph, 0);
 
-        _.forEach(graph.allGraphs(), (subgraph: LayoutGraph) => {
-            if (subgraph.parentNode !== null && subgraph.parentNode.label() === "spmv_compute_nested")
-
-                console.log("subgraph", subgraph.minRank, subgraph.maxRank, _.min(_.map(subgraph.nodes(), node => node.rank)), _.max(_.map(subgraph.nodes(), node => node.rank + node.rankSpan - 1)), subgraph);
-        });
-
-        //console.log("GLOBAL", graph.globalRanks());
-
         /**
          * STEP 2: ORDER CONNECTORS
          * In this step, scope insides and outsides are handled in the same order graph.
          * If there are nested scopes, they are flattened.
          */
 
-        console.log("graph.maxRank", graph.maxRank);
         const orderGraph = new OrderGraph;
         const orderRanks = [];
         for (let r = 0; r <= graph.maxRank; ++r) {
@@ -894,7 +880,7 @@ export default class SugiyamaLayouter extends Layouter
         _.forEach(component.levelGraph().nodes(), (node: LevelNode) => {
             let xs = _.sortBy(_.map(alignGraphs, alignGraph => alignGraph.node(node.id).x));
             let x = (xs[1] + xs[2]) / 2;
-            x = alignGraphs[0].node(node.id).x;
+            //x = alignGraphs[0].node(node.id).x;
             x -= node.layoutNode.width / 2;
             minX = Math.min(minX, x);
             node.layoutNode.setPosition(new Vector(offset + x, node.layoutNode.y));
@@ -1046,52 +1032,48 @@ export default class SugiyamaLayouter extends Layouter
         });
 
         // move blocks that are only connected on the right side as far right as possible
-        if (preference === "LEFT" && verticalDir === 1) {
-
-            _.forEach(levelGraph.edges(), edge => {
-                if (blockPerNode[edge.src] !== blockPerNode[edge.dst]) {
-                    auxBlockGraph.addEdge(new Edge(blockPerNode[edge.src], blockPerNode[edge.dst]));
-                }
-            });
-            _.forEach(auxBlockGraph.nodes(), block => {
-                const blockId = block.id;
-                //console.log("block", blockId, "inEdges", auxBlockGraph.inEdges(blockId).length);
-                if (auxBlockGraph.inEdges(blockId).length === 0) {
-                    const nodeX = levelGraph.node(nodesPerBlock[blockId][0]).x + blockWidths[blockId] / 2;
-                    let hasLeftEdge = false;
-                    let hasRightEdge = false;
-                    _.forEach(auxBlockGraph.outEdges(blockId), outEdge => {
+        _.forEach(levelGraph.edges(), edge => {
+            if (blockPerNode[edge.src] !== blockPerNode[edge.dst]) {
+                auxBlockGraph.addEdge(new Edge(blockPerNode[edge.src], blockPerNode[edge.dst]));
+            }
+        });
+        _.forEach(auxBlockGraph.nodes(), block => {
+            const blockId = block.id;
+            //console.log("block", blockId, "inEdges", auxBlockGraph.inEdges(blockId).length);
+            if (auxBlockGraph.inEdges(blockId).length === 0) {
+                const nodeX = levelGraph.node(nodesPerBlock[blockId][0]).x + blockWidths[blockId] / 2;
+                let hasLeftEdge = false;
+                let hasRightEdge = false;
+                _.forEach(auxBlockGraph.outEdges(blockId), outEdge => {
+                    const neighborX = levelGraph.node(nodesPerBlock[outEdge.dst][0]).x - blockWidths[outEdge.dst] / 2;
+                    if (nodeX < neighborX) {
+                        hasRightEdge = true;
+                    } else {
+                        hasLeftEdge = true;
+                    }
+                });
+                //console.log("hasLeftEdge", hasLeftEdge);
+                if (hasRightEdge && !hasLeftEdge) {
+                    // figure how much the block can be moved
+                    let minRightEdgeLength = Number.POSITIVE_INFINITY;
+                    _.forEach(blockGraph.outEdges(blockId), outEdge => {
                         const neighborX = levelGraph.node(nodesPerBlock[outEdge.dst][0]).x - blockWidths[outEdge.dst] / 2;
-                        if (nodeX < neighborX) {
-                            hasRightEdge = true;
-                        } else {
-                            hasLeftEdge = true;
+                        minRightEdgeLength = Math.min(minRightEdgeLength, neighborX - nodeX);
+                        if (levelGraph.node(nodesPerBlock[blockId][0]).label() === "Map with entry assign_47_4_map[__i0=W - 1, __i1=0:H]") {
+                            console.log("neighborX", neighborX, "nodeX", nodeX, "blockWidth", blockWidths[blockId], "neighborWidth", blockWidths[outEdge.dst]);
                         }
                     });
-                    //console.log("hasLeftEdge", hasLeftEdge);
-                    if (hasRightEdge && !hasLeftEdge) {
-                        // figure how much the block can be moved
-                        let minRightEdgeLength = Number.POSITIVE_INFINITY;
-                        _.forEach(blockGraph.outEdges(blockId), outEdge => {
-                            const neighborX = levelGraph.node(nodesPerBlock[outEdge.dst][0]).x - blockWidths[outEdge.dst] / 2;
-                            minRightEdgeLength = Math.min(minRightEdgeLength, neighborX - nodeX);
-                            if (levelGraph.node(nodesPerBlock[blockId][0]).label() === "Map with entry assign_47_4_map[__i0=W - 1, __i1=0:H]") {
-                                console.log("neighborX", neighborX, "nodeX", nodeX, "blockWidth", blockWidths[blockId], "neighborWidth", blockWidths[outEdge.dst]);
-                            }
+                    // move it
+                    if (minRightEdgeLength > this._options["targetEdgeLength"]) {
+                        console.log("move block with node", levelGraph.node(nodesPerBlock[blockId][0]).label())
+                        const offset = minRightEdgeLength - this._options["targetEdgeLength"];
+                        _.forEach(nodesPerBlock[blockId], nodeId => {
+                            levelGraph.node(nodeId).x += offset;
                         });
-                        // move it
-                        if (minRightEdgeLength > this._options["targetEdgeLength"]) {
-                            console.log("move block with node", levelGraph.node(nodesPerBlock[blockId][0]).label())
-                            const offset = minRightEdgeLength - this._options["targetEdgeLength"];
-                            _.forEach(nodesPerBlock[blockId], nodeId => {
-                                levelGraph.node(nodeId).x += offset;
-                            });
-                        }
                     }
                 }
-            });
-        }
-
+            }
+        });
     }
 
     private _restoreCycles(graph: LayoutGraph) {
