@@ -285,7 +285,7 @@ export default class Renderer {
                 y += groupNode.childPadding;
                 let groupHeight = 0;
                 _.forEach(group.nodes, nodeObj => {
-                    const node = new GenericNode("GenericNode", nodeObj.label || ""); // might use nodeObj.id.toString() instead of nodeObj.label
+                    const node = new GenericNode("GenericNode", nodeObj.id.toString() || ""); // might use nodeObj.id.toString() instead of nodeObj.label
                     groupGraph.addNode(node, parseInt(nodeObj.id));
                     nodeMap.set(node.id, node);
                     node.x = x;

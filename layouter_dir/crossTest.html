@@ -41,13 +41,13 @@
     <script src="./dist/layoutLib.js"></script>
     <script>
         window.addEventListener("load", function () {
-            /*const graphs = [];
+            const graphs = [];
             for (let g = 0; g < layoutLib.Bench.GRAPHS_ALL.length; ++g) {
                 if (layoutLib.Bench.GRAPHS_ALL[g] !== "bert") {
                     graphs.push(layoutLib.Bench.GRAPHS_ALL[g]);
                 }
-            }*/
-            const graphs = layoutLib.Bench.GRAPHS_ALL;
+            }
+            //const graphs = layoutLib.Bench.GRAPHS_ALL;
             const layouters = [new layoutLib.layouter.DagreLayouter(), new layoutLib.layouter.SugiyamaLayouter()];
 
             const table = document.getElementById("table");

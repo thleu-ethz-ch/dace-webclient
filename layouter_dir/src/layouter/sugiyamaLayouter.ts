@@ -234,7 +234,7 @@ export default class SugiyamaLayouter extends Layouter
                 if (subgraph.parentNode !== null && subgraph.parentNode.label() === "spmv_compute_nested") {
                     debug = true;
                 }
-                orderGraph.order(false, debug);
+                orderGraph.order(false, false, false);//subgraph.nodes().length === 851);
 
                 // copy node order into layout graph
                 const newOrderNodes: Set<OrderNode> = new Set();
@@ -563,7 +563,7 @@ export default class SugiyamaLayouter extends Layouter
         });
 
         // order connectors
-        orderGraph.order();
+        orderGraph.order(true);
 
         // copy order information from order graph to layout graph
         _.forEach(orderGraph.groups(), (orderGroup: OrderGroup) => {
@@ -1039,7 +1039,6 @@ export default class SugiyamaLayouter extends Layouter
         });
         _.forEach(auxBlockGraph.nodes(), block => {
             const blockId = block.id;
-            //console.log("block", blockId, "inEdges", auxBlockGraph.inEdges(blockId).length);
             if (auxBlockGraph.inEdges(blockId).length === 0) {
                 const nodeX = levelGraph.node(nodesPerBlock[blockId][0]).x + blockWidths[blockId] / 2;
                 let hasLeftEdge = false;
@@ -1052,20 +1051,15 @@ export default class SugiyamaLayouter extends Layouter
                         hasLeftEdge = true;
                     }
                 });
-                //console.log("hasLeftEdge", hasLeftEdge);
                 if (hasRightEdge && !hasLeftEdge) {
                     // figure how much the block can be moved
                     let minRightEdgeLength = Number.POSITIVE_INFINITY;
                     _.forEach(blockGraph.outEdges(blockId), outEdge => {
                         const neighborX = levelGraph.node(nodesPerBlock[outEdge.dst][0]).x - blockWidths[outEdge.dst] / 2;
                         minRightEdgeLength = Math.min(minRightEdgeLength, neighborX - nodeX);
-                        if (levelGraph.node(nodesPerBlock[blockId][0]).label() === "Map with entry assign_47_4_map[__i0=W - 1, __i1=0:H]") {
-                            console.log("neighborX", neighborX, "nodeX", nodeX, "blockWidth", blockWidths[blockId], "neighborWidth", blockWidths[outEdge.dst]);
-                        }
                     });
                     // move it
                     if (minRightEdgeLength > this._options["targetEdgeLength"]) {
-                        console.log("move block with node", levelGraph.node(nodesPerBlock[blockId][0]).label())
                         const offset = minRightEdgeLength - this._options["targetEdgeLength"];
                         _.forEach(nodesPerBlock[blockId], nodeId => {
                             levelGraph.node(nodeId).x += offset;
