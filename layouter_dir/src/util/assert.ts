@@ -17,8 +17,8 @@ export default class Assert
         Assert.assert(predicate, message, input);
     }
 
-    static assertImplies(premise: boolean, implication: boolean, message) {
-        Assert.assert(!premise || implication, message);
+    static assertImplies(premise: boolean, implication: boolean, message: string, ...objects: Array<object>) {
+        Assert.assert(!premise || implication, message, ...objects);
     }
 
     static assertEqual(objectA: any, objectB: any, message: string) {

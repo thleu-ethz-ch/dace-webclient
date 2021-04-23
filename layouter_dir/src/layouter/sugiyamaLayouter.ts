@@ -234,7 +234,7 @@ export default class SugiyamaLayouter extends Layouter
                 if (subgraph.parentNode !== null && subgraph.parentNode.label() === "spmv_compute_nested") {
                     debug = true;
                 }
-                orderGraph.order(false, true);
+                orderGraph.order(false, debug);
 
                 // copy node order into layout graph
                 const newOrderNodes: Set<OrderNode> = new Set();
@@ -243,7 +243,7 @@ export default class SugiyamaLayouter extends Layouter
                     unfoundLevelNodes.add(node);
                 });
                 _.forEach(orderGraph.nodes(), (orderNode: OrderNode) => {
-                    Assert.assertNumber(orderNode.position, "position is not a valid number");
+                    Assert.assertNumber(orderNode.position, "position of node " + orderNode.label() + " is not a valid number");
                     let levelNode: LevelNode = orderNode.reference;
                     if (levelNode === null) {
                         // virtual node was created by orderGraph.order() => add this node to layout graph
@@ -437,7 +437,7 @@ export default class SugiyamaLayouter extends Layouter
                 console.log("subgraph", subgraph.minRank, subgraph.maxRank, _.min(_.map(subgraph.nodes(), node => node.rank)), _.max(_.map(subgraph.nodes(), node => node.rank + node.rankSpan - 1)), subgraph);
         });
 
-        console.log("GLOBAL", graph.globalRanks());
+        //console.log("GLOBAL", graph.globalRanks());
 
         /**
          * STEP 2: ORDER CONNECTORS
@@ -894,7 +894,7 @@ export default class SugiyamaLayouter extends Layouter
         _.forEach(component.levelGraph().nodes(), (node: LevelNode) => {
             let xs = _.sortBy(_.map(alignGraphs, alignGraph => alignGraph.node(node.id).x));
             let x = (xs[1] + xs[2]) / 2;
-            //x = alignGraphs[0].node(node.id).x;
+            x = alignGraphs[0].node(node.id).x;
             x -= node.layoutNode.width / 2;
             minX = Math.min(minX, x);
             node.layoutNode.setPosition(new Vector(offset + x, node.layoutNode.y));
@@ -919,14 +919,18 @@ export default class SugiyamaLayouter extends Layouter
         const neighborEdgeInAttr = (neighbors === "UP" ? "dst" : "src");
 
         const blockPerNode = new Array(levelGraph.maxId() + 1);
+        const nodesPerBlock = new Array(levelGraph.maxId() + 1);
         const blockWidths = new Array(levelGraph.maxId() + 1);
         const blockGraph = new RankGraph();
+        const auxBlockGraph = new Graph();
 
         const r = firstRank - verticalDir;
         let blockId = 0;
         for (let n = 0; n < ranks[r].length; ++n) {
             blockGraph.addNode(new RankNode(blockId.toString()));
+            auxBlockGraph.addNode(new Node(blockId.toString()), blockId);
             blockPerNode[ranks[r][n].id] = blockId;
+            nodesPerBlock[blockId] = [ranks[r][n].id];
             blockWidths[blockId] = ranks[r][n].layoutNode.width;
             blockId++;
         }
@@ -951,26 +955,47 @@ export default class SugiyamaLayouter extends Layouter
             });
 
             // mark segments that cross a heavy segment as non-usable
-            let heavyRightMaxPos = -1;
-            let heavyLeftMaxPos = -1;
-            let northPointer = 0;
-            const neighborN = ranks[r - verticalDir].length;
-            for (let n = 0; n < ranks[r].length; ++n) {
-                while (northPointer < n && northPointer < neighborN) {
-                    _.forEach(levelGraph[neighborOutMethod](ranks[r - verticalDir][northPointer++].id), edge => {
-                        if (edge.weight === Number.POSITIVE_INFINITY) {
-                            heavyRightMaxPos = Math.max(heavyRightMaxPos, levelGraph.node(edge[neighborEdgeInAttr]).position);
-                        }
-                    });
-                }
-                _.forEach(neighbors[n], (neighborPos: number, neighborIndex: number) => {
-                    neighborsUsable[n][neighborIndex] = (n >= heavyRightMaxPos && neighborPos >= heavyLeftMaxPos);
-                });
-                _.forEach(levelGraph[neighborInMethod](ranks[r][n].id), edge => {
-                    if (edge.weight === Number.POSITIVE_INFINITY) {
-                        heavyLeftMaxPos = Math.max(heavyLeftMaxPos, levelGraph.node(edge[neighborEdgeOutAttr]).position);
+
+            let heavyLeft = -1;
+            let n = 0;
+            for (let tmpN = 0; tmpN < ranks[r].length; ++tmpN) {
+                if (tmpN === ranks[r].length - 1 || _.filter(levelGraph[neighborInMethod](ranks[r][tmpN].id), edge => edge.weight === Number.POSITIVE_INFINITY).length > 0) {
+                    let heavyRight = ranks[r - verticalDir].length + 1;
+                    if (_.filter(levelGraph[neighborInMethod](ranks[r][tmpN].id), edge => edge.weight === Number.POSITIVE_INFINITY).length > 0) {
+                        heavyRight = neighbors[tmpN][0];
                     }
+                    while (n <= tmpN) {
+                        _.forEach(neighbors[n], (neighborPos: number, neighborIndex: number) => {
+                            neighborsUsable[n][neighborIndex] = neighborPos >= heavyLeft && neighborPos <= heavyRight;
+                        });
+                        n++;
+                    }
+                    heavyLeft = heavyRight;
+                }
+            }
+
+            // the following is all for assertion
+            Assert.assertAll(neighbors, (nodeNeighbors, n) => neighborsUsable[n].length === nodeNeighbors.length, "neighborsUsable[n] has not the same length as neighbors[n]");
+            const segments = [];
+            for (let n = 0; n < ranks[r].length; ++n) {
+                _.forEach(levelGraph[neighborInMethod](ranks[r][n].id), edge => {
+                    const segment: [number, number, boolean] = [
+                        levelGraph.node(edge[neighborEdgeOutAttr]).position,
+                        n,
+                        edge.weight === Number.POSITIVE_INFINITY
+                    ];
+                    segments.push(segment);
+                    Assert.assertImplies(segment[2], neighborsUsable[segment[1]][_.indexOf(neighbors[segment[1]], segment[0])], "heavy segment is not usable");
                 });
+            }
+            for (let i = 0; i < segments.length; ++i) {
+                for (let j = i + 1; j < segments.length; ++j) {
+                    if ((segments[i][0] < segments[j][0]) !== (segments[i][1] < segments[j][1])) {
+                        Assert.assert(!segments[i][2] || !segments[j][2], "heavy-heavy crossing");
+                        Assert.assertImplies(segments[i][2], !neighborsUsable[segments[j][1]][_.indexOf(neighbors[segments[j][1]], segments[j][0])], "heavy-light crossing", segments[i], segments[j]);
+                        Assert.assertImplies(segments[j][2], !neighborsUsable[segments[i][1]][_.indexOf(neighbors[segments[i][1]], segments[i][0])], "heavy-light crossing", segments[i], segments[j], neighbors[segments[i][1]], neighborsUsable[segments[i][1]]);
+                    }
+                }
             }
 
             let maxNeighborTaken = (preference === "LEFT" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
@@ -996,12 +1021,15 @@ export default class SugiyamaLayouter extends Layouter
                 }
                 if (neighbor === null) {
                     blockGraph.addNode(new RankNode(blockId.toString()));
+                    auxBlockGraph.addNode(new Node(blockId.toString()), blockId);
                     blockPerNode[ranks[r][n].id] = blockId;
+                    nodesPerBlock[blockId] = [ranks[r][n].id];
                     blockWidths[blockId] = ranks[r][n].layoutNode.width;
                     blockId++;
                 } else {
                     const blockId = blockPerNode[neighbor.id];
                     blockPerNode[ranks[r][n].id] = blockId;
+                    nodesPerBlock[blockId].push(ranks[r][n].id);
                     blockWidths[blockId] = Math.max(blockWidths[blockId], ranks[r][n].layoutNode.width);
                 }
             }
@@ -1016,6 +1044,54 @@ export default class SugiyamaLayouter extends Layouter
         _.forEach(levelGraph.nodes(), (node: LevelNode) => {
             node.x = blockGraph.node(blockPerNode[node.id]).rank;
         });
+
+        // move blocks that are only connected on the right side as far right as possible
+        if (preference === "LEFT" && verticalDir === 1) {
+
+            _.forEach(levelGraph.edges(), edge => {
+                if (blockPerNode[edge.src] !== blockPerNode[edge.dst]) {
+                    auxBlockGraph.addEdge(new Edge(blockPerNode[edge.src], blockPerNode[edge.dst]));
+                }
+            });
+            _.forEach(auxBlockGraph.nodes(), block => {
+                const blockId = block.id;
+                //console.log("block", blockId, "inEdges", auxBlockGraph.inEdges(blockId).length);
+                if (auxBlockGraph.inEdges(blockId).length === 0) {
+                    const nodeX = levelGraph.node(nodesPerBlock[blockId][0]).x + blockWidths[blockId] / 2;
+                    let hasLeftEdge = false;
+                    let hasRightEdge = false;
+                    _.forEach(auxBlockGraph.outEdges(blockId), outEdge => {
+                        const neighborX = levelGraph.node(nodesPerBlock[outEdge.dst][0]).x - blockWidths[outEdge.dst] / 2;
+                        if (nodeX < neighborX) {
+                            hasRightEdge = true;
+                        } else {
+                            hasLeftEdge = true;
+                        }
+                    });
+                    //console.log("hasLeftEdge", hasLeftEdge);
+                    if (hasRightEdge && !hasLeftEdge) {
+                        // figure how much the block can be moved
+                        let minRightEdgeLength = Number.POSITIVE_INFINITY;
+                        _.forEach(blockGraph.outEdges(blockId), outEdge => {
+                            const neighborX = levelGraph.node(nodesPerBlock[outEdge.dst][0]).x - blockWidths[outEdge.dst] / 2;
+                            minRightEdgeLength = Math.min(minRightEdgeLength, neighborX - nodeX);
+                            if (levelGraph.node(nodesPerBlock[blockId][0]).label() === "Map with entry assign_47_4_map[__i0=W - 1, __i1=0:H]") {
+                                console.log("neighborX", neighborX, "nodeX", nodeX, "blockWidth", blockWidths[blockId], "neighborWidth", blockWidths[outEdge.dst]);
+                            }
+                        });
+                        // move it
+                        if (minRightEdgeLength > this._options["targetEdgeLength"]) {
+                            console.log("move block with node", levelGraph.node(nodesPerBlock[blockId][0]).label())
+                            const offset = minRightEdgeLength - this._options["targetEdgeLength"];
+                            _.forEach(nodesPerBlock[blockId], nodeId => {
+                                levelGraph.node(nodeId).x += offset;
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
     }
 
     private _restoreCycles(graph: LayoutGraph) {
@@ -1161,7 +1237,6 @@ export default class SugiyamaLayouter extends Layouter
                 } else {
                     openSegments.forEach((otherSegmentId) => {
                         if (this._segments[segmentId].end.x !== this._segments[otherSegmentId].end.x) {
-                            console.log("CROSSING");
                             this._crossingsPerRank[r].push([Math.min(segmentId, otherSegmentId), Math.max(segmentId, otherSegmentId)]);
                         }
                     });

@@ -221,6 +221,22 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return _.map(this._inEdges[id], edgeId => this.edge(edgeId));
     }
 
+    incidentEdges(id: number): Array<EdgeT> {
+        return _.uniq(_.concat(this.inEdges(id), this.outEdges(id)));
+    }
+
+    inNeighbors(id: number): Array<NodeT> {
+        return _.map(this.inEdges(id), inEdge => this._nodes[inEdge.src]);
+    }
+
+    outNeighbors(id: number): Array<NodeT> {
+        return _.map(this.outEdges(id), outEdge => this._nodes[outEdge.dst]);
+    }
+
+    neighbors(id: number): Array<NodeT> {
+        return _.uniq(_.concat(this.inNeighbors(id), this.outNeighbors(id)));
+    }
+
     clear() {
         this._init();
     }

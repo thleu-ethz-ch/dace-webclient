@@ -170,29 +170,41 @@ export default class Renderer {
         });
     }
 
-    drawSimpleGraph(nodes, heavyEdges, lightEdges) {
-        const GRID = 20;
-        const NODE = 5;
-        _.forEach(nodes, node => {
-            const circle = new PIXI.Graphics();
-            circle.beginFill(0);
-            circle.drawCircle(GRID * node[0], GRID * node[1], NODE / 2);
-            circle.endFill();
-            this._container.addChild(circle);
+    drawSimpleGraph(nodes, heavyEdges, lightEdges, dashedLines = []) {
+        const GRID = 40;
+        const NODE = 12;
+        _.forEach(dashedLines, line => {
+            const y = GRID * line[0];
+            const x0 = GRID * line[1];
+            const x1 = GRID * line[2];
+            for (let x = x0; x < x1; x += 3) {
+                const circle = new PIXI.Graphics();
+                circle.beginFill(0x999999);
+                circle.drawCircle(x, y, 1);
+                circle.endFill();
+                this._container.addChild(circle);
+            }
         });
         _.forEach(heavyEdges, edge => {
             const line = new PIXI.Graphics();
-            line.lineStyle(2);
+            line.lineStyle(3, edge[2] || 0);
             line.moveTo(GRID * edge[0][0], GRID * edge[0][1]);
             line.lineTo(GRID * edge[1][0], GRID * edge[1][1]);
             this._container.addChild(line);
         });
         _.forEach(lightEdges, edge => {
             const line = new PIXI.Graphics();
-            line.lineStyle(1);
+            line.lineStyle(1, edge[2] || 0);
             line.moveTo(GRID * edge[0][0], GRID * edge[0][1]);
             line.lineTo(GRID * edge[1][0], GRID * edge[1][1]);
             this._container.addChild(line);
+        });
+        _.forEach(nodes, node => {
+            const circle = new PIXI.Graphics();
+            circle.beginFill(node[2] || 0);
+            circle.drawCircle(GRID * node[0], GRID * node[1], NODE / 2);
+            circle.endFill();
+            this._container.addChild(circle);
         });
     }
 
@@ -331,10 +343,9 @@ export default class Renderer {
     render(graph: RenderGraph, view: any = "auto") {
         this._container.removeChildren();
 
-        const box = graph.boundingBox();
-
         if (view !== null) {
             if (view === "auto") {
+                const box = graph.boundingBox();
                 this._viewport.moveCenter((box.width - this._viewport.width) / 2, (box.height - this._viewport.width) / 2);
                 this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);
             } else {

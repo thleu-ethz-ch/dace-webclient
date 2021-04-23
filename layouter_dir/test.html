@@ -34,7 +34,6 @@
             const renderer = new renderLib.Renderer(document.body, document.getElementById("coordinateBox"));
             const graph = (new URLSearchParams(window.location.search)).get('graph') || "symm";
             renderer.show(layouter, graph);
-            //setTimeout(() => renderer.savePng("test.png"), 1000);
         });
     </script>
 </head>
