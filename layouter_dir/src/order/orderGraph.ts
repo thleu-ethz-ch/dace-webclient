@@ -267,7 +267,7 @@ export default class OrderGraph {
              * @param countInitial
              * @param shuffle
              */
-            const reorder = (countInitial: boolean = false, shuffle: boolean = false) => {
+            const reorder = (withInfinity: boolean = false, shuffle: boolean = false) => {
                 Timer.start("reorder");
 
                 if (shuffle) {
@@ -280,13 +280,6 @@ export default class OrderGraph {
                             });
                         });
                     });
-                }
-
-                // count initial crossings
-                if (countInitial) {
-                    for (let r = 1; r < ranks.length; ++r) {
-                        crossings[r] = countCrossings(order[r], r, "UP");
-                    }
                 }
 
                 let improveCounter = (!doNothing && (ranks.length > 1)) ? 2 : 0; // if only one rank, nothing to order
@@ -622,12 +615,28 @@ export default class OrderGraph {
 
                     const resolveHeavyHeavy = () => {
                         console.log("resolveHeavyHeavy");
-                        _.pull(order[r], crossingSouthN);
-                        order[r].splice(crossedSouthPos, 0, crossingSouthN);
+                        const tmpOrderA = _.cloneDeep(order[r]);
+                        _.pull(tmpOrderA, crossingSouthN);
+                        tmpOrderA.splice(crossedSouthPos, 0, crossingSouthN);
+                        const tmpOrderB = _.cloneDeep(order[r]);
+                        _.pull(tmpOrderB, crossedSouthN);
+                        tmpOrderB.splice(crossingSouthPos, 0, crossedSouthN);
+                        let crossingsA = countCrossings(tmpOrderA, r, "UP", true);
+                        let crossingsB = countCrossings(tmpOrderB, r, "UP", true);
+                        if (r < ranks.length - 1) {
+                            crossingsA += countCrossings(tmpOrderA, r, "DOWN", true);
+                            crossingsB += countCrossings(tmpOrderB, r, "DOWN", true);
+                        }
+                        if (crossingsA < crossingsB) {
+                            order[r] = tmpOrderA;
+                        } else {
+                            order[r] = tmpOrderB;
+                        }
                         // update positions
                         _.forEach(order[r], (n, pos) => {
                             positions[r][n] = pos;
                         });
+                        // update number of crossings
                         for (let tmpR = r; tmpR <= Math.min(r + 1, ranks.length - 1); ++tmpR) {
                             crossings[tmpR] = countCrossings(order[tmpR], tmpR, "UP", true);
                         }
@@ -1114,6 +1123,7 @@ export default class OrderGraph {
 
             if (!hasGroups) {
                 resolveConflicts();
+                reorder(true);
             }
             _.forEach(ranks, (rank: OrderRank, r: number) => {
                 _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {

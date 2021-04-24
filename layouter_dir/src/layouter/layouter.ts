@@ -23,7 +23,7 @@ export default abstract class Layouter {
             bundle: false,
             maximizeAngles: true,
             alignInAndOut: false,
-            shuffles: 4,
+            shuffles: 16,
             weightBends: 0.2,
             weightCrossings: 1,
             weightLenghts: 0.1,
