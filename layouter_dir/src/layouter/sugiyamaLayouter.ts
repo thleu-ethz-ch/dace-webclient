@@ -234,7 +234,7 @@ export default class SugiyamaLayouter extends Layouter
                 if (subgraph.parentNode !== null && subgraph.parentNode.label() === "spmv_compute_nested") {
                     debug = true;
                 }
-                orderGraph.order(false, false, false);//subgraph.nodes().length === 851);
+                orderGraph.order(false, this._options["shuffles"], false, false);//subgraph.nodes().length === 851);
 
                 // copy node order into layout graph
                 const newOrderNodes: Set<OrderNode> = new Set();
@@ -563,7 +563,7 @@ export default class SugiyamaLayouter extends Layouter
         });
 
         // order connectors
-        orderGraph.order(true);
+        orderGraph.order(true, this._options["shuffles"]);
 
         // copy order information from order graph to layout graph
         _.forEach(orderGraph.groups(), (orderGroup: OrderGroup) => {
@@ -961,7 +961,7 @@ export default class SugiyamaLayouter extends Layouter
             }
 
             // the following is all for assertion
-            Assert.assertAll(neighbors, (nodeNeighbors, n) => neighborsUsable[n].length === nodeNeighbors.length, "neighborsUsable[n] has not the same length as neighbors[n]");
+            /*Assert.assertAll(neighbors, (nodeNeighbors, n) => neighborsUsable[n].length === nodeNeighbors.length, "neighborsUsable[n] has not the same length as neighbors[n]");
             const segments = [];
             for (let n = 0; n < ranks[r].length; ++n) {
                 _.forEach(levelGraph[neighborInMethod](ranks[r][n].id), edge => {
@@ -971,7 +971,7 @@ export default class SugiyamaLayouter extends Layouter
                         edge.weight === Number.POSITIVE_INFINITY
                     ];
                     segments.push(segment);
-                    Assert.assertImplies(segment[2], neighborsUsable[segment[1]][_.indexOf(neighbors[segment[1]], segment[0])], "heavy segment is not usable");
+                    //Assert.assertImplies(segment[2], neighborsUsable[segment[1]][_.indexOf(neighbors[segment[1]], segment[0])], "heavy segment is not usable");
                 });
             }
             for (let i = 0; i < segments.length; ++i) {
@@ -982,7 +982,7 @@ export default class SugiyamaLayouter extends Layouter
                         Assert.assertImplies(segments[j][2], !neighborsUsable[segments[i][1]][_.indexOf(neighbors[segments[i][1]], segments[i][0])], "heavy-light crossing", segments[i], segments[j], neighbors[segments[i][1]], neighborsUsable[segments[i][1]]);
                     }
                 }
-            }
+            }*/
 
             let maxNeighborTaken = (preference === "LEFT" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
             const compare = (preference === "LEFT" ? ((a, b) => a < b) : ((a, b) => a > b));

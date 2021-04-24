@@ -7,6 +7,7 @@ import OrderGroup from "./orderGroup";
 import OrderNode from "./orderNode";
 import OrderRank from "./orderRank";
 import Timer from "../util/timer";
+import Shuffle from "../util/shuffle";
 
 export default class OrderGraph {
     private _rankGraph: Graph<OrderRank, Edge<any, any>>;
@@ -157,8 +158,8 @@ export default class OrderGraph {
         return this._groupGraph.edges();
     }
 
-    public order(hasGroups: boolean, doNothing: boolean = false, debug: boolean = false): void {
-        const doOrder = (graph: OrderGraph, downward: boolean = true) => {
+    public order(hasGroups: boolean, shuffles: number = 0, doNothing: boolean = false, debug: boolean = false): void {
+        const doOrder = (graph: OrderGraph, shuffles: number = 0, downward: boolean = true) => {
             Timer.start("doOrder")
             const ranks = graph._rankGraph.toposort();
             const groupOffsets = []; // number of nodes in groups left of this group by group id
@@ -264,9 +265,23 @@ export default class OrderGraph {
             /**
              * Sweeps the ranks up and down and reorders the nodes according to the barycenter heuristic
              * @param countInitial
+             * @param shuffle
              */
-            const reorder = (countInitial: boolean = false) => {
+            const reorder = (countInitial: boolean = false, shuffle: boolean = false) => {
                 Timer.start("reorder");
+
+                if (shuffle) {
+                    _.forEach(ranks, (rank: OrderRank, r: number) => {
+                        _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {
+                            const groupOrder = Shuffle.shuffle(_.slice(order[r], groupOffset[r][g], groupOffset[r][g] + numNodesGroup[r][g]));
+                            _.forEach(groupOrder, (n, pos) => {
+                                order[r][groupOffset[r][g] + pos] = n;
+                                positions[r][n] = groupOffset[r][g] + pos;
+                            });
+                        });
+                    });
+                }
+
                 // count initial crossings
                 if (countInitial) {
                     for (let r = 1; r < ranks.length; ++r) {
@@ -584,6 +599,11 @@ export default class OrderGraph {
              * Tries to resolve illegal crossings, i. e. crossings of edges with infinite weight.
              */
             const resolveConflicts = () => {
+                //return;
+                /*for (let r = 1; r < ranks.length; ++r) {
+                    crossings[r] = countCrossings(order[r], r, "UP", false);
+                }
+                console.log("crossings", _.sum(crossings));*/
                 Timer.start("resolve");
                 const resolveConflict = (conflict) => {
                     const [r, crossedNorthPos, crossedSouthPos, crossingNorthPos, crossingSouthPos] = conflict;
@@ -1057,10 +1077,41 @@ export default class OrderGraph {
                     }
                 }
 
+                /*for (let r = 1; r < ranks.length; ++r) {
+                    crossings[r] = countCrossings(order[r], r, "UP", false);
+                }
+                console.log("crossings", _.sum(crossings));*/
+
                 Timer.stop("resolve")
             }
 
             reorder(false);
+            if (shuffles > 0) {
+                let numCrossings = _.sum(crossings);
+                let minCrossings = numCrossings;
+                let bestOrder = _.cloneDeep(order);
+                for (let i = 0; i < shuffles; ++i) {
+                    for (let r = 1; r < ranks.length; ++r) {
+                        crossings[r] = Number.POSITIVE_INFINITY;
+                    }
+                    reorder(false, true);
+                    numCrossings = _.sum(crossings);
+                    if (numCrossings < minCrossings) {
+                        minCrossings = numCrossings;
+                        bestOrder = _.cloneDeep(order);
+                    }
+                }
+                if (numCrossings !== minCrossings) {
+                    order = _.cloneDeep(bestOrder);
+                    for (let r = 0; r < ranks.length; ++r) {
+                        _.forEach(bestOrder[r], (n, pos) => {
+                            order[r][pos] = n;
+                            positions[r][n] = pos;
+                        });
+                    }
+                }
+            }
+
             if (!hasGroups) {
                 resolveConflicts();
             }
@@ -1112,7 +1163,7 @@ export default class OrderGraph {
                 return;
             }
 
-            doOrder(componentGraph);
+            doOrder(componentGraph, shuffles);
         });
     }
 

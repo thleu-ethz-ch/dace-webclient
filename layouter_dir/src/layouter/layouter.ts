@@ -1,4 +1,5 @@
 import * as _ from "lodash";
+import * as seedrandom from "seedrandom";
 import Assert from "../util/assert";
 import LayoutConnector from "../layoutGraph/layoutConnector";
 import LayoutEdge from "../layoutGraph/layoutEdge";
@@ -8,8 +9,6 @@ import RenderConnector from "../renderGraph/renderConnector";
 import RenderEdge from "../renderGraph/renderEdge";
 import RenderGraph from "../renderGraph/renderGraph";
 import RenderNode from "../renderGraph/renderNode";
-import Segment from "../geometry/segment";
-import Vector from "../geometry/vector";
 import LayoutBundle from "../layoutGraph/layoutBundle";
 
 export default abstract class Layouter {
@@ -24,6 +23,7 @@ export default abstract class Layouter {
             bundle: false,
             maximizeAngles: true,
             alignInAndOut: false,
+            shuffles: 4,
             weightBends: 0.2,
             weightCrossings: 1,
             weightLenghts: 0.1,
@@ -46,7 +46,11 @@ export default abstract class Layouter {
             this._createBundles(layoutGraph);
         }
 
+        const tmpRandom = Math.random;
+        seedrandom("I am the seed string.", {global: true});
         this.doLayout(layoutGraph);
+        Math.random = tmpRandom;
+
         /*if (this._options['minimizeConnectorCrossings']) {
             this._placeConnectorsHeuristically(renderGraph);
         } else {
