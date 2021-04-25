@@ -41,14 +41,14 @@
     <script src="./dist/layoutLib.js"></script>
     <script>
         window.addEventListener("load", function () {
-            const graphs = [];
+            let graphs = [];
             for (let g = 0; g < layoutLib.Bench.GRAPHS_ALL.length; ++g) {
                 if (layoutLib.Bench.GRAPHS_ALL[g] !== "bert") {
                     graphs.push(layoutLib.Bench.GRAPHS_ALL[g]);
                 }
             }
-            //const graphs = layoutLib.Bench.GRAPHS_ALL;
-            const layouters = [new layoutLib.layouter.DagreLayouter(), new layoutLib.layouter.SugiyamaLayouter()];
+            graphs = layoutLib.Bench.GRAPHS_ALL;
+            const layouters = [/*new layoutLib.layouter.DagreLayouter(), */new layoutLib.layouter.SugiyamaLayouter()];
 
             const table = document.getElementById("table");
             const tableRows = document.getElementsByTagName("tr");
@@ -60,17 +60,16 @@
             tableRows[0].innerHTML += "<td><b>mean</b></td>";
             tableRows[1].innerHTML += "<td></td>";
             tableRows[2].innerHTML += "<td></td>";
-            for (let l = 0; l < 2; ++l) {
-                layoutLib.Bench.crossings(layoutLib.Loader.load, layouters[l], graphs).then((crossings) => {
+            for (let l = 0; l < layouters.length; ++l) {
+                layoutLib.Bench.crossings(layoutLib.Loader.load, layouters[l], graphs).then((result) => {
                     let sum = 0;
                     for (let g = 0; g < graphs.length; ++g) {
-                        tableRows[l + 1].childNodes[g + 1].innerHTML = crossings[g];
-                        sum += crossings[g];
+                        tableRows[l + 1].childNodes[g + 1].innerHTML = result[g].toFixed(0);
+                        sum += result[g];
                     }
                     tableRows[l + 1].childNodes[graphs.length + 1].innerHTML = (sum / graphs.length).toFixed(0);
                 });
             }
-
         });
     </script>
 </head>

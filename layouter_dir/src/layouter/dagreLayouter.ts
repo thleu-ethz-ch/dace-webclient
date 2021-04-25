@@ -32,14 +32,6 @@ export default class DagreLayouter extends RecursiveLayouter {
                 _.assign(edgeOptions, edge.labelSize);
             }
             let edgeId: any = edge.id;
-            if (edge.bundle !== null) {
-                const connector = edge.srcConnector || edge.dstConnector;
-                if (edge.bundle.connectors[0] !== connector) {
-                    return; // only add the edge with the first connector
-                }
-                edgeOptions.weight = edge.bundle.weight;
-                edgeId = edge.src + "_" + edge.dst;
-            }
             dagreGraph.setEdge(edge.src, edge.dst, edgeOptions, edgeId);
         });
 
@@ -54,20 +46,7 @@ export default class DagreLayouter extends RecursiveLayouter {
         });
         _.forEach(graph.edges(), (edge: LayoutEdge) => {
             let edgeId: any = edge.id;
-            if (edge.bundle !== null) {
-                edgeId = edge.src + "_" + edge.dst;
-            }
             const dagreEdge = dagreGraph.edge(edge.src, edge.dst, edgeId);
-
-            // commented out: duplicate points to prevent curved edges
-            /*if (dagreEdge.weight > 1) {
-                if (edge.srcConnector === null) {
-                    const penultimate = edge.points.length - 2;
-                    edge.points.splice(penultimate, 0, _.clone(edge.points[penultimate]));
-                } else {
-                    edge.points.splice(1, 0, _.clone(edge.points[1]));
-                }
-            }*/
 
             edge.points = _.cloneDeep(dagreEdge.points);
             if (this._options['withLabels']) {

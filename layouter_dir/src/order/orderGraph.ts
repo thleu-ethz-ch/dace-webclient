@@ -318,9 +318,10 @@ export default class OrderGraph {
                             continue;
                         }
 
+                        const sameMeanGroups = [];
                         for (let g = 0; g < numNodesGroup[r].length; ++g) {
                             // calculate mean position of neighbors
-                            const nodeMeans = [];
+                            let nodeMeans = [];
                             for (let pos = groupOffset[r][g]; pos < groupOffset[r][g] + numNodesGroup[r][g]; ++pos) {
                                 let sum = 0;
                                 for (let neighbor = 0; neighbor < neighborsNorth[r][pos].length; ++neighbor) {
@@ -338,9 +339,27 @@ export default class OrderGraph {
                             }
 
                             // sort by the means
-                            const newGroupOrder = _.map(_.sortBy(nodeMeans, pair => pair[1]), pair => pair[0]);
-                            for (let n = 0; n < numNodesGroup[r][g]; ++n) {
-                                newOrder[groupOffset[r][g] + n] = newGroupOrder[n];
+                            nodeMeans = _.sortBy(nodeMeans, pair => pair[1]);
+                            // find groups with same mean
+                            let prevMean = -1;
+                            let group = [];
+                            _.forEach(nodeMeans, ([n, mean], pos) => {
+                                if (mean === prevMean) {
+                                    group.push(groupOffset[r][g] + pos);
+                                } else {
+                                    if (group.length >= 2) {
+                                        sameMeanGroups.push(_.clone(group));
+                                    }
+                                    group = [groupOffset[r][g] + pos];
+                                }
+                                prevMean = mean;
+                            });
+                            if (group.length >= 2) {
+                                sameMeanGroups.push(_.clone(group));
+                            }
+                            const newGroupOrder = _.map(nodeMeans, pair => pair[0]);
+                            for (let pos = 0; pos < numNodesGroup[r][g]; ++pos) {
+                                newOrder[groupOffset[r][g] + pos] = newGroupOrder[pos];
                             }
                         }
                         const changes = [];
@@ -373,6 +392,43 @@ export default class OrderGraph {
                         if (seqStart !== null) {
                             changes.push([seqStart, permutation.length - 1]);
                         }
+                        const tryNewOrder = (newOrder) => {
+                            if (debug) {
+                                console.log("try new order", _.map(newOrder, n => ranks[r].groups[0].nodes[n].id));
+                            }
+                            // count crossings with new order
+                            const prevCrossingsNorth = crossings[r + crossingOffsetNorth];
+                            const newCrossingsNorth = countCrossings(newOrder, r, northDirection);
+
+                            let newCrossingsSouth = 0;
+                            let prevCrossingsSouth = 0;
+                            if (r !== lastRank) {
+                                prevCrossingsSouth = crossings[r + crossingOffsetSouth];
+                                newCrossingsSouth = countCrossings(newOrder, r, southDirection);
+                            }
+                            const fewerCrossingsNorth = newCrossingsNorth < prevCrossingsNorth;
+                            const fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth <= prevCrossingsNorth + prevCrossingsSouth);
+                            if (fewerCrossingsNorth && fewerOrEqualCrossingsTotal) {
+                                if (debug) {
+                                    console.log("fewer crossings north", prevCrossingsNorth, "->", newCrossingsNorth,  "south: ", prevCrossingsSouth, "->", newCrossingsSouth);
+                                }
+                                crossings[r + crossingOffsetNorth] = newCrossingsNorth;
+                                if (r !== lastRank) {
+                                    crossings[r + crossingOffsetSouth] = newCrossingsSouth;
+                                }
+                                order[r] = newOrder;
+                                for (let pos = 0; pos < order[r].length; ++pos) {
+                                    positions[r][order[r][pos]] = pos;
+                                }
+                                const fewerCrossingsTotal = (newCrossingsNorth + newCrossingsSouth < prevCrossingsNorth + prevCrossingsSouth);
+                                return (1 + (fewerCrossingsTotal ? 1 : 0));
+                            } else {
+                                if (debug) {
+                                    console.log("not fewer crossings north", prevCrossingsNorth, "->", newCrossingsNorth,  "south: ", prevCrossingsSouth, "->", newCrossingsSouth);
+                                }
+                                return 0;
+                            }
+                        };
                         _.forEach(changes, change => {
                             const tmpOrder = _.concat(
                                 _.slice(order[r], 0, change[0]),
@@ -382,45 +438,31 @@ export default class OrderGraph {
                             //console.log(order[r], newOrder, change, permutation);
                             Assert.assert(tmpOrder.length === newOrder.length, "tmpOrder has wrong length");
                             Assert.assertEqual(_.sortBy(tmpOrder), _.range(tmpOrder.length), "tmpOrder is not contiguous");
-                            if (debug) {
-                                console.log("try new order", _.map(tmpOrder, n => ranks[r].groups[0].nodes[n].id));
+                            if (tryNewOrder(tmpOrder) === 2) {
+                                improveCounter = 2;
                             }
-                            // count crossings with new order
-                            const prevCrossingsNorth = crossings[r + crossingOffsetNorth];
-                            const newCrossingsNorth = countCrossings(tmpOrder, r, northDirection);
-
-                            let newCrossingsSouth = 0;
-                            let prevCrossingsSouth = 0;
-                            if (r !== lastRank) {
-                                prevCrossingsSouth = crossings[r + crossingOffsetSouth];
-                                newCrossingsSouth = countCrossings(tmpOrder, r, southDirection);
-                            }
-                            const fewerCrossingsNorth = newCrossingsNorth < prevCrossingsNorth;
-                            const fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth <= prevCrossingsNorth + prevCrossingsSouth);
-                            if (fewerCrossingsNorth && fewerOrEqualCrossingsTotal) {
-                                if (debug) {
-                                    console.log("fewer crossings north", prevCrossingsNorth, "->", newCrossingsNorth,  "south: ", prevCrossingsSouth, "->", newCrossingsSouth);
-                                }
-                                if (newCrossingsNorth + newCrossingsSouth < prevCrossingsNorth + prevCrossingsSouth) {
-                                    improveCounter = 2;
-                                }
-                                crossings[r + crossingOffsetNorth] = newCrossingsNorth;
-                                if (r !== lastRank) {
-                                    crossings[r + crossingOffsetSouth] = newCrossingsSouth;
-                                }
-                                order[r] = tmpOrder;
-                                for (let pos = 0; pos < order[r].length; ++pos) {
-                                    positions[r][order[r][pos]] = pos;
-                                }
-                                if (debug && r <= 5) {
-                                    storeLocal();
-                                }
-                            } else {
-                                if (debug) {
-                                    console.log("not fewer crossings north", prevCrossingsNorth, "->", newCrossingsNorth,  "south: ", prevCrossingsSouth, "->", newCrossingsSouth);
+                        });
+                        _.forEach(sameMeanGroups, group => {
+                            let improved = true;
+                            while (improved) {
+                                improved = false;
+                                for (let i = 0; i < group.length - 1; ++i) {
+                                    const tmpOrder = _.clone(order[r]);
+                                    const tmp = tmpOrder[group[i]];
+                                    tmpOrder[group[i]] = tmpOrder[group[i + 1]];
+                                    tmpOrder[group[i + 1]] = tmp;
+                                    const result = tryNewOrder(tmpOrder);
+                                    if (result > 0) {
+                                        improved = true;
+                                    }
+                                    if (result === 2) {
+                                        improveCounter = 2;
+                                    }
                                 }
                             }
                         });
+
+
                         Assert.assertNone(positions[r], (pos, p) => order[r][pos] !== p, "positions and orders do not match after reorder" + positions[r].toString() + order[r].toString());
                         Assert.assertNone(order[r], (ord, o) => positions[r][ord] !== o, "positions and orders do not match after reorder" + positions[r].toString() + order[r].toString());
                     }

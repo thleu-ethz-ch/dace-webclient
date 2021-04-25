@@ -21,7 +21,7 @@ export default abstract class Layouter {
             targetEdgeLength: 50,
             withLabels: false,
             bundle: false,
-            maximizeAngles: true,
+            maximizeAngles: false,
             alignInAndOut: false,
             shuffles: 16,
             weightBends: 0.2,
