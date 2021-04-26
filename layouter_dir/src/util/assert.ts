@@ -17,7 +17,7 @@ export default class Assert
         Assert.assert(predicate, message, input);
     }
 
-    static assertImplies(premise: boolean, implication: boolean, message: string, ...objects: Array<object>) {
+    static assertImplies(premise: boolean, implication: boolean, message: string, ...objects: Array<any>) {
         Assert.assert(!premise || implication, message, ...objects);
     }
 
@@ -25,7 +25,7 @@ export default class Assert
         Assert.assert(_.isEqual(objectA, objectB), message, objectA, objectB);
     }
 
-    static assert(predicate: boolean, message: string, ...objects: Array<object>) {
+    static assert(predicate: boolean, message: string, ...objects: Array<any>) {
         console.assert(predicate, message, ...objects);
         if (!predicate) {
             throw new Error("Assertion failed.");

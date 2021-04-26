@@ -29,11 +29,14 @@ export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
     public width: number = 0;
     public height: number = 0;
 
+    public color: number;
+
     protected _type: string = null;
 
-    constructor(type: string, label: string = "") {
+    constructor(type: string, label: string = "", color: number = 0x000000) {
         super(label);
         this._type = type;
+        this.color = color;
     }
 
     type(): string {

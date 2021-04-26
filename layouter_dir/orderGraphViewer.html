@@ -36,7 +36,7 @@
             const stepBox = document.getElementById("stepBox");
             let step = 0;
             stepBox.innerHTML = (step + 1) + ' / ' + steps.length;
-            renderer.renderOrderGraph(step);
+            renderer.renderOrderGraph(step, true);
 
             document.addEventListener("keyup", function(e) {
                 if (e.which === 37) {

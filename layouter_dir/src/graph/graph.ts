@@ -425,7 +425,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         const nodeSet = new Set();
         _.forEach(this._components, component => {
             _.forEach(component.nodes(), node => {
-                Assert.assert(!nodeSet.has(node), "node is in multiple components", this._components);
+                Assert.assert(!nodeSet.has(node), "node", node, "is in multiple components", this._components);
                 nodeSet.add(node);
             });
         });

@@ -142,42 +142,47 @@ export default class SugiyamaLayouter extends Layouter
         });
     }
 
-    private _addVirtualNodes(graph: LayoutGraph) {
+    private _addVirtualNodes(graph: LayoutGraph, component: LayoutComponent = null) {
         // place intermediate nodes between long edges
         _.forEach(graph.allEdges(), (edge: LayoutEdge) => {
             let srcNode = edge.graph.node(edge.src);
             let dstNode = edge.graph.node(edge.dst);
-            let srcRank = srcNode.rank;
-            if (srcNode.childGraph !== null) {
-                srcRank += srcNode.childGraph.maxRank - srcNode.childGraph.minRank;
-            }
-            if (srcRank + 1 < dstNode.rank) {
+            if (srcNode.rank + srcNode.rankSpan < dstNode.rank) {
                 let tmpSrcId = srcNode.id;
                 let tmpDstId;
                 const dstConnector = edge.dstConnector;
-                for (let tmpDstRank = srcRank + 1; tmpDstRank < dstNode.rank; ++tmpDstRank) {
+                for (let tmpDstRank = srcNode.rank + srcNode.rankSpan; tmpDstRank < dstNode.rank; ++tmpDstRank) {
                     const newNode = new LayoutNode({width: 0, height: 0}, 0, true);
                     newNode.rank = tmpDstRank;
                     newNode.setLabel("virtual node on edge from " + srcNode.label() + " to " + dstNode.label());
-                    tmpDstId = edge.graph.addNode(newNode);
-                    if (tmpDstRank === srcRank + 1) {
+                    tmpDstId = edge.graph.addNode(newNode, null, component !== null);
+                    if (component !== null) {
+                        component.addNode(newNode.id);
+                    }
+                    if (tmpDstRank === srcNode.rank + srcNode.rankSpan) {
                         // original edge is redirected from source to first virtual node
-                        edge.graph.removeEdge(edge.id);
+                        edge.graph.removeEdge(edge.id, component !== null);
                         edge.dst = tmpDstId;
                         edge.dstConnector = null;
-                        edge.graph.addEdge(edge, edge.id);
+                        edge.graph.addEdge(edge, edge.id, component !== null);
                     } else {
                         const tmpEdge = new LayoutEdge(tmpSrcId, tmpDstId);
                         tmpEdge.weight = Number.POSITIVE_INFINITY;
                         tmpEdge.isInverted = edge.isInverted;
-                        edge.graph.addEdge(tmpEdge);
+                        edge.graph.addEdge(tmpEdge, null, component !== null);
+                        if (component !== null) {
+                            component.addEdge(tmpEdge.id);
+                        }
                     }
                     tmpSrcId = tmpDstId;
                 }
                 // last virtual edge has the original dstConnector
                 const tmpEdge = new LayoutEdge(tmpSrcId, dstNode.id, null, dstConnector);
                 tmpEdge.isInverted = edge.isInverted;
-                edge.graph.addEdge(tmpEdge);
+                edge.graph.addEdge(tmpEdge, null, component !== null);
+                if (component !== null) {
+                    component.addEdge(tmpEdge.id);
+                }
             }
         });
 
@@ -205,6 +210,7 @@ export default class SugiyamaLayouter extends Layouter
         // child graphs are visited before their parents
         _.forEachRight(graph.allGraphs(), (subgraph: LayoutGraph) => {
             _.forEach(subgraph.components(), (component: LayoutComponent, c: number) => {
+                this._addVirtualNodes(subgraph, component);
                 const levelGraph = component.levelGraph();
 
                 // init graph and ranks
@@ -229,12 +235,17 @@ export default class SugiyamaLayouter extends Layouter
                     orderGraph.addEdge(new Edge(edge.src, edge.dst, edge.weight));
                 });
 
+                Assert.assertNone(subgraph.edges(), edge => {
+                    const srcNode = edge.graph.node(edge.src)
+                    return srcNode.rank + srcNode.rankSpan !== edge.graph.node(edge.dst).rank;
+                }, "edge not between neighboring ranks");
+
                 // do order
                 let debug = false;
                 if (subgraph.parentNode !== null && subgraph.parentNode.label() === "spmv_compute_nested") {
                     debug = true;
                 }
-                orderGraph.order(false, this._options["shuffles"], false, false);//subgraph.nodes().length === 851);
+                orderGraph.order(false, {"shuffles": this._options["shuffles"], "resolveY": this._options["resolveY"]});//subgraph.nodes().length === 851);
 
                 // copy node order into layout graph
                 const newOrderNodes: Set<OrderNode> = new Set();
@@ -253,7 +264,7 @@ export default class SugiyamaLayouter extends Layouter
                         const newNodeId = subgraph.addNode(newLayoutNode, null, true);
                         component.addNode(newNodeId);
                         newOrderNodes.add(orderNode);
-                        levelNode = component.levelGraph().addLayoutNode(newLayoutNode);
+                        levelNode = levelGraph.addLayoutNode(newLayoutNode);
                         orderNode.reference = levelNode;
                     } else {
                         unfoundLevelNodes.delete(levelNode);
@@ -270,17 +281,18 @@ export default class SugiyamaLayouter extends Layouter
                     const prevRankSpan = subgraph.parentNode.rankSpan;
                     const newRankSpan = subgraph.maxRank - subgraph.minRank + 1;
                     const diff = newRankSpan - prevRankSpan;
-                    subgraph.parentNode.rankSpan = newRankSpan;
-                    _.forEach(subgraph.parentNode.graph.bfs(subgraph.parentNode.id), (node: LayoutNode) => {
-                        if (node !== subgraph.parentNode) {
-                            if (diff > 0) {
-                                node.offsetRank(diff);
+                    if (diff !== 0) {
+                        subgraph.parentNode.rankSpan = newRankSpan;
+                        _.forEach(subgraph.parentNode.graph.bfs(subgraph.parentNode.id), (node: LayoutNode) => {
+                            if (node !== subgraph.parentNode) {
+                                if (diff > 0) {
+                                    node.offsetRank(diff);
+                                }
                             }
-                        }
-                    });
-                    subgraph.parentNode.graph.maxRank = Math.max(subgraph.parentNode.graph.maxRank, subgraph.parentNode.rank + subgraph.parentNode.rankSpan - 1);
+                        });
+                        subgraph.parentNode.graph.maxRank = Math.max(subgraph.parentNode.graph.maxRank, subgraph.parentNode.rank + subgraph.parentNode.rankSpan - 1);
+                    }
                 }
-
                 // remove from layout graph nodes that were removed in order graph
                 unfoundLevelNodes.forEach((levelNode: LevelNode) => {
                     Assert.assert(levelNode.layoutNode.isVirtual, "non-virtual node removed from order graph");
@@ -337,7 +349,6 @@ export default class SugiyamaLayouter extends Layouter
                     const key = startNode.id + "_" + endNode.id;
                     newNodesPerEdge.set(key, nodes);
                     Assert.assertAll(nodes, levelNode => levelNode.layoutNode.isVirtual, "non-virtual node in new path");
-                    //Assert.assertAll(nodes, (node, n) => n === 0 || orderGraph.edgeBetween(nodes[n - 1].id, nodes[n].id) !== undefined, "no edge between new nodes");
                 });
 
                 levelGraph.invalidateRanks();
@@ -349,10 +360,10 @@ export default class SugiyamaLayouter extends Layouter
                     const orderDstNodeId = nodeMap.get(levelEdge.dst);
                     if (orderGraph.edgeBetween(orderSrcNodeId, orderDstNodeId) === undefined) {
                         levelGraph.removeEdge(levelEdge.id);
-                        const srcLayoutNodeId = levelGraph.node(levelEdge.src).layoutNode.id;
-                        const dstLayoutNodeId = levelGraph.node(levelEdge.dst).layoutNode.id;
+                        const srcLayoutNode = levelGraph.node(levelEdge.src).layoutNode;
+                        const dstLayoutNode = levelGraph.node(levelEdge.dst).layoutNode;
                         const key = orderSrcNodeId + "_" + orderDstNodeId;
-                        _.forEach(subgraph.edgesBetween(srcLayoutNodeId, dstLayoutNodeId), (layoutEdge: LayoutEdge, e) => {
+                        _.forEach(subgraph.edgesBetween(srcLayoutNode.id, dstLayoutNode.id), (layoutEdge: LayoutEdge, e) => {
                             let newNodes = _.clone(newNodesPerEdge.get(key));
                             const dstConnector = layoutEdge.dstConnector;
                             Assert.assertAll(newNodes, levelNode => levelNode.layoutNode.isVirtual, "non-virtual node in new path");
@@ -403,7 +414,6 @@ export default class SugiyamaLayouter extends Layouter
             });
         });
 
-        //this._addVirtualNodes(graph);
         Assert.assertNone(graph.allEdges(), edge => {
             const srcNode = edge.graph.node(edge.src)
             return srcNode.rank + srcNode.rankSpan !== edge.graph.node(edge.dst).rank;

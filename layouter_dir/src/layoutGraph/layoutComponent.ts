@@ -39,6 +39,10 @@ export default class LayoutComponent extends Component<LayoutNode, LayoutEdge>
         return this._levelGraph;
     }
 
+    public invalidateLevelGraph(): void {
+        this._levelGraph = null;
+    }
+
     public boundingBox(): Box {
         let minX = Number.POSITIVE_INFINITY;
         let maxX = Number.NEGATIVE_INFINITY;

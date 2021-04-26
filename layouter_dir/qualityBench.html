@@ -48,36 +48,46 @@
                 }
             }
             graphs = layoutLib.Bench.GRAPHS_ALL;
-            const layouters = [/*new layoutLib.layouter.DagreLayouter(), */new layoutLib.layouter.SugiyamaLayouter()];
+            const layouters = {
+                "Dagre": new layoutLib.layouter.DagreLayouter(),
+                "Sugiyama": new layoutLib.layouter.SugiyamaLayouter(),
+                "Sugiyama-Compact": new layoutLib.layouter.SugiyamaLayouter({"resolveY": "compact"}),
+            };
 
             const table = document.getElementById("table");
+            for (let layouterName in layouters) {
+                table.innerHTML += "<tr><td><b>" + layouterName + "</b></td></tr>";
+            }
             const tableRows = document.getElementsByTagName("tr");
             for (let g = 0; g < graphs.length; ++g) {
                 tableRows[0].innerHTML += "<td><b>" + graphs[g] + "</b></td>";
-                tableRows[1].innerHTML += "<td></td>";
-                tableRows[2].innerHTML += "<td></td>";
+                for (let i = 1; i < tableRows.length; ++i) {
+                    tableRows[i].innerHTML += "<td></td>";
+                }
             }
             tableRows[0].innerHTML += "<td><b>mean</b></td>";
-            tableRows[1].innerHTML += "<td></td>";
-            tableRows[2].innerHTML += "<td></td>";
-            for (let l = 0; l < layouters.length; ++l) {
-                layoutLib.Bench.crossings(layoutLib.Loader.load, layouters[l], graphs).then((result) => {
+            for (let i = 1; i < tableRows.length; ++i) {
+                tableRows[i].innerHTML += "<td></td>";
+            }
+            let l = 0;
+            for (let layouterName in layouters) {
+                let tmpL = l;
+                layoutLib.Bench.cost(layoutLib.Loader.load, layouters[layouterName], graphs).then((result) => {
                     let sum = 0;
                     for (let g = 0; g < graphs.length; ++g) {
-                        tableRows[l + 1].childNodes[g + 1].innerHTML = result[g].toFixed(0);
+                        tableRows[tmpL + 1].childNodes[g + 1].innerHTML = result[g].toFixed(0);
                         sum += result[g];
                     }
-                    tableRows[l + 1].childNodes[graphs.length + 1].innerHTML = (sum / graphs.length).toFixed(0);
+                    tableRows[tmpL + 1].childNodes[graphs.length + 1].innerHTML = (sum / graphs.length).toFixed(0);
                 });
+                l++;
             }
         });
     </script>
 </head>
 <body>
-<table>
+<table id="table">
     <tr><td></td></tr>
-    <tr><td><b>Dagre</b></td></tr>
-    <tr><td><b>Sugiyama</b></td></tr>
 </table>
 </body>
 </html>

@@ -262,7 +262,7 @@ export default class Renderer {
         doRender();
     }
 
-    renderOrderGraph(step: number = 0) {
+    renderOrderGraph(step: number = 0, resetView: boolean = false) {
         const renderGraph = new RenderGraph();
         let y = 0;
         const stepObj = JSON.parse(window.localStorage.getItem("orderGraph"))[step];
@@ -285,7 +285,7 @@ export default class Renderer {
                 y += groupNode.childPadding;
                 let groupHeight = 0;
                 _.forEach(group.nodes, nodeObj => {
-                    const node = new GenericNode("GenericNode", nodeObj.id.toString() || ""); // might use nodeObj.id.toString() instead of nodeObj.label
+                    const node = new GenericNode("GenericNode", nodeObj.label.toString() || "", nodeObj.isVirtual ? 0xCCCCCC : 0x000000); // might use nodeObj.id.toString() instead of nodeObj.label
                     groupGraph.addNode(node, parseInt(nodeObj.id));
                     nodeMap.set(node.id, node);
                     node.x = x;
@@ -320,9 +320,12 @@ export default class Renderer {
                 });
             });
         });
-        this.render(renderGraph, step === 0 ? "auto" : null);
+        this.render(renderGraph, resetView ? "auto" : null);
         _.forEach(stepObj.edges, edgeObj => {
             const srcNode = nodeMap.get(edgeObj.src);
+            if (srcNode === undefined) {
+                console.log(edgeObj.src);
+            }
             const srcPos = srcNode.boundingBox().bottomCenter();
             const dstNode = nodeMap.get(edgeObj.dst);
             const dstPos = dstNode.boundingBox().topCenter();
@@ -402,7 +405,7 @@ export default class Renderer {
         switch (node.type()) {
             case "AccessNode":
             case "GenericNode":
-                shapes.push(new Ellipse(node, node.x, node.y, node.width, node.height));
+                shapes.push(new Ellipse(node, node.x, node.y, node.width, node.height, 0xFFFFFF, node.color || 0x000000));
                 shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
                 break;
             case "LibraryNode":
