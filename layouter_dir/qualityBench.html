@@ -49,9 +49,9 @@
             }
             graphs = layoutLib.Bench.GRAPHS_ALL;
             const layouters = {
-                "Dagre": new layoutLib.layouter.DagreLayouter(),
+                //"Dagre": new layoutLib.layouter.DagreLayouter(),
                 "Sugiyama": new layoutLib.layouter.SugiyamaLayouter(),
-                "Sugiyama-Compact": new layoutLib.layouter.SugiyamaLayouter({"resolveY": "compact"}),
+                //"Sugiyama-Compact": new layoutLib.layouter.SugiyamaLayouter({"resolveY": "compact"}),
             };
 
             const table = document.getElementById("table");
@@ -72,7 +72,7 @@
             let l = 0;
             for (let layouterName in layouters) {
                 let tmpL = l;
-                layoutLib.Bench.cost(layoutLib.Loader.load, layouters[layouterName], graphs).then((result) => {
+                layoutLib.Bench.crossings(layoutLib.Loader.load, layouters[layouterName], graphs).then((result) => {
                     let sum = 0;
                     for (let g = 0; g < graphs.length; ++g) {
                         tableRows[tmpL + 1].childNodes[g + 1].innerHTML = result[g].toFixed(0);

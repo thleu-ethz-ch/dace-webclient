@@ -168,7 +168,7 @@ export default class OrderGraph {
             resolveY: "normal",
             debug: false,
             doNothing: false,
-        })
+        });
         const doOrder = (graph: OrderGraph, downward: boolean = true) => {
             Timer.start("doOrder")
             const ranks = graph._rankGraph.toposort();
@@ -310,8 +310,8 @@ export default class OrderGraph {
                         console.log(downward ? "DOWN" : "UP");
                     }
                     for (let r = firstRank; r - direction !== lastRank; r += direction) {
-                        Assert.assertNone(positions[r], (pos, p) => order[r][pos] !== p, "positions and orders do not match before reorder" + positions[r].toString() + order[r].toString());
-                        Assert.assertNone(order[r], (ord, o) => positions[r][ord] !== o, "positions and orders do not match before reorder" + positions[r].toString() + order[r].toString());
+                        //Assert.assertNone(positions[r], (pos, p) => order[r][pos] !== p, "positions and orders do not match before reorder" + positions[r].toString() + order[r].toString());
+                        //Assert.assertNone(order[r], (ord, o) => positions[r][ord] !== o, "positions and orders do not match before reorder" + positions[r].toString() + order[r].toString());
                         if (options["debug"]) {
                             console.log("rank", r);
                         }
@@ -342,10 +342,6 @@ export default class OrderGraph {
                                 } else {
                                     nodeMeans.push([pos, pos]);
                                 }
-                            }
-
-                            if (options["debug"]) {
-                                console.log("new means", _.map(nodeMeans, pair => ranks[r].groups[0].nodes[pair[0]].id + ": " + pair[1]))
                             }
 
                             // sort by the means
@@ -408,13 +404,13 @@ export default class OrderGraph {
                             }
                             // count crossings with new order
                             const prevCrossingsNorth = crossings[r + crossingOffsetNorth];
-                            const newCrossingsNorth = countCrossings(newOrder, r, northDirection);
+                            const newCrossingsNorth = countCrossings(newOrder, r, northDirection, withInfinity);
 
                             let newCrossingsSouth = 0;
                             let prevCrossingsSouth = 0;
                             if (r !== lastRank) {
                                 prevCrossingsSouth = crossings[r + crossingOffsetSouth];
-                                newCrossingsSouth = countCrossings(newOrder, r, southDirection);
+                                newCrossingsSouth = countCrossings(newOrder, r, southDirection, withInfinity);
                             }
                             const fewerCrossingsNorth = newCrossingsNorth < prevCrossingsNorth;
                             const fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth <= prevCrossingsNorth + prevCrossingsSouth);
@@ -445,9 +441,8 @@ export default class OrderGraph {
                                 _.slice(newOrder, change[0], change[1] + 1),
                                 _.slice(order[r], change[1] + 1)
                             );
-                            //console.log(order[r], newOrder, change, permutation);
-                            Assert.assert(tmpOrder.length === newOrder.length, "tmpOrder has wrong length");
-                            Assert.assertEqual(_.sortBy(tmpOrder), _.range(tmpOrder.length), "tmpOrder is not contiguous");
+                            //Assert.assert(tmpOrder.length === newOrder.length, "tmpOrder has wrong length");
+                            //Assert.assertEqual(_.sortBy(tmpOrder), _.range(tmpOrder.length), "tmpOrder is not contiguous");
                             if (tryNewOrder(tmpOrder) === 2) {
                                 improveCounter = 2;
                             }
@@ -473,14 +468,10 @@ export default class OrderGraph {
                         });
 
 
-                        Assert.assertNone(positions[r], (pos, p) => order[r][pos] !== p, "positions and orders do not match after reorder" + positions[r].toString() + order[r].toString());
-                        Assert.assertNone(order[r], (ord, o) => positions[r][ord] !== o, "positions and orders do not match after reorder" + positions[r].toString() + order[r].toString());
+                        //Assert.assertNone(positions[r], (pos, p) => order[r][pos] !== p, "positions and orders do not match after reorder" + positions[r].toString() + order[r].toString());
+                        //Assert.assertNone(order[r], (ord, o) => positions[r][ord] !== o, "positions and orders do not match after reorder" + positions[r].toString() + order[r].toString());
                     }
                     downward = !downward;
-                }
-
-                for (let r = 1; r < ranks.length; ++r) {
-                    crossings[r] = countCrossings(order[r], r, "UP");
                 }
 
                 Timer.stop("reorder");
@@ -667,7 +658,6 @@ export default class OrderGraph {
                     //console.log(r, crossedNorthNode.id, crossedSouthNode.id, crossingNorthNode.id, crossingSouthNode.id);
 
                     const resolveHeavyHeavy = () => {
-                        //console.log("resolveHeavyHeavy");
                         const tmpOrderA = _.cloneDeep(order[r]);
                         _.pull(tmpOrderA, crossingSouthN);
                         tmpOrderA.splice(crossedSouthPos, 0, crossingSouthN);
@@ -696,7 +686,6 @@ export default class OrderGraph {
                     };
 
                     const resolveY = () => {
-                        //console.log("resolveY");
                         const addEdge = (srcNode: OrderNode, dstNode: OrderNode, weight: number) => {
                             if (srcNode.isVirtual && dstNode.isVirtual) {
                                 weight = Number.POSITIVE_INFINITY;
@@ -842,6 +831,7 @@ export default class OrderGraph {
                                     } else {
                                         let newPos = 0;
                                         const nodePos = positions[tmpR - 1][node.index];
+                                        let northPos = 0;
                                         while (northPos < nodePos) {
                                             const northNode = ranks[tmpR - 1].groups[0].nodes[order[tmpR - 1][northPos++]];
                                             _.forEach(graph.outNeighbors(northNode.id), (outNeighbor: OrderNode) => {
@@ -1017,15 +1007,20 @@ export default class OrderGraph {
 
                         assertNeighborCoherence();
 
+
                         if (options["resolveY"] === "compact") {
+                            while (getConflict("HEAVYHEAVY", r) !== null) {
+                                resolveConflict(getConflict("HEAVYHEAVY", r));
+                            }
                             for (let tmpR = r - 1; tmpR < ranks.length; ++tmpR) {
                                 crossings[tmpR] = countCrossings(order[tmpR], tmpR, "UP", false);
                             }
-                            reorder(false, false, r);
+                            reorder(false, false, r + 1);
                         }
-                        for (let tmpR = r - 1; tmpR < ranks.length; ++tmpR) {
+                        for (let tmpR = 1; tmpR < ranks.length; ++tmpR) {
                             crossings[tmpR] = countCrossings(order[tmpR], tmpR, "UP", true);
                         }
+                        Assert.assertAll(_.range(r + 1), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after y resolution");
                     }
 
                     const checkXResolution = (side: "LEFT" | "RIGHT") => {
@@ -1222,6 +1217,7 @@ export default class OrderGraph {
                         if (options["debug"]) {
                             storeLocal();
                         }
+                        Assert.assertAll(_.range(r + 1), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after x resolution");
                     };
 
                     if (crossingEdge.weight === Number.POSITIVE_INFINITY) {
@@ -1273,14 +1269,25 @@ export default class OrderGraph {
                             storeLocal();
                         }
                     }
+                    /*if (r < ranks.length - 1) {
+                        for (let tmpR = r + 1; tmpR < ranks.length; ++tmpR) {
+                            crossings[tmpR] = countCrossings(order[tmpR], tmpR, "UP", false);
+                        }
+                        reorder(false, false, r + 1);
+                        for (let tmpR = r + 1; tmpR < ranks.length; ++tmpR) {
+                            crossings[tmpR] = countCrossings(order[tmpR], tmpR, "UP", true);
+                        }
+                    }*/
                 }
+                Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after y resolution");
+
 
                 /*for (let r = 1; r < ranks.length; ++r) {
                     crossings[r] = countCrossings(order[r], r, "UP", false);
                 }
                 console.log("crossings", _.sum(crossings));*/
 
-                Timer.stop("resolve")
+                Timer.stop("resolve");
             }
 
             if (options["debug"]) {
@@ -1312,11 +1319,11 @@ export default class OrderGraph {
                     }
                 }
             }
-
             if (!hasGroups) {
                 resolveConflicts();
-                reorder(true);
+                reorder(false);
             }
+
             _.forEach(ranks, (rank: OrderRank, r: number) => {
                 _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {
                     group.order = _.map(_.slice(order[r], groupOffset[r][g], groupOffset[r][g] + numNodesGroup[r][g]),

@@ -12,11 +12,13 @@ export default class OrderNode extends Node<Graph<any, any>, OrderEdge>
     public rank: number = 0;
     public initialRank: number = 0;
     public readonly isVirtual: boolean;
+    public readonly isFixed: boolean;
 
-    constructor(reference: any, isVirtual: boolean, label: string = "") {
+    constructor(reference: any, isVirtual: boolean, label: string = "", isFixed: boolean = false) {
         super(label);
         this.reference = reference;
         this.isVirtual = isVirtual;
+        this.isFixed = isFixed;
     }
 
 }
