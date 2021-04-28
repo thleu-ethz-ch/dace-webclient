@@ -243,10 +243,11 @@ export default class SugiyamaLayouter extends Layouter
 
                 // do order
                 let debug = false;
-                if (subgraph.parentNode !== null && subgraph.parentNode.label() === "spmv_compute_nested") {
+                // commented out: debug one subgraph
+                /*if (subgraph.parentNode !== null && subgraph.parentNode.label() === "slice_HD_82") {
                     debug = true;
-                }
-                orderGraph.order(false, {"shuffles": this._options["shuffles"], "resolveY": this._options["resolveY"]});//subgraph.nodes().length === 851);
+                }*/
+                orderGraph.order(false, {"shuffles": this._options["shuffles"], "resolveY": this._options["resolveY"], "debug": debug});//subgraph.nodes().length === 851);
 
                 // copy node order into layout graph
                 const newOrderNodes: Set<OrderNode> = new Set();

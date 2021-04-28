@@ -28,7 +28,6 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
             this.addEdge(new Edge(src, dst, Number.POSITIVE_INFINITY));
             src = dst;
         }
-        node.isLast = true;
         this._lastNodeMap[layoutNode.id] = node.id;
         return node;
     }

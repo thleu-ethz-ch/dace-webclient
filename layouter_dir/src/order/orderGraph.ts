@@ -273,7 +273,7 @@ export default class OrderGraph {
              * @param countInitial
              * @param shuffle
              */
-            const reorder = (withInfinity: boolean = false, shuffle: boolean = false, startRank: number = 0) => {
+            const reorder = (shuffle: boolean = false, startRank: number = 0) => {
                 Timer.start("reorder");
 
                 if (shuffle) {
@@ -330,36 +330,38 @@ export default class OrderGraph {
                             // calculate mean position of neighbors
                             let nodeMeans = [];
                             for (let pos = groupOffset[r][g]; pos < groupOffset[r][g] + numNodesGroup[r][g]; ++pos) {
+                                const n = order[r][pos];
                                 let sum = 0;
                                 let num = 0;
-                                for (let neighbor = 0; neighbor < neighborsNorth[r][pos].length; ++neighbor) {
-                                    let weight = weightsNorth[r][pos][neighbor];
+                                for (let neighbor = 0; neighbor < neighborsNorth[r][n].length; ++neighbor) {
+                                    let weight = weightsNorth[r][n][neighbor];
                                     if (weight === Number.POSITIVE_INFINITY) {
                                         weight = 1;
                                     }
-                                    sum += weight * positions[northRank][neighborsNorth[r][pos][neighbor]];
+                                    sum += weight * positions[northRank][neighborsNorth[r][n][neighbor]];
                                     num += weight;
                                 }
-                                if (neighborsNorth[r][pos].length > 0) {
-                                    nodeMeans.push([pos, sum / num]);
+                                if (neighborsNorth[r][n].length > 0) {
+                                    nodeMeans.push([n, sum / num]);
                                 } else {
-                                    nodeMeans.push([pos, pos]);
+                                    nodeMeans.push([n, pos]);
                                 }
                             }
 
                             // sort by the means
                             nodeMeans = _.sortBy(nodeMeans, pair => pair[1]);
+
                             // find groups with same mean
                             let prevMean = -1;
                             let group = [];
-                            _.forEach(nodeMeans, ([n, mean], pos) => {
+                            _.forEach(nodeMeans, ([n, mean]) => {
                                 if (mean === prevMean) {
-                                    group.push(groupOffset[r][g] + pos);
+                                    group.push(groupOffset[r][g] + positions[r][n]);
                                 } else {
                                     if (group.length >= 2) {
                                         sameMeanGroups.push(_.clone(group));
                                     }
-                                    group = [groupOffset[r][g] + pos];
+                                    group = [groupOffset[r][g] + positions[r][n]];
                                 }
                                 prevMean = mean;
                             });
@@ -401,6 +403,9 @@ export default class OrderGraph {
                         if (seqStart !== null) {
                             changes.push([seqStart, permutation.length - 1]);
                         }
+                        if (options["debug"]) {
+                            console.log("changes", changes);
+                        }
                         const tryNewOrder = (newOrder) => {
                             // count crossings with new order
                             const prevCrossingsNorth = crossings[r + crossingOffsetNorth];
@@ -435,6 +440,7 @@ export default class OrderGraph {
                                 return 0;
                             }
                         };
+                        let hasChanged = false;
                         _.forEach(changes, change => {
                             const tmpOrder = _.concat(
                                 _.slice(order[r], 0, change[0]),
@@ -443,30 +449,35 @@ export default class OrderGraph {
                             );
                             //Assert.assert(tmpOrder.length === newOrder.length, "tmpOrder has wrong length");
                             //Assert.assertEqual(_.sortBy(tmpOrder), _.range(tmpOrder.length), "tmpOrder is not contiguous");
-                            if (tryNewOrder(tmpOrder) === 2) {
+                            const result = tryNewOrder(tmpOrder);
+                            if (result > 0) {
+                                hasChanged = true;
+                            }
+                            if (result === 2) {
                                 improveCounter = 2;
                             }
                         });
-                        _.forEach(sameMeanGroups, group => {
-                            let improved = true;
-                            while (improved) {
-                                improved = false;
-                                for (let i = 0; i < group.length - 1; ++i) {
-                                    const tmpOrder = _.clone(order[r]);
-                                    const tmp = tmpOrder[group[i]];
-                                    tmpOrder[group[i]] = tmpOrder[group[i + 1]];
-                                    tmpOrder[group[i + 1]] = tmp;
-                                    const result = tryNewOrder(tmpOrder);
-                                    if (result > 0) {
-                                        improved = true;
-                                    }
-                                    if (result === 2) {
-                                        improveCounter = 2;
+                        if (!hasChanged) {
+                            _.forEach(sameMeanGroups, group => {
+                                let hasChanged = true;
+                                while (hasChanged) {
+                                    hasChanged = false;
+                                    for (let i = 0; i < group.length - 1; ++i) {
+                                        const tmpOrder = _.clone(order[r]);
+                                        const tmp = tmpOrder[group[i]];
+                                        tmpOrder[group[i]] = tmpOrder[group[i + 1]];
+                                        tmpOrder[group[i + 1]] = tmp;
+                                        const result = tryNewOrder(tmpOrder);
+                                        if (result > 0) {
+                                            hasChanged = true;
+                                        }
+                                        if (result === 2) {
+                                            improveCounter = 2;
+                                        }
                                     }
                                 }
-                            }
-                        });
-
+                            });
+                        }
 
                         //Assert.assertNone(positions[r], (pos, p) => order[r][pos] !== p, "positions and orders do not match after reorder" + positions[r].toString() + order[r].toString());
                         //Assert.assertNone(order[r], (ord, o) => positions[r][ord] !== o, "positions and orders do not match after reorder" + positions[r].toString() + order[r].toString());
@@ -639,7 +650,6 @@ export default class OrderGraph {
              * Tries to resolve illegal crossings, i. e. crossings of edges with infinite weight.
              */
             const resolveConflicts = () => {
-                //return;
                 /*for (let r = 1; r < ranks.length; ++r) {
                     crossings[r] = countCrossings(order[r], r, "UP", false);
                 }
@@ -662,6 +672,9 @@ export default class OrderGraph {
                     //console.log(r, crossedNorthNode.id, crossedSouthNode.id, crossingNorthNode.id, crossingSouthNode.id);
 
                     const resolveHeavyHeavy = () => {
+                        if (options["debug"]) {
+                            console.log("resolveHeavyHeavy");
+                        }
                         const tmpOrderA = _.cloneDeep(order[r]);
                         _.pull(tmpOrderA, crossingSouthN);
                         tmpOrderA.splice(crossedSouthPos, 0, crossingSouthN);
@@ -690,6 +703,9 @@ export default class OrderGraph {
                     };
 
                     const resolveY = () => {
+                        if (options["debug"]) {
+                            console.log("resolveY");
+                        }
                         const addEdge = (srcNode: OrderNode, dstNode: OrderNode, weight: number) => {
                             if (srcNode.isVirtual && dstNode.isVirtual) {
                                 weight = Number.POSITIVE_INFINITY;
@@ -1019,7 +1035,7 @@ export default class OrderGraph {
                             for (let tmpR = r - 1; tmpR < ranks.length; ++tmpR) {
                                 crossings[tmpR] = countCrossings(order[tmpR], tmpR, "UP");
                             }
-                            reorder(false, false, r + 1);
+                            reorder(false, r + 1);
                         }
                         for (let tmpR = 1; tmpR < ranks.length; ++tmpR) {
                             crossings[tmpR] = countCrossings(order[tmpR], tmpR, "UP");
@@ -1180,7 +1196,9 @@ export default class OrderGraph {
                     };
 
                     const resolveX = (side: "LEFT" | "RIGHT", nodesPerRank) => {
-                        //console.log("resolveX");
+                        if (options["debug"]) {
+                            console.log("resolveX", side, nodesPerRank);
+                        }
                         let minChangedRank = Number.POSITIVE_INFINITY;
                         let maxChangedRank = Number.NEGATIVE_INFINITY;
                         _.forEach(nodesPerRank, (rank, r: number) => {
@@ -1288,7 +1306,7 @@ export default class OrderGraph {
             if (options["debug"]) {
                 storeLocal();
             }
-            reorder(false);
+            reorder();
             if (options["shuffles"] > 0) {
                 let numCrossings = _.sum(crossings);
                 let minCrossings = numCrossings;
@@ -1297,7 +1315,7 @@ export default class OrderGraph {
                     for (let r = 1; r < ranks.length; ++r) {
                         crossings[r] = Number.POSITIVE_INFINITY;
                     }
-                    reorder(false, true);
+                    reorder(true);
                     numCrossings = _.sum(crossings);
                     if (numCrossings < minCrossings) {
                         minCrossings = numCrossings;
