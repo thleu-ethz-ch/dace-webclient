@@ -356,12 +356,12 @@ export default class OrderGraph {
                             let group = [];
                             _.forEach(nodeMeans, ([n, mean]) => {
                                 if (mean === prevMean) {
-                                    group.push(groupOffset[r][g] + positions[r][n]);
+                                    group.push(positions[r][n]);
                                 } else {
                                     if (group.length >= 2) {
                                         sameMeanGroups.push(_.clone(group));
                                     }
-                                    group = [groupOffset[r][g] + positions[r][n]];
+                                    group = [positions[r][n]];
                                 }
                                 prevMean = mean;
                             });
@@ -463,7 +463,7 @@ export default class OrderGraph {
                                 while (hasChanged) {
                                     hasChanged = false;
                                     for (let i = 0; i < group.length - 1; ++i) {
-                                        const tmpOrder = _.clone(order[r]);
+                                        const tmpOrder = _.cloneDeep(order[r]);
                                         const tmp = tmpOrder[group[i]];
                                         tmpOrder[group[i]] = tmpOrder[group[i + 1]];
                                         tmpOrder[group[i + 1]] = tmp;

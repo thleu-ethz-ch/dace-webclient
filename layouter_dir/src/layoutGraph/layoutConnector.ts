@@ -3,6 +3,7 @@ import LayoutNode from "./layoutNode";
 import Box from "../geometry/box";
 import Vector from "../geometry/vector";
 import Size from "../geometry/size";
+import LayoutBundle from "./layoutBundle";
 
 export default class LayoutConnector {
     public readonly node: LayoutNode;

@@ -2,11 +2,11 @@ import LayoutConnector from "./layoutConnector";
 
 export default class LayoutBundle
 {
-    public connectors: Array<LayoutConnector> = [];
+    public connectors: Array<string> = [];
     public x;
     public y;
 
-    addConnector(connector: LayoutConnector) {
-        this.connectors.push(connector);
+    addConnector(name: string) {
+        this.connectors.push(name);
     }
 }

@@ -12,6 +12,7 @@ export default class LayoutAnalysis {
     private readonly _nodes: Array<LayoutNode>;
     private readonly _edges: Array<LayoutEdge>;
     private readonly _segments: Array<Segment>;
+    private readonly _uniqueSegments: Array<Segment>;
     private readonly _nodeParents: Map<LayoutNode, Set<LayoutNode>>;
     private readonly _edgeParents: Map<LayoutEdge, Set<LayoutNode>>;
 
@@ -27,6 +28,7 @@ export default class LayoutAnalysis {
         this._nodes = this._layoutGraph.allNodes();
         this._edges = this._layoutGraph.allEdges();
         this._segments = _.flatMap(this._edges, (edge: LayoutEdge) => edge.segments());
+        this._uniqueSegments = _.map(_.uniqBy(_.map(this._segments, segment => [segment, segment.start.x + "_" + segment.start.y + "_" + segment.end.x + "_" + segment.end.x]), "1"), "0");
 
         // precalculate all parents for nodes and edges
         this._nodeParents = new Map();
@@ -260,13 +262,13 @@ export default class LayoutAnalysis {
         const overlaps = {};
         _.forEach(["x", "y"], axis => {
             overlaps[axis] = new Array(this._segments.length);
-            for (let i = 0; i < this._segments.length; ++i) {
+            for (let i = 0; i < this._uniqueSegments.length; ++i) {
                 overlaps[axis][i] = [];
             }
             const endpoints = [];
-            for (let i = 0; i < this._segments.length; ++i) {
-                endpoints.push([this._segments[i].start[axis], i, this._segments[i].start[axis] <= this._segments[i].end[axis]]);
-                endpoints.push([this._segments[i].end[axis], i, this._segments[i].start[axis] > this._segments[i].end[axis]]);
+            for (let i = 0; i < this._uniqueSegments.length; ++i) {
+                endpoints.push([this._uniqueSegments[i].start[axis], i, this._uniqueSegments[i].start[axis] <= this._uniqueSegments[i].end[axis]]);
+                endpoints.push([this._uniqueSegments[i].end[axis], i, this._uniqueSegments[i].start[axis] > this._uniqueSegments[i].end[axis]]);
             }
             let openSegments = new Set();
             _.forEach(_.sortBy(endpoints, "0"), ([coord, segId, isFirst]) => {
@@ -283,10 +285,10 @@ export default class LayoutAnalysis {
             });
         });
         const intersections = [];
-        for (let i = 0; i < this._segments.length; ++i) {
-            const segI = this._segments[i];
+        for (let i = 0; i < this._uniqueSegments.length; ++i) {
+            const segI = this._uniqueSegments[i];
             _.forEach(_.intersection(overlaps["y"][i], overlaps["x"][i]), (j: number) => {
-                const segJ = this._segments[j];
+                const segJ = this._uniqueSegments[j];
                 if (segI.intersects(segJ)) {
                     intersections.push([segI, segJ]);
                 }

@@ -6,6 +6,7 @@ import LayoutNode from "./layoutNode";
 import Segment from "../geometry/segment";
 import Size from "../geometry/size";
 import Vector from "../geometry/vector";
+import LayoutBundle from "./layoutBundle";
 
 export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
     public readonly labelSize: Size = null;
@@ -15,7 +16,8 @@ export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
     public points: Array<Vector> = [];
     public labelX: number = null;
     public labelY: number = null;
-    public bundle: any = null;
+    public srcBundle: LayoutBundle = null;
+    public dstBundle: LayoutBundle = null;
 
     constructor(src: number, dst: number, srcConnector: string = null, dstConnector: string = null, labelSize: Size = null) {
         super(src, dst);

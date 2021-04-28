@@ -76,6 +76,14 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         _.forEach(this.outConnectors, (connector: LayoutConnector) => {
             connector.translate(x, y);
         });
+        _.forEach(this.inConnectorBundles, (inBundle: LayoutBundle) => {
+            inBundle.x += x;
+            inBundle.y += y;
+        });
+        _.forEach(this.outConnectorBundles, (outBundle: LayoutBundle) => {
+            outBundle.x += x;
+            outBundle.y += y;
+        });
     }
 
     translateWithoutChildren(x: number, y: number) {

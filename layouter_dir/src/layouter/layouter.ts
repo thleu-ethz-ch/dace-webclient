@@ -20,7 +20,7 @@ export default abstract class Layouter {
             connectorSpacing: 10,
             targetEdgeLength: 50,
             withLabels: false,
-            bundle: false,
+            bundle: true,
             maximizeAngles: false,
             alignInAndOut: false,
             shuffles: 16,
@@ -298,12 +298,12 @@ export default abstract class Layouter {
             _.forEach(graph.edges(), (edge: LayoutEdge) => {
                 if ((edge.srcConnector !== null || edge.dstConnector !== null) && (edge.srcConnector === null || edge.dstConnector === null)) {
                     const key = edge.src + "_" + edge.dst;
-                    const connector = edge.srcConnector || edge.dstConnector;
+                    const connectorName = edge.srcConnector || edge.dstConnector;
                     let bundle;
                     if (!bundles.has(key)) {
                         bundle = new LayoutBundle();
                         bundles.set(key, bundle);
-                        if (connector === edge.srcConnector) {
+                        if (connectorName === edge.srcConnector) {
                             let srcNode = graph.node(edge.src);
                             if (srcNode.childGraph !== null && srcNode.childGraph.exitNode !== null) {
                                 srcNode = srcNode.childGraph.exitNode;
@@ -319,10 +319,49 @@ export default abstract class Layouter {
                     } else {
                         bundle = bundles.get(key);
                     }
-                    bundle.connectors.push(connector);
-                    edge.bundle = bundle;
+                    bundle.connectors.push(connectorName);
+                    if (edge.srcConnector !== null) {
+                        edge.srcBundle = bundle;
+                    } else {
+                        edge.dstBundle = bundle;
+                    }
                 }
             });
+        });
+        // as soon as a node has some bundle, all edges have to be assigned a bundle
+        // otherwise edges with and without bundles may create clutter and unwanted crossings
+        _.forEach(layoutGraph.allNodes(), (node: LayoutNode) => {
+            const addBundles = (bundles, connectors, edgeMethod, connectorProp, bundleProp, entryExit) => {
+                if (node[bundles].length > 0) {
+                    const remainingConnectors = new Set();
+                    _.forEach(node[connectors], (connector: LayoutConnector) => {
+                        remainingConnectors.add(connector.name);
+                    });
+                    _.forEach(node[bundles], (bundle: LayoutBundle) => {
+                        _.forEach(bundle.connectors, (name: string) => {
+                            remainingConnectors.delete(name);
+                        });
+                    });
+                    remainingConnectors.forEach((name: string) => {
+                        const bundle = new LayoutBundle();
+                        bundle.addConnector(name);
+                        node[bundles].push(bundle);
+                        let graph = node.graph;
+                        let id = node.id;
+                        if (graph[entryExit] === node) {
+                            graph = node.graph.parentNode.graph;
+                            id = node.graph.parentNode.id;
+                        }
+                        _.forEach(graph[edgeMethod](id), (edge: LayoutEdge) => {
+                            if (edge[connectorProp] === name) {
+                                edge[bundleProp] = bundle;
+                            }
+                        });
+                    });
+                }
+            };
+            addBundles("inConnectorBundles", "inConnectors", "inEdges", "dstConnector", "dstBundle", "entryNode");
+            addBundles("outConnectorBundles", "outConnectors", "outEdges", "srcConnector", "srcBundle", "exitNode");
         });
     }
 
