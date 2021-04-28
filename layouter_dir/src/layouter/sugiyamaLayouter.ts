@@ -666,10 +666,10 @@ export default class SugiyamaLayouter extends Layouter
             _.forEach(subgraph.nodes(), (node: LayoutNode) => {
                 if (node.selfLoop !== null) {
                     node.selfLoop.points = [
-                        new Vector(node.x + node.width - this._options["targetEdgeLength"], node.y + node.height - 10),
-                        new Vector(node.x + node.width, node.y + node.height - 10),
-                        new Vector(node.x + node.width, node.y + 10),
-                        new Vector(node.x + node.width - this._options["targetEdgeLength"], node.y + 10),
+                        new Vector(node.x + node.width + node.padding - this._options["targetEdgeLength"], node.y + node.height - 10),
+                        new Vector(node.x + node.width + node.padding , node.y + node.height - 10),
+                        new Vector(node.x + node.width + node.padding , node.y + 10),
+                        new Vector(node.x + node.width + node.padding - this._options["targetEdgeLength"], node.y + 10),
                     ];
                 }
             });
