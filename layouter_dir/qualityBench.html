@@ -47,9 +47,9 @@
                     graphs.push(layoutLib.Bench.GRAPHS_ALL[g]);
                 }
             }
-            graphs = layoutLib.Bench.GRAPHS_ALL;
+            //graphs = layoutLib.Bench.GRAPHS_ALL;
             const layouters = {
-                //"Dagre": new layoutLib.layouter.DagreLayouter(),
+                "Dagre": new layoutLib.layouter.DagreLayouter(),
                 "Sugiyama": new layoutLib.layouter.SugiyamaLayouter(),
                 //"Sugiyama-Compact": new layoutLib.layouter.SugiyamaLayouter({"resolveY": "compact"}),
             };

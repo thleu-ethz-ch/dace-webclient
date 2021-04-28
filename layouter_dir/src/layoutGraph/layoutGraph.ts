@@ -4,6 +4,7 @@ import Graph from "../graph/graph";
 import LayoutComponent from "./layoutComponent";
 import LayoutEdge from "./layoutEdge";
 import LayoutNode from "./layoutNode";
+import {CONNECTOR_SIZE} from "../util/constants";
 
 export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
     public readonly mayHaveCycles: boolean;
@@ -42,6 +43,9 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
         let maxY = Number.NEGATIVE_INFINITY;
         _.forEach(nodes, (node: LayoutNode) => {
             const box = node.boundingBox();
+            if (node.outConnectors.length > 0) {
+                box.height += CONNECTOR_SIZE / 2;
+            }
             minX = Math.min(minX, box.x);
             maxX = Math.max(maxX, box.x + box.width);
             minY = Math.min(minY, box.y);

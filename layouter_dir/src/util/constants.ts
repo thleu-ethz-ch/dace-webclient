@@ -1,0 +1,7 @@
+const CONNECTOR_SIZE = 10;
+const CONNECTOR_SPACING = 10;
+
+export {
+    CONNECTOR_SIZE,
+    CONNECTOR_SPACING
+};

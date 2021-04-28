@@ -52,13 +52,6 @@ export default abstract class Layouter {
         this.doLayout(layoutGraph);
         Math.random = tmpRandom;
 
-        /*if (this._options['minimizeConnectorCrossings']) {
-            this._placeConnectorsHeuristically(renderGraph);
-        } else {
-            this._placeConnectorsCenter(layoutGraph);
-            this._matchEdgesToConnectors(layoutGraph);
-        }*/
-
         this._copyLayoutInfo(layoutGraph, renderGraph);
         Assert.assertAll(renderGraph.allEdges(), (edge: RenderEdge) => edge.points.length > 0, "edge has no points assigned");
 

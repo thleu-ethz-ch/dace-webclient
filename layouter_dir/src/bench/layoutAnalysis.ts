@@ -136,7 +136,7 @@ export default class LayoutAnalysis {
                 contained = contained && node.boundingBox().containedIn(parent.boundingBox())
             });
             if (!contained) {
-                console.log("node not contained in parent", node);
+                console.log("node not contained in parent", node, node.boundingBox(), _.map(Array.from(this._nodeParents.get(node)), (parent: LayoutNode) => parent.boundingBox()));
                 return false;
             }
         }

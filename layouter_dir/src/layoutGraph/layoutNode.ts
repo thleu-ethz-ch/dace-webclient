@@ -141,4 +141,8 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         this.rank = newRank;
     }
 
+    isScope(): boolean {
+        return (this.childGraph !== null && this.childGraph.entryNode !== null);
+    }
+
 }
