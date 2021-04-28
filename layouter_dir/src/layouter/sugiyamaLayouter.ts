@@ -22,6 +22,7 @@ import LayoutBundle from "../layoutGraph/layoutBundle";
 import LevelNode from "../levelGraph/levelNode";
 import LevelGraph from "../levelGraph/levelGraph";
 import Segment from "../geometry/segment";
+import {CONNECTOR_SIZE} from "../util/constants";
 
 export default class SugiyamaLayouter extends Layouter
 {
@@ -624,14 +625,17 @@ export default class SugiyamaLayouter extends Layouter
                 });
                 let height = node.height;
                 if (node.inConnectors.length > 0) {
-                    node.y += this._options["connectorSize"] / 2;
+                    node.y += CONNECTOR_SIZE / 2;
                 }
                 if (node.outConnectors.length > 0) {
-                    height += this._options["connectorSize"] / 2;
+                    height += CONNECTOR_SIZE / 2;
                 }
                 _.forEach(node.parents(), (parent: LayoutNode) => {
                     if (parent.childGraph.maxRank === node.rank) {
                         height += parent.padding;
+                        if (parent.outConnectors.length > 0) {
+                            height += CONNECTOR_SIZE / 2;
+                        }
                     }
                 });
                 maxBottom = Math.max(maxBottom, node.y + height);
