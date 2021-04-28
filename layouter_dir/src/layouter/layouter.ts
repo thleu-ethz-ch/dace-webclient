@@ -333,31 +333,38 @@ export default abstract class Layouter {
         _.forEach(layoutGraph.allNodes(), (node: LayoutNode) => {
             const addBundles = (bundles, connectors, edgeMethod, connectorProp, bundleProp, entryExit) => {
                 if (node[bundles].length > 0) {
-                    const remainingConnectors = new Set();
-                    _.forEach(node[connectors], (connector: LayoutConnector) => {
-                        remainingConnectors.add(connector.name);
-                    });
-                    _.forEach(node[bundles], (bundle: LayoutBundle) => {
-                        _.forEach(bundle.connectors, (name: string) => {
-                            remainingConnectors.delete(name);
+                    let graph = node.graph;
+                    let id = node.id;
+                    if (graph[entryExit] === node) {
+                        graph = node.graph.parentNode.graph;
+                        id = node.graph.parentNode.id;
+                    }
+                    if (_.some(node[bundles], bundle => bundle.connectors.length > 1)) {
+                        const remainingConnectors = new Set();
+                        _.forEach(node[connectors], (connector: LayoutConnector) => {
+                            remainingConnectors.add(connector.name);
                         });
-                    });
-                    remainingConnectors.forEach((name: string) => {
-                        const bundle = new LayoutBundle();
-                        bundle.addConnector(name);
-                        node[bundles].push(bundle);
-                        let graph = node.graph;
-                        let id = node.id;
-                        if (graph[entryExit] === node) {
-                            graph = node.graph.parentNode.graph;
-                            id = node.graph.parentNode.id;
-                        }
+                        _.forEach(node[bundles], (bundle: LayoutBundle) => {
+                            _.forEach(bundle.connectors, (name: string) => {
+                                remainingConnectors.delete(name);
+                            });
+                        });
+                        remainingConnectors.forEach((name: string) => {
+                            const bundle = new LayoutBundle();
+                            bundle.addConnector(name);
+                            node[bundles].push(bundle);
+                            _.forEach(graph[edgeMethod](id), (edge: LayoutEdge) => {
+                                if (edge[connectorProp] === name) {
+                                    edge[bundleProp] = bundle;
+                                }
+                            });
+                        });
+                    } else {
+                        node[bundles] = [];
                         _.forEach(graph[edgeMethod](id), (edge: LayoutEdge) => {
-                            if (edge[connectorProp] === name) {
-                                edge[bundleProp] = bundle;
-                            }
+                            edge[bundleProp] = null;
                         });
-                    });
+                    }
                 }
             };
             addBundles("inConnectorBundles", "inConnectors", "inEdges", "dstConnector", "dstBundle", "entryNode");
