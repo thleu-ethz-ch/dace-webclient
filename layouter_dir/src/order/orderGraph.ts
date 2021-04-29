@@ -247,7 +247,25 @@ export default class OrderGraph {
 
             crossings[0] = 0;
 
-            const countCrossings = (testOrder: Array<number>, r: number, direction: "UP" | "DOWN") => {
+            const countCrossings = (testOrder: Array<number>, r: number, direction: "UP" | "DOWN", preventConflicts: boolean = false) => {
+                if (preventConflicts) {
+                    const originalOrder = _.clone(order[r]);
+                    order[r] = _.clone(testOrder);
+                    _.forEach(order[r], (node, pos) => {
+                        positions[r][node] = pos;
+                    });
+                    let hasConflict = getConflict("HEAVYHEAVY", r) || getConflict("HEAVYLIGHT", r);
+                    if (r < ranks.length - 1) {
+                        hasConflict = hasConflict || getConflict("HEAVYHEAVY", r + 1) || getConflict("HEAVYLIGHT", r + 1);
+                    }
+                    order[r] = _.clone(originalOrder);
+                    _.forEach(order[r], (node, pos) => {
+                        positions[r][node] = pos;
+                    });
+                    if (hasConflict) {
+                        return Number.POSITIVE_INFINITY;
+                    }
+                }
                 const edges = [];
                 const neighbors = (direction === "UP" ? neighborsUp : neighborsDown);
                 const weights = (direction === "UP" ? weightsUp : weightsDown);
@@ -273,7 +291,7 @@ export default class OrderGraph {
              * @param countInitial
              * @param shuffle
              */
-            const reorder = (shuffle: boolean = false, startRank: number = 0) => {
+            const reorder = (shuffle: boolean = false, startRank: number = 0, preventConflicts: boolean = false) => {
                 Timer.start("reorder");
 
                 if (shuffle) {
@@ -409,13 +427,13 @@ export default class OrderGraph {
                         const tryNewOrder = (newOrder) => {
                             // count crossings with new order
                             const prevCrossingsNorth = crossings[r + crossingOffsetNorth];
-                            const newCrossingsNorth = countCrossings(newOrder, r, northDirection);
+                            const newCrossingsNorth = countCrossings(newOrder, r, northDirection, preventConflicts);
 
                             let newCrossingsSouth = 0;
                             let prevCrossingsSouth = 0;
                             if (r !== lastRank) {
                                 prevCrossingsSouth = crossings[r + crossingOffsetSouth];
-                                newCrossingsSouth = countCrossings(newOrder, r, southDirection);
+                                newCrossingsSouth = countCrossings(newOrder, r, southDirection, preventConflicts);
                             }
                             const fewerCrossingsNorth = newCrossingsNorth < prevCrossingsNorth;
                             const fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth <= prevCrossingsNorth + prevCrossingsSouth);
@@ -521,8 +539,8 @@ export default class OrderGraph {
                 }, "edge not between neighboring ranks");
             }
 
-            const getConflict = (type: "HEAVYHEAVY" | "HEAVYLIGHT", r: number) => {
-                if (crossings[r] === 0) {
+            const getConflict = (type: "HEAVYHEAVY" | "HEAVYLIGHT", r: number, skipIfZero: boolean = false) => {
+                if (skipIfZero && crossings[r] === 0) {
                     // there is no conflict in this rank
                     return null;
                 }
@@ -1027,9 +1045,8 @@ export default class OrderGraph {
 
                         assertNeighborCoherence();
 
-
                         if (options["resolveY"] === "compact") {
-                            while (getConflict("HEAVYHEAVY", r) !== null) {
+                            while (getConflict("HEAVYHEAVY", r, true) !== null) {
                                 resolveConflict(getConflict("HEAVYHEAVY", r));
                             }
                             for (let tmpR = r - 1; tmpR < ranks.length; ++tmpR) {
@@ -1040,7 +1057,7 @@ export default class OrderGraph {
                         for (let tmpR = 1; tmpR < ranks.length; ++tmpR) {
                             crossings[tmpR] = countCrossings(order[tmpR], tmpR, "UP");
                         }
-                        Assert.assertAll(_.range(r + 1), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after y resolution");
+                        Assert.assertAll(_.range(r + 1), r => getConflict("HEAVYHEAVY", r, true) === null, "heavy-heavy conflict after y resolution");
                     }
 
                     const checkXResolution = (side: "LEFT" | "RIGHT") => {
@@ -1239,7 +1256,7 @@ export default class OrderGraph {
                         if (options["debug"]) {
                             storeLocal();
                         }
-                        Assert.assertAll(_.range(r + 1), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after x resolution");
+                        Assert.assertAll(_.range(r + 1), r => getConflict("HEAVYHEAVY", r, true) === null, "heavy-heavy conflict after x resolution");
                     };
 
                     if (crossingEdge.weight === Number.POSITIVE_INFINITY) {
@@ -1277,14 +1294,14 @@ export default class OrderGraph {
                     crossings[r] = countCrossings(order[r], r, "UP");
                 }
                 for (let r = 1; r < ranks.length; ++r) {
-                    while (getConflict("HEAVYHEAVY", r) !== null) {
+                    while (getConflict("HEAVYHEAVY", r, true) !== null) {
                         const conflict = getConflict("HEAVYHEAVY", r);
                         resolveConflict(conflict);
                         if (options["debug"]) {
                             storeLocal();
                         }
                     }
-                    while (getConflict("HEAVYLIGHT", r) !== null) {
+                    while (getConflict("HEAVYLIGHT", r, true) !== null) {
                         const conflict = getConflict("HEAVYLIGHT", r);
                         resolveConflict(conflict);
                         if (options["debug"]) {
@@ -1334,6 +1351,7 @@ export default class OrderGraph {
             }
             if (!hasGroups) {
                 resolveConflicts();
+                reorder(false, 0, true);
             }
 
             // quickly getting the number of crossings for bert

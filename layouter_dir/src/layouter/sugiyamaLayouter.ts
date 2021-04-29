@@ -244,7 +244,7 @@ export default class SugiyamaLayouter extends Layouter
                 // do order
                 let debug = false;
                 // commented out: debug one subgraph
-                /*if (subgraph.parentNode !== null && subgraph.parentNode.label() === "slice_HD_82") {
+                /*if (subgraph.parentNode !== null && subgraph.parentNode.label() === "slice___tmp0_125") {
                     debug = true;
                 }*/
                 orderGraph.order(false, {"shuffles": this._options["shuffles"], "resolveY": this._options["resolveY"], "debug": debug});//subgraph.nodes().length === 851);
