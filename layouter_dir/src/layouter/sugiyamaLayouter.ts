@@ -229,8 +229,6 @@ export default class SugiyamaLayouter extends Layouter
                     }
                 });
 
-                console.log(component.levelGraph().ranks());
-
                 _.forEach(component.levelGraph().ranks(), (rank: Array<LevelNode>, r) => {
                     let index = 0;
                     _.forEach(rank, (levelNode: LevelNode) => {
@@ -239,11 +237,12 @@ export default class SugiyamaLayouter extends Layouter
                             index += node.childGraph.maxIndex() + 1;
                             return; // do not add connectors for scope nodes
                         }
-                        let connectorGroup = new OrderGroup(node, node.label());
+                        const connectorGroup = new OrderGroup(node, node.label());
+                        orderRanks[node.rank].addGroup(connectorGroup);
+                        connectorGroup.position = index;
+                        node.index = index;
                         if (node.childGraph === null || component.minRank() + r === node.rank) {
                             // add input connectors
-                            connectorGroup.position = index;
-                            orderRanks[node.rank].addGroup(connectorGroup);
                             _.forEach(node.inConnectors, (connector: LayoutConnector) => {
                                 const connectorNode = new OrderNode(connector, false, connector.name);
                                 connectorGroup.addNode(connectorNode);
@@ -266,11 +265,6 @@ export default class SugiyamaLayouter extends Layouter
                         }
                         if (node.childGraph === null || component.minRank() + r === node.rank + node.rankSpan - 1) {
                             Assert.assertImplies(node.rankSpan > 1, !node.hasScopedConnectors, "multirank node with scoped connectors");
-                            if (!node.hasScopedConnectors) {
-                                // keep in- and out-connectors separated from each other if they are not scoped
-                                connectorGroup = new OrderGroup(node, node.label());
-                                orderRanks[node.rank + node.rankSpan - 1].addGroup(connectorGroup);
-                            }
 
                             // add output connectors
                             _.forEach(node.outConnectors, (connector: LayoutConnector) => {
@@ -365,7 +359,7 @@ export default class SugiyamaLayouter extends Layouter
         });
 
         /**
-         * STEP 1: ORDER NODES
+         * STEP 2: ORDER NODES
          * This is done strictly hierarchically.
          * Child graphs are represented as a chain over multiple ranks in their parent.
          */
