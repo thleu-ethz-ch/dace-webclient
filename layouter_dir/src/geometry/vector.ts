@@ -1,5 +1,5 @@
 /**
- * Inspired by https://github.com/mrdoob/three.js/
+ * Inspired by THREE.js: https://github.com/mrdoob/three.js/
  */
 export default class Vector {
     public x: number;
@@ -10,7 +10,7 @@ export default class Vector {
         this.y = y;
     }
 
-    clone() {
+    clone(): Vector {
         return new Vector(this.x, this.y);
     }
 
@@ -22,11 +22,19 @@ export default class Vector {
         return (Math.atan2(this.y, this.x) + 2 * Math.PI) % (2 * Math.PI);
     }
 
-    normalize() {
+    normalize(): Vector {
         const length = this.length();
         this.x /= length;
         this.y /= length;
         return this;
+    }
+
+    setX(x: number): Vector {
+        return this.multiplyScalar(x / this.x);
+    }
+
+    setY(y: number): Vector {
+        return this.multiplyScalar(y / this.y);
     }
 
     angleTo(otherVector: Vector) {

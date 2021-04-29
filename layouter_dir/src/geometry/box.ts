@@ -34,6 +34,14 @@ export default class Box {
         return new Vector(this.x + this.width / 2, this.y + this.height);
     }
 
+    left(): number {
+        return this.x;
+    }
+
+    right(): number {
+        return this.x + this.width;
+    }
+
     size(): Size {
         return {
             width: this.width,

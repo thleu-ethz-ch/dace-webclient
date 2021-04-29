@@ -704,7 +704,131 @@ export default class SugiyamaLayouter extends Layouter
                 this._placeConnectors(node, rankTops, rankBottoms);
             });
 
-            // place edges (self-loops handled above)
+            /**
+             * PLACE EDGES
+             * (self-loops handled above)
+             */
+
+            const getInPoint = (node: LayoutNode, edge: LayoutEdge): Vector => {
+                let inPoint = node.boundingBox().topCenter();
+                if (!node.isVirtual) {
+                    if (edge.dstConnector !== null) {
+                        let dstConnector = node.connector("IN", edge.dstConnector);
+                        if (dstConnector === undefined && node.childGraph !== null) {
+                            const childGraph = node.childGraph;
+                            if (childGraph.entryNode !== null) {
+                                dstConnector = childGraph.entryNode.connector("IN", edge.dstConnector);
+                            }
+                        }
+                        if (dstConnector !== undefined) {
+                            inPoint = dstConnector.boundingBox().topCenter();
+                        }
+                    } else if (node.topOutConnectorIndex !== null) {
+                        if (edge.isInverted) {
+                            inPoint.x += (node.topOutConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
+                        } else {
+                            inPoint.x += (0.5 - node.topOutConnectorIndex) * 2 * this._options["connectorSpacing"];
+                        }
+                    }
+                }
+                inPoint.y = rankTops[node.rank];
+                return inPoint;
+            };
+
+            const getInProxyPoint = (node: LayoutNode, inPoint: Vector): Vector => {
+                const proxyPoint = inPoint.clone();
+                proxyPoint.y = rankTops[node.rank];
+                return proxyPoint;
+            };
+
+            const getOutPoint = (node: LayoutNode, edge: LayoutEdge): Vector => {
+                let outPoint = node.boundingBox().bottomCenter();
+                if (!node.isVirtual) {
+                    if (edge.srcConnector !== null) {
+                        let srcConnector = node.connector("OUT", edge.srcConnector);
+                        if (srcConnector === undefined && node.childGraph !== null) {
+                            const childGraph = node.childGraph;
+                            if (childGraph.entryNode !== null) {
+                                srcConnector = childGraph.exitNode.connector("OUT", edge.srcConnector);
+                            }
+                        }
+                        if (srcConnector !== undefined) {
+                            outPoint = srcConnector.boundingBox().bottomCenter();
+                        }
+                    } else if (node.bottomInConnectorIndex !== null) {
+                        if (edge.isInverted) {
+                            outPoint.x += (node.bottomInConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
+                        } else {
+                            outPoint.x += (0.5 - node.bottomInConnectorIndex) * 2 * this._options["connectorSpacing"];
+                        }
+                    }
+                }
+                return outPoint;
+            };
+
+            const getOutProxyPoint = (node: LayoutNode, outPoint: Vector): Vector => {
+                const proxyPoint = outPoint.clone();
+                proxyPoint.y = rankBottoms[node.rank + node.rankSpan - 1];
+                return proxyPoint;
+            };
+
+            // mark nodes that do not need proxies
+            const noInProxyNodes = new Set();
+            const noOutProxyNodes = new Set();
+            _.forEach(subgraph.components(), (component: LayoutComponent) => {
+                _.forEach(component.levelGraph().ranks(), (rank: Array<LevelNode>, r: number) => {
+                    _.forEach(rank, (levelNode: LevelNode, pos) => {
+                        const node = levelNode.layoutNode;
+
+                        let leftBoundary = Number.NEGATIVE_INFINITY;
+                        if (pos > 0) {
+                            leftBoundary = rank[pos - 1].layoutNode.boundingBox().right();
+                        }
+                        let rightBoundary = Number.POSITIVE_INFINITY;
+                        if (pos < rank.length - 1) {
+                            rightBoundary = rank[pos + 1].layoutNode.boundingBox().left();
+                        }
+
+                        if (!node.isVirtual && node.graph.inEdges(node.id).length > 0 && node.inConnectorBundles.length === 0) {
+                            let minPos = Number.POSITIVE_INFINITY;
+                            let maxPos = Number.NEGATIVE_INFINITY
+                            _.forEach(node.graph.inEdges(node.id), (edge: LayoutEdge) => {
+                                const dstPoint = getInPoint(node, edge);
+                                const dstProxyPoint = getInProxyPoint(node, dstPoint);
+                                if (_.isEqual(dstPoint, dstProxyPoint)) {
+                                    return;
+                                }
+                                const srcPoint = getOutPoint(node.graph.node(edge.src), edge);
+                                const intersection = dstPoint.clone().sub(dstPoint.clone().sub(srcPoint).setY(dstPoint.y - dstProxyPoint.y));
+                                minPos = Math.min(minPos, intersection.x);
+                                maxPos = Math.max(maxPos, intersection.x);
+                            });
+                            if (minPos > leftBoundary && maxPos < rightBoundary) {
+                                noInProxyNodes.add(node);
+                            }
+                        }
+                        if (!node.isVirtual && node.graph.outEdges(node.id).length > 0 && node.outConnectorBundles.length === 0) {
+                            let minPos = Number.POSITIVE_INFINITY;
+                            let maxPos = Number.NEGATIVE_INFINITY
+                            _.forEach(node.graph.outEdges(node.id), (edge: LayoutEdge) => {
+                                const srcPoint = getOutPoint(node, edge);
+                                const srcProxyPoint = getOutProxyPoint(node, srcPoint);
+                                if (_.isEqual(srcPoint, srcProxyPoint)) {
+                                    return;
+                                }
+                                const dstPoint = getInPoint(node.graph.node(edge.dst), edge);
+                                const intersection = srcPoint.clone().add(dstPoint.clone().sub(srcPoint).setY(srcProxyPoint.y - srcPoint.y));
+                                minPos = Math.min(minPos, intersection.x);
+                                maxPos = Math.max(maxPos, intersection.x);
+                            });
+                            if (minPos > leftBoundary && maxPos < rightBoundary) {
+                                noOutProxyNodes.add(node);
+                            }
+                        }
+                    });
+                });
+            });
+
             _.forEach(subgraph.edges(), (edge: LayoutEdge) => {
                 const startNode = subgraph.node(edge.src);
                 if (startNode.isVirtual) {
@@ -712,80 +836,17 @@ export default class SugiyamaLayouter extends Layouter
                     return;
                 }
 
-                const getInPoint = (node: LayoutNode): Vector => {
-                    let inPoint = node.boundingBox().topCenter();
-                    if (!node.isVirtual) {
-                        if (edge.dstConnector !== null) {
-                            let dstConnector = node.connector("IN", edge.dstConnector);
-                            if (dstConnector === undefined && node.childGraph !== null) {
-                                const childGraph = node.childGraph;
-                                if (childGraph.entryNode !== null) {
-                                    dstConnector = childGraph.entryNode.connector("IN", edge.dstConnector);
-                                }
-                            }
-                            if (dstConnector !== undefined) {
-                                inPoint = dstConnector.boundingBox().topCenter();
-                            }
-                        } else if (node.topOutConnectorIndex !== null) {
-                            if (edge.isInverted) {
-                                inPoint.x += (node.topOutConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
-                            } else {
-                                inPoint.x += (0.5 - node.topOutConnectorIndex) * 2 * this._options["connectorSpacing"];
-                            }
-                        }
-                    }
-                    inPoint.y = rankTops[node.rank];
-                    return inPoint;
-                };
-
-                const getInProxyPoint = (node: LayoutNode, inPoint: Vector): Vector => {
-                    const proxyPoint = inPoint.clone();
-                    proxyPoint.y = rankTops[node.rank];
-                    return proxyPoint;
-                };
-
-                const getOutPoint = (node: LayoutNode): Vector => {
-                    let outPoint = node.boundingBox().bottomCenter();
-                    if (!node.isVirtual) {
-                        if (edge.srcConnector !== null) {
-                            let srcConnector = node.connector("OUT", edge.srcConnector);
-                            if (srcConnector === undefined && node.childGraph !== null) {
-                                const childGraph = node.childGraph;
-                                if (childGraph.entryNode !== null) {
-                                    srcConnector = childGraph.exitNode.connector("OUT", edge.srcConnector);
-                                }
-                            }
-                            if (srcConnector !== undefined) {
-                                outPoint = srcConnector.boundingBox().bottomCenter();
-                            }
-                        } else if (node.bottomInConnectorIndex !== null) {
-                            if (edge.isInverted) {
-                                outPoint.x += (node.bottomInConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
-                            } else {
-                                outPoint.x += (0.5 - node.bottomInConnectorIndex) * 2 * this._options["connectorSpacing"];
-                            }
-                        }
-                    }
-                    return outPoint;
-                };
-
-                const getOutProxyPoint = (node: LayoutNode, outPoint: Vector): Vector => {
-                    const proxyPoint = outPoint.clone();
-                    proxyPoint.y = rankBottoms[node.rank + node.rankSpan - 1];
-                    return proxyPoint;
-                };
-
-                const startPoint = getOutPoint(startNode);
+                const startPoint = getOutPoint(startNode, edge);
                 const startProxyPoint = (edge.srcBundle !== null ? edge.srcBundle.position() : getOutProxyPoint(startNode, startPoint));
                 edge.points = [startPoint];
-                if (!_.isEqual(startPoint, startProxyPoint)) {
+                if (!_.isEqual(startPoint, startProxyPoint) && !noOutProxyNodes.has(startNode)) {
                     edge.points.push(startProxyPoint);
                 }
 
                 let nextNode = subgraph.node(edge.dst);
                 let tmpEdge = null;
                 while (nextNode.isVirtual) {
-                    const nextPoint = getInPoint(nextNode);
+                    const nextPoint = getInPoint(nextNode, edge);
                     const nextInProxyPoint = getInProxyPoint(nextNode, nextPoint);
                     const nextOutProxyPoint = getOutProxyPoint(nextNode, nextPoint);
                     if (!_.isEqual(nextInProxyPoint, nextPoint)) {
@@ -802,9 +863,9 @@ export default class SugiyamaLayouter extends Layouter
                 if (tmpEdge !== null) {
                     edge.dstConnector = tmpEdge.dstConnector;
                 }
-                const endPoint = getInPoint(nextNode);
+                const endPoint = getInPoint(nextNode, edge);
                 const endProxyPoint = (edge.dstBundle !== null ? edge.dstBundle.position() : getInProxyPoint(nextNode, endPoint));
-                if (!_.isEqual(endProxyPoint, endPoint)) {
+                if (!_.isEqual(endProxyPoint, endPoint) && !noInProxyNodes.has(nextNode)) {
                     edge.points.push(endProxyPoint);
                 }
                 edge.points.push(endPoint);
