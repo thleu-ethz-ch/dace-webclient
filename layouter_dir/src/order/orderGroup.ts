@@ -35,13 +35,18 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
         _.pull(this.nodes, node);
     }
 
+    orderNodes(): void {
+        this.order = _.map(_.sortBy(_.map(this.nodes, (node, n) => {
+            return {n: n, pos: node.position};
+        }), "pos"), "n");
+    }
+
     orderedNodes(): Array<OrderNode> {
         const nodes = [];
         if (this.order.length < this.nodes.length) {
-            this.order = _.map(_.sortBy(_.map(this.nodes, (node, n) => {
-                return {n: n, pos: node.position};
-            }), "pos"), "n");
+            this.orderNodes();
         }
+        console.log(this.order);
         _.forEach(this.order, pos => {
             nodes.push(this.nodes[pos]);
         });

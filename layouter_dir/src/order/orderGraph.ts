@@ -193,6 +193,7 @@ export default class OrderGraph {
                     nodeIndexes[node.id] = groupOffsets[group.id] + nodeIndex;
                 });
             });
+            const groupIndex = []; // group index by node index
             const groupOffset = []; // number of nodes in groups left of this group by rank
             const virtual = [];
             const neighborsDown = [];
@@ -218,6 +219,7 @@ export default class OrderGraph {
                     const groupOrder = _.range(groupOffset[r][g], groupOffset[r][g] + numNodesGroup[r][g]);
                     for (let n = 0; n < numNodesGroup[r][g]; ++n) {
                         order[r][groupOffset[r][g] + n] = groupOrder[n];
+                        groupIndex[groupOrder[n]] = g;
                     }
                     _.forEach(group.nodes, (node: OrderNode, n: number) => {
                         node.initialRank = r;
@@ -344,53 +346,53 @@ export default class OrderGraph {
                         }
 
                         const sameMeanGroups = [];
-                        for (let g = 0; g < numNodesGroup[r].length; ++g) {
-                            // calculate mean position of neighbors
-                            let nodeMeans = [];
-                            for (let pos = groupOffset[r][g]; pos < groupOffset[r][g] + numNodesGroup[r][g]; ++pos) {
-                                const n = order[r][pos];
-                                let sum = 0;
-                                let num = 0;
-                                for (let neighbor = 0; neighbor < neighborsNorth[r][n].length; ++neighbor) {
-                                    let weight = weightsNorth[r][n][neighbor];
-                                    if (weight === Number.POSITIVE_INFINITY) {
-                                        weight = 1;
-                                    }
-                                    sum += weight * positions[northRank][neighborsNorth[r][n][neighbor]];
-                                    num += weight;
-                                }
-                                if (neighborsNorth[r][n].length > 0) {
-                                    nodeMeans.push([n, sum / num]);
-                                } else {
-                                    nodeMeans.push([n, pos]);
-                                }
-                            }
 
-                            // sort by the means
-                            nodeMeans = _.sortBy(nodeMeans, pair => pair[1]);
-
-                            // find groups with same mean
-                            let prevMean = -1;
-                            let group = [];
-                            _.forEach(nodeMeans, ([n, mean]) => {
-                                if (mean === prevMean) {
-                                    group.push(positions[r][n]);
-                                } else {
-                                    if (group.length >= 2) {
-                                        sameMeanGroups.push(_.clone(group));
-                                    }
-                                    group = [positions[r][n]];
+                        // calculate mean position of neighbors
+                        let nodeMeans = [];
+                        for (let pos = 0; pos < order[r].length; ++pos) {
+                            const n = order[r][pos];
+                            let sum = 0;
+                            let num = 0;
+                            for (let neighbor = 0; neighbor < neighborsNorth[r][n].length; ++neighbor) {
+                                let weight = weightsNorth[r][n][neighbor];
+                                if (weight === Number.POSITIVE_INFINITY) {
+                                    weight = 1;
                                 }
-                                prevMean = mean;
-                            });
-                            if (group.length >= 2) {
-                                sameMeanGroups.push(_.clone(group));
+                                sum += weight * positions[northRank][neighborsNorth[r][n][neighbor]];
+                                num += weight;
                             }
-                            const newGroupOrder = _.map(nodeMeans, pair => pair[0]);
-                            for (let pos = 0; pos < numNodesGroup[r][g]; ++pos) {
-                                newOrder[groupOffset[r][g] + pos] = newGroupOrder[pos];
+                            if (neighborsNorth[r][n].length > 0) {
+                                nodeMeans.push([n, sum / num]);
+                            } else {
+                                nodeMeans.push([n, pos]);
                             }
                         }
+
+                        // sort by the means
+                        nodeMeans = _.sortBy(nodeMeans, pair => pair[1]);
+
+                        // find groups with same mean
+                        let prevMean = -1;
+                        let group = [];
+                        _.forEach(nodeMeans, ([n, mean]) => {
+                            if (mean === prevMean) {
+                                group.push(positions[r][n]);
+                            } else {
+                                if (group.length >= 2) {
+                                    sameMeanGroups.push(_.clone(group));
+                                }
+                                group = [positions[r][n]];
+                            }
+                            prevMean = mean;
+                        });
+                        if (group.length >= 2) {
+                            sameMeanGroups.push(_.clone(group));
+                        }
+                        _.forEach(nodeMeans, (pair: [number, number], pos: number) => {
+                            newOrder[pos] = pair[0];
+                        });
+
+
                         const changes = [];
                         const permutation = new Array(order.length);
                         _.forEach(newOrder, (n, pos) => {
@@ -505,6 +507,12 @@ export default class OrderGraph {
 
                 for (let r = 1; r < ranks.length; ++r) {
                     crossings[r] = countCrossings(order[r], r, "UP");
+                    _.forEach(ranks[r].orderedGroups(), (group: OrderGroup, g) => {
+                        _.forEach(group.nodes, (node: OrderNode, n: number) => {
+                            node.position = positions[r][groupOffset[r][g] + n] - groupOffset[r][g];
+                        });
+                        group.orderNodes();
+                    });
                 }
 
                 Timer.stop("reorder");
@@ -1363,16 +1371,6 @@ export default class OrderGraph {
                 throw new Error("halt");
             }
 
-            _.forEach(ranks, (rank: OrderRank, r: number) => {
-                _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {
-                    group.order = _.map(_.slice(order[r], groupOffset[r][g], groupOffset[r][g] + numNodesGroup[r][g]),
-                        (pos: number) => pos - groupOffset[r][g]
-                    );
-                    _.forEach(group.nodes, (node: OrderNode, n: number) => {
-                        node.position = positions[r][groupOffset[r][g] + n] - groupOffset[r][g];
-                    });
-                });
-            });
             Timer.stop("doOrder");
         }
 
