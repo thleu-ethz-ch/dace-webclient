@@ -214,7 +214,9 @@ export default class OrderGraph {
                 order[r] = new Array(numNodesRank[r]);
                 positions[r] = new Array(numNodesRank[r]);
                 crossings[r] = Number.POSITIVE_INFINITY;
+                console.log("rank", r);
                 _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {
+                    console.log(group.label());
                     groupOffset[r][g] = groupOffsets[group.id];
                     const groupOrder = _.range(groupOffset[r][g], groupOffset[r][g] + numNodesGroup[r][g]);
                     for (let n = 0; n < numNodesGroup[r][g]; ++n) {
