@@ -682,6 +682,9 @@ export default class SugiyamaLayouter extends Layouter
             // set parent bounding box
             if (subgraph.parentNode !== null) {
                 const boundingBox = subgraph.boundingBox(false);
+                if (subgraph.parentNode.outConnectors.length > 0) {
+                    boundingBox.height -= CONNECTOR_SIZE / 2;
+                }
                 subgraph.parentNode.updateSize({width: boundingBox.width + 2 * subgraph.parentNode.padding, height: boundingBox.height + 2 * subgraph.parentNode.padding});
                 if (subgraph.parentNode.selfLoop !== null) {
                     subgraph.parentNode.updateSize({width: subgraph.parentNode.width + this._options["targetEdgeLength"], height: 0});
@@ -709,47 +712,89 @@ export default class SugiyamaLayouter extends Layouter
                     return;
                 }
 
-                let startPos = startNode.boundingBox().bottomCenter();
-                if (edge.srcConnector !== null) {
-                    let srcConnector = startNode.connector("OUT", edge.srcConnector);
-                    if (srcConnector === undefined && startNode.childGraph !== null) {
-                        const childGraph = <LayoutGraph>startNode.childGraph;
-                        if (childGraph.exitNode !== null) {
-                            srcConnector = childGraph.exitNode.connector("OUT", edge.srcConnector);
+                const getInPoint = (node: LayoutNode): Vector => {
+                    let inPoint = node.boundingBox().topCenter();
+                    if (!node.isVirtual) {
+                        if (edge.dstConnector !== null) {
+                            let dstConnector = node.connector("IN", edge.dstConnector);
+                            if (dstConnector === undefined && node.childGraph !== null) {
+                                const childGraph = node.childGraph;
+                                if (childGraph.entryNode !== null) {
+                                    dstConnector = childGraph.entryNode.connector("IN", edge.dstConnector);
+                                }
+                            }
+                            if (dstConnector !== undefined) {
+                                inPoint = dstConnector.boundingBox().topCenter();
+                            }
+                        } else if (node.topOutConnectorIndex !== null) {
+                            if (edge.isInverted) {
+                                inPoint.x += (node.topOutConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
+                            } else {
+                                inPoint.x += (0.5 - node.topOutConnectorIndex) * 2 * this._options["connectorSpacing"];
+                            }
                         }
                     }
-                    if (srcConnector !== undefined) {
-                        startPos = srcConnector.position().add(new Vector(srcConnector.diameter / 2, srcConnector.diameter));
-                    }
-                } else if (startNode.bottomInConnectorIndex !== null) {
-                    if (edge.isInverted) {
-                        startPos.x += (startNode.bottomInConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
-                    } else {
-                        startPos.x += (0.5 - startNode.bottomInConnectorIndex) * 2 * this._options["connectorSpacing"];
-                    }
-                }
-                edge.points = [startPos];
+                    inPoint.y = rankTops[node.rank];
+                    return inPoint;
+                };
 
-                if (edge.srcBundle !== null) {
-                    edge.points.push(new Vector(edge.srcBundle.x, edge.srcBundle.y));
-                } else {
-                    const startBottom = rankBottoms[startNode.rank + startNode.rankSpan - 1];
-                    if (startBottom > startPos.y) {
-                        edge.points.push(new Vector(startPos.x, startBottom))
+                const getInProxyPoint = (node: LayoutNode, inPoint: Vector): Vector => {
+                    const proxyPoint = inPoint.clone();
+                    proxyPoint.y = rankTops[node.rank];
+                    return proxyPoint;
+                };
+
+                const getOutPoint = (node: LayoutNode): Vector => {
+                    let outPoint = node.boundingBox().bottomCenter();
+                    if (!node.isVirtual) {
+                        if (edge.srcConnector !== null) {
+                            let srcConnector = node.connector("OUT", edge.srcConnector);
+                            if (srcConnector === undefined && node.childGraph !== null) {
+                                const childGraph = node.childGraph;
+                                if (childGraph.entryNode !== null) {
+                                    srcConnector = childGraph.exitNode.connector("OUT", edge.srcConnector);
+                                }
+                            }
+                            if (srcConnector !== undefined) {
+                                outPoint = srcConnector.boundingBox().bottomCenter();
+                            }
+                        } else if (node.bottomInConnectorIndex !== null) {
+                            if (edge.isInverted) {
+                                outPoint.x += (node.bottomInConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
+                            } else {
+                                outPoint.x += (0.5 - node.bottomInConnectorIndex) * 2 * this._options["connectorSpacing"];
+                            }
+                        }
                     }
+                    return outPoint;
+                };
+
+                const getOutProxyPoint = (node: LayoutNode, outPoint: Vector): Vector => {
+                    const proxyPoint = outPoint.clone();
+                    proxyPoint.y = rankBottoms[node.rank + node.rankSpan - 1];
+                    return proxyPoint;
+                };
+
+                const startPoint = getOutPoint(startNode);
+                const startProxyPoint = (edge.srcBundle !== null ? edge.srcBundle.position() : getOutProxyPoint(startNode, startPoint));
+                edge.points = [startPoint];
+                if (!_.isEqual(startPoint, startProxyPoint)) {
+                    edge.points.push(startProxyPoint);
                 }
 
                 let nextNode = subgraph.node(edge.dst);
                 let tmpEdge = null;
                 while (nextNode.isVirtual) {
-                    const nextPos = nextNode.position();
-                    const nextTop = rankTops[nextNode.rank];
-                    if (nextTop < nextPos.y) {
-                        edge.points.push(new Vector(nextPos.x, nextTop)); // add point above
+                    const nextPoint = getInPoint(nextNode);
+                    const nextInProxyPoint = getInProxyPoint(nextNode, nextPoint);
+                    const nextOutProxyPoint = getOutProxyPoint(nextNode, nextPoint);
+                    if (!_.isEqual(nextInProxyPoint, nextPoint)) {
+                        edge.points.push(nextInProxyPoint);
                     }
-                    edge.points.push(nextPos);
-                    edge.points.push(new Vector(nextPos.x, rankBottoms[nextNode.rank])); // add point below
-
+                    edge.points.push(nextPoint);
+                    if (!_.isEqual(nextOutProxyPoint, nextPoint)) {
+                        edge.points.push(nextOutProxyPoint);
+                    }
                     tmpEdge = subgraph.outEdges(nextNode.id)[0];
                     nextNode = subgraph.node(tmpEdge.dst);
                 }
@@ -757,34 +802,14 @@ export default class SugiyamaLayouter extends Layouter
                 if (tmpEdge !== null) {
                     edge.dstConnector = tmpEdge.dstConnector;
                 }
-                let endPos = nextNode.boundingBox().topCenter();
-                if (edge.dstConnector !== null) {
-                    let dstConnector = nextNode.connector("IN", edge.dstConnector);
-                    if (dstConnector === undefined && nextNode.childGraph !== null) {
-                        const childGraph = <LayoutGraph>nextNode.childGraph;
-                        if (childGraph.entryNode !== null) {
-                            dstConnector = childGraph.entryNode.connector("IN", edge.dstConnector);
-                        }
-                    }
-                    if (dstConnector !== undefined) {
-                        endPos = dstConnector.position().add(new Vector(dstConnector.diameter / 2, 0));
-                    }
-                } else if (nextNode.topOutConnectorIndex !== null) {
-                    if (edge.isInverted) {
-                        endPos.x += (nextNode.topOutConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
-                    } else {
-                        endPos.x += (0.5 - nextNode.topOutConnectorIndex) * 2 * this._options["connectorSpacing"];
-                    }
+                const endPoint = getInPoint(nextNode);
+                const endProxyPoint = (edge.dstBundle !== null ? edge.dstBundle.position() : getInProxyPoint(nextNode, endPoint));
+                if (!_.isEqual(endProxyPoint, endPoint)) {
+                    edge.points.push(endProxyPoint);
                 }
-                if (edge.dstBundle !== null) {
-                    edge.points.push(new Vector(edge.dstBundle.x, edge.dstBundle.y));
-                } else {
-                    const endTop = rankTops[nextNode.rank];
-                    if (endTop < endPos.y) {
-                        edge.points.push(new Vector(endPos.x, endTop));
-                    }
-                }
-                edge.points.push(endPos);
+                edge.points.push(endPoint);
+
+                // redirect edge from start to end
                 if (tmpEdge !== null) {
                     edge.graph.removeEdge(edge.id);
                     edge.dst = tmpEdge.dst;
@@ -1088,33 +1113,33 @@ export default class SugiyamaLayouter extends Layouter
         let tmpInConnectors = [];
         let tmpOutConnectors = [];
         const SPACE = CONNECTOR_SPACING;
-        const CW = CONNECTOR_SIZE;
-        const inY = node.y - CW / 2;
-        const outY = node.y + node.height - CW / 2;
+        const SIZE = CONNECTOR_SIZE;
+        const inY = node.y - SIZE / 2;
+        const outY = node.y + node.height - SIZE / 2;
         let inPointer = 0;
         let outPointer = 0;
         let x = node.x;
 
         const placeTmpConnectors = (x, tmpInConnectors: Array<LayoutConnector>, tmpOutConnectors: Array<LayoutConnector>) => {
-            let length = Math.max(tmpInConnectors.length, tmpOutConnectors.length) * (CW + SPACE) - SPACE;
+            let length = Math.max(tmpInConnectors.length, tmpOutConnectors.length) * (SIZE + SPACE) - SPACE;
             let inSpace = SPACE;
             let inOffset = 0;
             if (tmpInConnectors.length < tmpOutConnectors.length) {
-                inSpace = (length - (tmpInConnectors.length * CW)) / (tmpInConnectors.length + 1);
+                inSpace = (length - (tmpInConnectors.length * SIZE)) / (tmpInConnectors.length + 1);
                 inOffset = inSpace;
             }
             let outSpace = SPACE;
             let outOffset = 0;
             if (tmpOutConnectors.length < tmpInConnectors.length) {
-                outSpace = (length - (tmpOutConnectors.length * CW)) / (tmpOutConnectors.length + 1);
+                outSpace = (length - (tmpOutConnectors.length * SIZE)) / (tmpOutConnectors.length + 1);
                 outOffset = outSpace;
             }
             _.forEach(tmpInConnectors, (connector, i) => {
-                connector.x = x + inOffset + i * (inSpace + CW);
+                connector.x = x + inOffset + i * (inSpace + SIZE);
                 connector.y = inY;
             });
             _.forEach(tmpOutConnectors, (connector, i) => {
-                connector.x = x + outOffset + i * (outSpace + CW);
+                connector.x = x + outOffset + i * (outSpace + SIZE);
                 connector.y = outY;
             });
             return x + length + SPACE;
@@ -1149,7 +1174,7 @@ export default class SugiyamaLayouter extends Layouter
                     let scopedConnectorOut = node.outConnectors[outPointer++];
                     scopedConnectorOut.x = x;
                     scopedConnectorOut.y = outY;
-                    x += CW + SPACE;
+                    x += SIZE + SPACE;
                     tmpInConnectors = [];
                     tmpOutConnectors = [];
                 }
@@ -1159,8 +1184,8 @@ export default class SugiyamaLayouter extends Layouter
         let auxBox = new Box(
             node.x,
             node.y,
-            Math.max(node.inConnectors.length, node.outConnectors.length) * (SPACE + CW) - SPACE,
-            CW
+            Math.max(node.inConnectors.length, node.outConnectors.length) * (SPACE + SIZE) - SPACE,
+            SIZE
         ).centerIn(node.boundingBox());
         _.forEach(node.inConnectors, (connector: LayoutConnector) => {
             connector.translate(auxBox.x - node.x, 0);
@@ -1170,13 +1195,51 @@ export default class SugiyamaLayouter extends Layouter
         });
 
         // place bundles
+        const assignX = (bundles: Array<LayoutBundle>, type: "IN" | "OUT") => {
+            const xs: Array<[LayoutBundle, number]> = _.sortBy(_.map(bundles, bundle =>
+                [bundle, _.mean(_.map(bundle.connectors, (name: string) => node.connector(type, name).x)) + SIZE / 2]
+            ), "1");
+            let left = 0;
+            let right = -1;
+            let frontier = 0;
+            _.forEach(xs, ([bundle, idealX], i: number) => {
+                if ((idealX >= frontier + SPACE + SIZE) || (i === xs.length - 1)) {
+                    if (i === xs.length - 1 && idealX < frontier + SPACE) {
+                        right = i;
+                    }
+                    if (right >= 0) {
+                        const num = right - left + 1;
+                        const middle = (xs[left][1] + xs[right][1]) / 2;
+                        let x = middle - (num * (SPACE + SIZE) - SPACE) / 2 + SIZE / 2;
+                        if (left > 0) {
+                            x = Math.max(x, xs[left - 1][0].x + SPACE + SIZE);
+                        }
+                        for (let tmpI = left; tmpI <= right; ++tmpI) {
+                            xs[tmpI][0].x = x;
+                            x += SPACE + SIZE;
+                        }
+                    }
+                    if ((i === xs.length - 1) && (idealX >= frontier + SPACE)) {
+                        bundle.x = idealX;
+                    }
+                    left = i;
+                    right = i;
+                    frontier = idealX;
+                } else {
+                    right = i;
+                    const num = right - left + 1;
+                    const middle = (xs[left][1] + xs[right][1]) / 2;
+                    frontier = middle + (num * (SPACE + SIZE)) / 2;
+                }
+            });
+        }
+        assignX(node.inConnectorBundles, "IN");
+        assignX(node.outConnectorBundles, "OUT");
         _.forEach(node.inConnectorBundles, (inBundle: LayoutBundle) => {
-            inBundle.x = _.min(_.map(inBundle.connectors, (name: string) => node.connector("IN", name).x)) + CONNECTOR_SIZE / 2;
             const top = rankTops[node.rank];
             inBundle.y = Math.min(top, node.y - CONNECTOR_SIZE / 2 - this._options["targetEdgeLength"] / 3);
         });
         _.forEach(node.outConnectorBundles, (outBundle: LayoutBundle) => {
-            outBundle.x = _.min(_.map(outBundle.connectors, (name: string) => node.connector("OUT", name).x)) + CONNECTOR_SIZE / 2;
             const bottom = rankBottoms[node.rank + node.rankSpan - 1];
             outBundle.y = Math.max(bottom, node.y + node.height + CONNECTOR_SIZE / 2 + this._options["targetEdgeLength"] / 3);
         });

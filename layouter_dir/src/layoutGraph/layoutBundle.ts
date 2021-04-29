@@ -1,4 +1,5 @@
 import LayoutConnector from "./layoutConnector";
+import Vector from "../geometry/vector";
 
 export default class LayoutBundle
 {
@@ -8,5 +9,9 @@ export default class LayoutBundle
 
     addConnector(name: string) {
         this.connectors.push(name);
+    }
+
+    position(): Vector {
+        return new Vector(this.x, this.y);
     }
 }

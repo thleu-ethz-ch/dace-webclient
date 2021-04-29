@@ -20,7 +20,7 @@ export default abstract class Layouter {
             connectorSpacing: 10,
             targetEdgeLength: 50,
             withLabels: false,
-            bundle: true,
+            bundle: false,
             maximizeAngles: false,
             alignInAndOut: false,
             shuffles: 16,
