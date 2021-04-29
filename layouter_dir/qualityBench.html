@@ -35,7 +35,10 @@
             text-align: left;
         }
         td:last-child {
-            background-color: #eee;
+            /*background-color: #eee;*/
+        }
+        .cost {
+            font-weight: bold
         }
     </style>
     <script src="./dist/layoutLib.js"></script>
@@ -48,10 +51,13 @@
                 }
             }
             //graphs = layoutLib.Bench.GRAPHS_ALL;
+            graphs = ["symm", "syrk"];
             const layouters = {
                 "Dagre": new layoutLib.layouter.DagreLayouter(),
-                "Sugiyama": new layoutLib.layouter.SugiyamaLayouter(),
-                //"Sugiyama-Compact": new layoutLib.layouter.SugiyamaLayouter({"resolveY": "compact"}),
+                "Sugiyama+Shuffle": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16}),
+                "Sugiyama+Bundle": new layoutLib.layouter.SugiyamaLayouter({bundle: true}),
+                "Sugiyama+OptimizeAngles": new layoutLib.layouter.SugiyamaLayouter({maximizeAngles: true}),
+                "Sugiyama+ALL": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16, bundle: true, maximizeAngles: true}),
             };
 
             const table = document.getElementById("table");
@@ -62,23 +68,31 @@
             for (let g = 0; g < graphs.length; ++g) {
                 tableRows[0].innerHTML += "<td><b>" + graphs[g] + "</b></td>";
                 for (let i = 1; i < tableRows.length; ++i) {
-                    tableRows[i].innerHTML += "<td></td>";
+                    tableRows[i].innerHTML += '<td><p class="cost"></p><p class="crossings"></p></td>';
                 }
             }
-            tableRows[0].innerHTML += "<td><b>mean</b></td>";
+            /*tableRows[0].innerHTML += "<td><b>mean</b></td>";
             for (let i = 1; i < tableRows.length; ++i) {
                 tableRows[i].innerHTML += "<td></td>";
-            }
+            }*/
             let l = 0;
             for (let layouterName in layouters) {
                 let tmpL = l;
+                layoutLib.Bench.cost(layoutLib.Loader.load, layouters[layouterName], graphs).then((result) => {
+                    let sum = 0;
+                    for (let g = 0; g < graphs.length; ++g) {
+                        tableRows[tmpL + 1].childNodes[g + 1].getElementsByClassName("cost")[0].innerHTML = result[g].toFixed(1);
+                        sum += result[g];
+                    }
+                    //tableRows[tmpL + 1].childNodes[graphs.length + 1].innerHTML = (sum / graphs.length).toFixed(0);
+                });
                 layoutLib.Bench.crossings(layoutLib.Loader.load, layouters[layouterName], graphs).then((result) => {
                     let sum = 0;
                     for (let g = 0; g < graphs.length; ++g) {
-                        tableRows[tmpL + 1].childNodes[g + 1].innerHTML = result[g].toFixed(0);
+                        tableRows[tmpL + 1].childNodes[g + 1].getElementsByClassName("crossings")[0].innerHTML = "(" + result[g].toFixed(0) + ")";
                         sum += result[g];
                     }
-                    tableRows[tmpL + 1].childNodes[graphs.length + 1].innerHTML = (sum / graphs.length).toFixed(0);
+                    //tableRows[tmpL + 1].childNodes[graphs.length + 1].innerHTML = (sum / graphs.length).toFixed(0);
                 });
                 l++;
             }
