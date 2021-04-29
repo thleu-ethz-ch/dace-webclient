@@ -507,13 +507,15 @@ export default class OrderGraph {
 
                 for (let r = 1; r < ranks.length; ++r) {
                     crossings[r] = countCrossings(order[r], r, "UP");
+                }
+                _.forEach(ranks, (rank: OrderRank, r: number) => {
                     _.forEach(ranks[r].orderedGroups(), (group: OrderGroup, g) => {
                         _.forEach(group.nodes, (node: OrderNode, n: number) => {
                             node.position = positions[r][groupOffset[r][g] + n] - groupOffset[r][g];
                         });
                         group.orderNodes();
                     });
-                }
+                });
 
                 Timer.stop("reorder");
             };
