@@ -1355,13 +1355,13 @@ export default class OrderGraph {
             }
 
             // quickly getting the number of crossings for bert
-            if (graph.nodes().length === 40721) {
+            /*if (graph.nodes().length === 40721) {
                 for (let r = 1; r < ranks.length; ++r) {
                     crossings[r] = countCrossings(order[r], r, "UP");
                 }
                 console.log("crossings", _.sum(crossings));
                 throw new Error("halt");
-            }
+            }*/
 
             _.forEach(ranks, (rank: OrderRank, r: number) => {
                 _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {

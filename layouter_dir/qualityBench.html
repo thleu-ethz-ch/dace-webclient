@@ -37,8 +37,8 @@
         td:last-child {
             /*background-color: #eee;*/
         }
-        .cost {
-            font-weight: bold
+        .best {
+            font-weight: bold;
         }
     </style>
     <script src="./dist/layoutLib.js"></script>
@@ -50,10 +50,10 @@
                     graphs.push(layoutLib.Bench.GRAPHS_ALL[g]);
                 }
             }
-            //graphs = layoutLib.Bench.GRAPHS_ALL;
-            graphs = ["symm", "syrk"];
+            graphs = layoutLib.Bench.GRAPHS_ALL;
             const layouters = {
                 "Dagre": new layoutLib.layouter.DagreLayouter(),
+                "Sugiyama": new layoutLib.layouter.SugiyamaLayouter({}),
                 "Sugiyama+Shuffle": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16}),
                 "Sugiyama+Bundle": new layoutLib.layouter.SugiyamaLayouter({bundle: true}),
                 "Sugiyama+OptimizeAngles": new layoutLib.layouter.SugiyamaLayouter({maximizeAngles: true}),
@@ -75,6 +75,14 @@
             for (let i = 1; i < tableRows.length; ++i) {
                 tableRows[i].innerHTML += "<td></td>";
             }*/
+            const numLayouters = Object.keys(layouters).length;
+            let costFinished = 0;
+            let crossingsFinished = 0;
+            let bestCostScore = [],  bestCostLayouters = [], bestCrossingsScore= [],bestCrossingsLayouters = [];
+            for (let g = 0; g < graphs.length; ++g) {
+                bestCostScore[g] = Number.POSITIVE_INFINITY;
+                bestCrossingsScore[g] = Number.POSITIVE_INFINITY;
+            }
             let l = 0;
             for (let layouterName in layouters) {
                 let tmpL = l;
@@ -82,7 +90,20 @@
                     let sum = 0;
                     for (let g = 0; g < graphs.length; ++g) {
                         tableRows[tmpL + 1].childNodes[g + 1].getElementsByClassName("cost")[0].innerHTML = result[g].toFixed(1);
+                        if (result[g] < bestCostScore[g]) {
+                            bestCostScore[g] = result[g];
+                            bestCostLayouters[g] = new Set([tmpL]);
+                        } else if (result[g] === bestCostScore[g]) {
+                            bestCostLayouters[g].add(tmpL);
+                        }
                         sum += result[g];
+                    }
+                    if (++costFinished === numLayouters) {
+                        for (let g = 0; g < graphs.length; ++g) {
+                            bestCostLayouters[g].forEach(tmpL => {
+                                tableRows[tmpL + 1].childNodes[g + 1].getElementsByClassName("cost")[0].classList.add("best");
+                            });
+                        }
                     }
                     //tableRows[tmpL + 1].childNodes[graphs.length + 1].innerHTML = (sum / graphs.length).toFixed(0);
                 });
@@ -90,7 +111,20 @@
                     let sum = 0;
                     for (let g = 0; g < graphs.length; ++g) {
                         tableRows[tmpL + 1].childNodes[g + 1].getElementsByClassName("crossings")[0].innerHTML = "(" + result[g].toFixed(0) + ")";
+                        if (result[g] < bestCrossingsScore[g]) {
+                            bestCrossingsScore[g] = result[g];
+                            bestCrossingsLayouters[g] = new Set([tmpL]);
+                        } else if (result[g] === bestCrossingsScore[g]) {
+                            bestCrossingsLayouters[g].add(tmpL);
+                        }
                         sum += result[g];
+                    }
+                    if (++crossingsFinished === numLayouters) {
+                        for (let g = 0; g < graphs.length; ++g) {
+                            bestCrossingsLayouters[g].forEach(tmpL => {
+                                tableRows[tmpL + 1].childNodes[g + 1].getElementsByClassName("crossings")[0].classList.add("best");
+                            });
+                        }
                     }
                     //tableRows[tmpL + 1].childNodes[graphs.length + 1].innerHTML = (sum / graphs.length).toFixed(0);
                 });
