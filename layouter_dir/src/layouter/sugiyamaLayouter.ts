@@ -237,7 +237,7 @@ export default class SugiyamaLayouter extends Layouter
                             index += node.childGraph.maxIndex() + 1;
                             return; // do not add connectors for scope nodes
                         }
-                        const connectorGroup = new OrderGroup(node, node.label());
+                        const connectorGroup = new OrderGroup(levelNode, node.label());
                         orderRanks[node.rank].addGroup(connectorGroup);
                         connectorGroup.position = index;
                         node.index = index;
@@ -289,6 +289,7 @@ export default class SugiyamaLayouter extends Layouter
                         index++;
                     });
                 });
+                component.levelGraph().invalidateRanks();
             });
         };
         addConnectorsForSubgraph(graph);
@@ -326,13 +327,15 @@ export default class SugiyamaLayouter extends Layouter
         });
 
         // order connectors
-        orderGraph.order(true, this._options["shuffles"]);
+        orderGraph.order(true, {shuffles: this._options["shuffles"]});
 
         // copy order information from order graph to layout graph
         _.forEach(orderGraph.groups(), (orderGroup: OrderGroup) => {
             Assert.assertNumber(orderGroup.position, "position is not a valid number");
-            const layoutNode: LayoutNode = orderGroup.reference;
-            if (layoutNode !== null) {
+            const levelNode = orderGroup.reference;
+            if (levelNode !== null) {
+                levelNode.position = orderGroup.position;
+                const layoutNode = levelNode.layoutNode;
                 const connectors = {"IN": [], "OUT": []};
                 _.forEach(orderGroup.orderedNodes(), (orderNode: OrderNode) => {
                     if (orderNode.reference !== null) {
@@ -387,6 +390,12 @@ export default class SugiyamaLayouter extends Layouter
                     const orderNode = new OrderNode(levelNode, levelNode.layoutNode.isVirtual, levelNode.label());
                     orderGroups[levelNode.rank].addNode(orderNode, levelNode.id);
                     nodeMap.set(levelNode.id, orderNode.id);
+                    orderNode.position = levelNode.position;
+                    let tmpLevelNode = levelNode;
+                    while (orderNode.position === null && tmpLevelNode.layoutNode.childGraph !== null) {
+                        const childComponent = <LayoutComponent>tmpLevelNode.layoutNode.childGraph.components()[0];
+                        orderNode.position = childComponent.levelGraph().ranks()[tmpLevelNode.rank - tmpLevelNode.layoutNode.rank][0].position;
+                    }
                 });
 
                 // add normal edges between nodes; for each pair of nodes, sum up the weights of edges in-between
@@ -405,7 +414,7 @@ export default class SugiyamaLayouter extends Layouter
                 /*if (subgraph.parentNode !== null && subgraph.parentNode.label() === "slice___tmp0_125") {
                     debug = true;
                 }*/
-                orderGraph.order(false, {"shuffles": this._options["shuffles"], "resolveY": this._options["resolveY"], "debug": debug});//subgraph.nodes().length === 851);
+                orderGraph.order(false, {"resolveY": this._options["resolveY"], "debug": debug});//subgraph.nodes().length === 851);
 
                 // copy node order into layout graph
                 const newOrderNodes: Set<OrderNode> = new Set();

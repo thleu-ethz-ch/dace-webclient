@@ -214,15 +214,13 @@ export default class OrderGraph {
                 order[r] = new Array(numNodesRank[r]);
                 positions[r] = new Array(numNodesRank[r]);
                 crossings[r] = Number.POSITIVE_INFINITY;
-                console.log("rank", r);
                 _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {
-                    console.log(group.label());
                     groupOffset[r][g] = groupOffsets[group.id];
                     const groupOrder = _.range(groupOffset[r][g], groupOffset[r][g] + numNodesGroup[r][g]);
-                    for (let n = 0; n < numNodesGroup[r][g]; ++n) {
-                        order[r][groupOffset[r][g] + n] = groupOrder[n];
-                        groupIndex[groupOrder[n]] = g;
-                    }
+                    _.forEach(group.orderedNodes(), (node: OrderNode, pos: number) => {
+                        order[r][groupOffset[r][g] + node.index] = groupOrder[pos];
+                        groupIndex[groupOrder[pos]] = g;
+                    });
                     _.forEach(group.nodes, (node: OrderNode, n: number) => {
                         node.initialRank = r;
                         node.rank = r;
@@ -511,11 +509,18 @@ export default class OrderGraph {
                     crossings[r] = countCrossings(order[r], r, "UP");
                 }
                 _.forEach(ranks, (rank: OrderRank, r: number) => {
+                    let groupMeans = [];
                     _.forEach(ranks[r].orderedGroups(), (group: OrderGroup, g) => {
+                        let sum = 0;
                         _.forEach(group.nodes, (node: OrderNode, n: number) => {
                             node.position = positions[r][groupOffset[r][g] + n] - groupOffset[r][g];
+                            sum += node.position;
                         });
                         group.orderNodes();
+                        groupMeans.push([group, sum / group.nodes.length]);
+                    });
+                    _.forEach(_.sortBy(groupMeans, "1"), ([group, mean], index) => {
+                        group.position = index;
                     });
                 });
 
