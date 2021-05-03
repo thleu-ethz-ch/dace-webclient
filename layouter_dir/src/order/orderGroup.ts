@@ -43,7 +43,7 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
 
     orderedNodes(): Array<OrderNode> {
         const nodes = [];
-        if (this.order.length < this.nodes.length) {
+        if (this.order.length !== this.nodes.length) {
             this.orderNodes();
         }
         _.forEach(this.order, pos => {

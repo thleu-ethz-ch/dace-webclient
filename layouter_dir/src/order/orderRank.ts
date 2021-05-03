@@ -16,6 +16,12 @@ export default class OrderRank extends Node<Graph<any, any>, Edge<any, any>>
         super();
     }
 
+    orderGroups(): void {
+        this.order = _.map(_.sortBy(_.map(this.groups, (group, n) => {
+            return {n: n, pos: group.position};
+        }), "pos"), "n");
+    }
+
     orderedGroups(): Array<OrderGroup> {
         const groups = [];
         _.forEach(this.order, pos => {
