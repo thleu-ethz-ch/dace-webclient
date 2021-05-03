@@ -327,7 +327,7 @@ export default class SugiyamaLayouter extends Layouter
         });
 
         // order connectors
-        orderGraph.order(true, {shuffles: this._options["shuffles"]});
+        orderGraph.order({resolveConflicts: false});
 
         // copy order information from order graph to layout graph
         _.forEach(orderGraph.groups(), (orderGroup: OrderGroup) => {
