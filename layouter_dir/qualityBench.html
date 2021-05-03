@@ -50,7 +50,7 @@
             //graphs = layoutLib.Bench.GRAPHS_ALL;
             const layouters = {
                 "Dagre": new layoutLib.layouter.DagreLayouter(),
-                "Sugiyama": new layoutLib.layouter.SugiyamaLayouter(),
+                "Sugiyama": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16}),
                 //"Sugiyama-Compact": new layoutLib.layouter.SugiyamaLayouter({"resolveY": "compact"}),
             };
 

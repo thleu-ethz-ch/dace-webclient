@@ -692,7 +692,6 @@ export default class OrderGraph {
                 console.log("crossings", _.sum(crossings));*/
                 Timer.start("resolve");
                 const resolveConflict = (conflict) => {
-                    console.log("resolve conflict");
                     const [r, crossedNorthPos, crossedSouthPos, crossingNorthPos, crossingSouthPos] = conflict;
                     Assert.assert(groupOffset[r].length === 1, "more than one group");
                     Assert.assert(groupOffset[r - 1].length === 1, "more than one group");
