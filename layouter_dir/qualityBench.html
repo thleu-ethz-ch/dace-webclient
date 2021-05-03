@@ -54,10 +54,9 @@
             const layouters = {
                 "Dagre": new layoutLib.layouter.DagreLayouter(),
                 "Sugiyama": new layoutLib.layouter.SugiyamaLayouter({}),
-                "Sugiyama+Shuffle": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16}),
-                "Sugiyama+Bundle": new layoutLib.layouter.SugiyamaLayouter({bundle: true}),
-                "Sugiyama+OptimizeAngles": new layoutLib.layouter.SugiyamaLayouter({maximizeAngles: true}),
-                "Sugiyama+ALL": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16, bundle: true, maximizeAngles: true}),
+                "Sugiyama-S": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16}),
+                "Sugiyama-SO": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16, maximizeAngles: true}),
+                "Sugiyama-SOB": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16, maximizeAngles: true, bundle: true}),
             };
 
             const table = document.getElementById("table");
