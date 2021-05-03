@@ -392,7 +392,7 @@ export default class OrderGraph {
                             }
                         }
                         const changes = [];
-                        const permutation = new Array(order.length);
+                        const permutation = new Array(newOrder.length);
                         _.forEach(newOrder, (n, pos) => {
                             permutation[pos] = positions[r][n];
                         });
