@@ -1339,14 +1339,12 @@ export default class OrderGraph {
                         bestOrder = _.cloneDeep(order);
                     }
                 }
-                if (numCrossings !== minCrossings) {
-                    order = _.cloneDeep(bestOrder);
-                    for (let r = 0; r < ranks.length; ++r) {
-                        _.forEach(bestOrder[r], (n, pos) => {
-                            order[r][pos] = n;
-                            positions[r][n] = pos;
-                        });
-                    }
+                order = _.cloneDeep(bestOrder);
+                for (let r = 0; r < ranks.length; ++r) {
+                    _.forEach(bestOrder[r], (n, pos) => {
+                        order[r][pos] = n;
+                        positions[r][n] = pos;
+                    });
                 }
             }
             if (!hasGroups) {
