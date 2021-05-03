@@ -11,9 +11,11 @@ export default class OrderRank extends Node<Graph<any, any>, Edge<any, any>>
 
     public order: Array<number>;
     public orderGraph: OrderGraph;
+    public rank: number;
 
-    constructor() {
+    constructor(rank: number = null) {
         super();
+        this.rank = rank;
     }
 
     orderGroups(): void {
