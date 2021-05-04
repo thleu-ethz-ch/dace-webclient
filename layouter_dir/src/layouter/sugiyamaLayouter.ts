@@ -431,6 +431,11 @@ export default class SugiyamaLayouter extends Layouter
                 }
                 node.rank += offset;
             });
+            _.forEach(subgraph.components(), (component: LayoutComponent) => {
+                _.forEach(component.levelGraph().nodes(), (node: LevelNode) => {
+                    node.rank += offset;
+                });
+            });
         };
         makeRanksAbsolute(graph, 0);
 
@@ -453,13 +458,26 @@ export default class SugiyamaLayouter extends Layouter
         const generalBottomInMap = new Map(); // invisible in-connectors at the bottom of states
         const generalTopOutMap = new Map(); // invisible in-connectors at the bottom of states
 
-        // add edges
-        const addConnectorsForSubgraph = (subgraph: LayoutGraph) => {
+        // add nodes
+        const addConnectorsForSubgraph = (subgraph: LayoutGraph, indizes: Array<number>) => {
             _.forEach(subgraph.components(), (component: LayoutComponent) => {
                 // visit child graphs first
-                _.forEach(component.nodes(), (node: LayoutNode) => {
-                    if (node.childGraph !== null) {
-                        addConnectorsForSubgraph(node.childGraph);
+                let indizesPerLayoutNode = new Map();
+                _.forEach(component.levelGraph().ranks(), (rank: Array<LevelNode>) => {
+                    _.forEach(rank, (levelNode: LevelNode) => {
+                        if (levelNode.layoutNode.childGraph !== null && levelNode.layoutNode.childGraph.entryNode !== null) {
+                            let indizes = indizesPerLayoutNode.get(levelNode.layoutNode);
+                            if (indizes === undefined) {
+                                indizes = [];
+                                indizesPerLayoutNode.set(levelNode.layoutNode, indizes);
+                            }
+                            indizes.push(levelNode.position);
+                        }
+                    });
+                });
+                _.forEach(component.nodes(), (layoutNode: LayoutNode) => {
+                    if (layoutNode.childGraph !== null) {
+                        addConnectorsForSubgraph(layoutNode.childGraph, indizesPerLayoutNode.get(layoutNode) || null);
                     }
                 });
 
@@ -476,6 +494,9 @@ export default class SugiyamaLayouter extends Layouter
                             // add input connectors
                             connectorGroup = new OrderGroup(node, node.label());
                             connectorGroup.position = index;
+                            if (indizes !== null) {
+                                connectorGroup.position += indizes[r];
+                            }
                             orderRanks[node.rank].addGroup(connectorGroup);
                             _.forEach(node.inConnectors, (connector: LayoutConnector) => {
                                 const connectorNode = new OrderNode(connector, false, connector.name);
@@ -503,6 +524,10 @@ export default class SugiyamaLayouter extends Layouter
                                 // keep in- and out-connectors separated from each other if they are not scoped
                                 connectorGroup = new OrderGroup(node, node.label());
                                 orderRanks[node.rank + node.rankSpan - 1].addGroup(connectorGroup);
+                                connectorGroup.position = index;
+                                if (indizes !== null) {
+                                    connectorGroup.position += indizes[r];
+                                }
                             }
 
                             // add output connectors
@@ -530,7 +555,7 @@ export default class SugiyamaLayouter extends Layouter
                 });
             });
         };
-        addConnectorsForSubgraph(graph);
+        addConnectorsForSubgraph(graph, null);
         // add connector edges
         _.forEach(graph.allEdges(), (edge: LayoutEdge) => {
             let srcNode = edge.graph.node(edge.src);

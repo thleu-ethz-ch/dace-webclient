@@ -50,13 +50,13 @@
                     graphs.push(layoutLib.Bench.GRAPHS_ALL[g]);
                 }
             }
-            graphs = layoutLib.Bench.GRAPHS_ALL;
+            //graphs = layoutLib.Bench.GRAPHS_ALL;
             const layouters = {
-                "Dagre": new layoutLib.layouter.DagreLayouter(),
+                //"Dagre": new layoutLib.layouter.DagreLayouter(),
                 "Sugiyama": new layoutLib.layouter.SugiyamaLayouter({}),
                 "Sugiyama-S": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16}),
-                "Sugiyama-SO": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16, maximizeAngles: true}),
-                "Sugiyama-SOB": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16, maximizeAngles: true, bundle: true}),
+                //"Sugiyama-SO": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16, maximizeAngles: true}),
+                //"Sugiyama-SOB": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16, maximizeAngles: true, bundle: true}),
             };
 
             const table = document.getElementById("table");
