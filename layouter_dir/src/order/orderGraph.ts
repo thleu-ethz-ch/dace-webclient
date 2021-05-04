@@ -305,13 +305,21 @@ export default class OrderGraph {
 
                 if (shuffle) {
                     _.forEach(ranks, (rank: OrderRank, r: number) => {
-                        _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {
-                            const groupOrder = Shuffle.shuffle(_.slice(order[r], groupOffset[r][g], groupOffset[r][g] + numNodesGroup[r][g]));
-                            _.forEach(groupOrder, (n, pos) => {
-                                order[r][groupOffset[r][g] + pos] = n;
-                                positions[r][n] = groupOffset[r][g] + pos;
+                        if (options["keepGroups"]) {
+                            _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {
+                                const groupOrder = Shuffle.shuffle(_.slice(order[r], groupOffset[r][g], groupOffset[r][g] + numNodesGroup[r][g]));
+                                _.forEach(groupOrder, (n, pos) => {
+                                    order[r][groupOffset[r][g] + pos] = n;
+                                    positions[r][n] = groupOffset[r][g] + pos;
+                                });
                             });
-                        });
+                        } else {
+                            const newOrder = Shuffle.shuffle(order[r]);
+                            _.forEach(newOrder, (n, pos) => {
+                                order[r][pos] = n;
+                                positions[r][n] = pos;
+                            });
+                        }
                     });
                 }
 
