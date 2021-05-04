@@ -5,8 +5,8 @@ import RenderGraph from "../renderGraph/renderGraph";
 
 export default class Bench {
     public static GRAPHS_SMALL = ["gemm_opt", "jacobi", "placement", "symm", "syrk", "trisolv", "trmm", "wrong"];
-    public static GRAPHS_LARGE = ["bert", "lulesh-with-maps", "unreadable", "rfg_dense"];
-    public static GRAPHS_ALL = ["bert", "gemm_opt", "jacobi", "lulesh-with-maps", "placement", "rfg_dense", "symm", "syrk", "trisolv", "trmm", "unreadable", "wrong"];
+    public static GRAPHS_LARGE = ["bert", "encbwd", "lulesh-with-maps", "unreadable", "rfg_dense"];
+    public static GRAPHS_ALL = ["bert", "encbwd", "gemm_opt", "jacobi", "lulesh-with-maps", "placement", "rfg_dense", "symm", "syrk", "trisolv", "trmm", "unreadable", "wrong"];
 
     public static LAYOUTERS = [new DagreLayouter()];
 

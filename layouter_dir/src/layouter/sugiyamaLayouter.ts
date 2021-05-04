@@ -224,12 +224,25 @@ export default class SugiyamaLayouter extends Layouter
         const generalTopOutMap = new Map(); // invisible in-connectors at the bottom of states
 
         // add nodes
-        const addConnectorsForSubgraph = (subgraph: LayoutGraph) => {
+        const addConnectorsForSubgraph = (subgraph: LayoutGraph, indizes: Array<number>) => {
             _.forEach(subgraph.components(), (component: LayoutComponent) => {
                 // visit child graphs first
-                _.forEach(component.nodes(), (node: LayoutNode) => {
-                    if (node.childGraph !== null) {
-                        addConnectorsForSubgraph(node.childGraph);
+                let indizesPerLayoutNode = new Map();
+                _.forEach(component.levelGraph().ranks(), (rank: Array<LevelNode>) => {
+                    _.forEach(rank, (levelNode: LevelNode) => {
+                        if (levelNode.layoutNode.childGraph !== null && levelNode.layoutNode.childGraph.entryNode !== null) {
+                            let indizes = indizesPerLayoutNode.get(levelNode.layoutNode);
+                            if (indizes === undefined) {
+                                indizes = [];
+                                indizesPerLayoutNode.set(levelNode.layoutNode, indizes);
+                            }
+                            indizes.push(levelNode.position);
+                        }
+                    });
+                });
+                _.forEach(component.nodes(), (layoutNode: LayoutNode) => {
+                    if (layoutNode.childGraph !== null) {
+                        addConnectorsForSubgraph(layoutNode.childGraph, indizesPerLayoutNode.get(layoutNode) || null);
                     }
                 });
 
@@ -238,7 +251,7 @@ export default class SugiyamaLayouter extends Layouter
                     _.forEach(rank, (levelNode: LevelNode) => {
                         const node = levelNode.layoutNode;
                         if (node.childGraph !== null && node.childGraph.entryNode !== null) {
-                            index += node.childGraph.maxIndex() + 1;
+                            index += node.childGraph.maxIndex();
                             return; // do not add connectors for scope nodes
                         }
                         let connectorGroup;
@@ -246,7 +259,10 @@ export default class SugiyamaLayouter extends Layouter
                             connectorGroup = new OrderGroup(levelNode, node.label());
                             orderRank[node.rank].addGroup(connectorGroup);
                             connectorGroup.position = index;
-                            node.index = index;
+                            if (indizes !== null) {
+                                connectorGroup.position += indizes[r];
+                            }
+                            //node.index = index;
                             // add input connectors
                             _.forEach(node.inConnectors, (connector: LayoutConnector) => {
                                 const connectorNode = new OrderNode(connector, false, connector.name);
@@ -269,11 +285,14 @@ export default class SugiyamaLayouter extends Layouter
                             }
                         }
                         if (node.childGraph === null || component.minRank() + r === node.rank + node.rankSpan - 1) {
-                            if (node.rankSpan > 1) {
+                            if ((!node.hasScopedConnectors || !keepGroups)) {
                                 connectorGroup = new OrderGroup(levelNode, node.label());
                                 orderRank[node.rank + node.rankSpan - 1].addGroup(connectorGroup);
                                 connectorGroup.position = index;
-                                node.index = index;
+                                if (indizes !== null) {
+                                    connectorGroup.position += indizes[r];
+                                }
+                                //node.index = index;
                             }
                             Assert.assertImplies(node.rankSpan > 1, !node.hasScopedConnectors, "multirank node with scoped connectors");
 
@@ -303,7 +322,7 @@ export default class SugiyamaLayouter extends Layouter
                 component.levelGraph().invalidateRanks();
             });
         };
-        addConnectorsForSubgraph(graph);
+        addConnectorsForSubgraph(graph, null);
 
         // add edges
         _.forEach(graph.allEdges(), (edge: LayoutEdge) => {
