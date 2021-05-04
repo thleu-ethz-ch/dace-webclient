@@ -447,7 +447,7 @@ export default class SugiyamaLayouter extends Layouter
 
         const orderGraph = new OrderGraph;
         const orderRanks = [];
-        for (let r = 0; r <= graph.maxRank; ++r) {
+        for (let r = 0; r <= 2 * graph.maxRank; ++r) {
             orderRanks[r] = new OrderRank();
             orderGraph.addRank(orderRanks[r]);
         }
@@ -483,7 +483,9 @@ export default class SugiyamaLayouter extends Layouter
 
                 _.forEach(component.levelGraph().ranks(), (rank: Array<LevelNode>, r) => {
                     let index = 0;
-                    let groupNodes = [];
+                    let groupNodesIn = [];
+                    let groupNodesOut = [];
+                    let edges = [];
                     _.forEach(rank, (levelNode: LevelNode, pos: number) => {
                         const node = levelNode.layoutNode;
                         if (node.childGraph !== null && node.childGraph.entryNode !== null) {
@@ -494,63 +496,71 @@ export default class SugiyamaLayouter extends Layouter
                             // add input connectors
                             _.forEach(node.inConnectors, (connector: LayoutConnector) => {
                                 const connectorNode = new OrderNode([levelNode, connector], false, connector.name);
-                                groupNodes.push(connectorNode);
+                                groupNodesIn.push(connectorNode);
                                 connectorMap.set(connector, connectorNode);
-                                if (connector.isScoped) {
-                                    connectorMap.set(connector.counterpart, connectorNode);
-                                }
                             });
-                            if (node.inConnectors.length === 0) {
+                            if (node.inConnectors.length === 0 && subgraph.inEdges(node.id).length > 0) {
                                 const inNode = new OrderNode([levelNode, "in"], false, "generalInConnector");
-                                groupNodes.push(inNode);
+                                groupNodesIn.push(inNode);
                                 generalInMap.set(node, inNode);
                                 // add invisible out-connector at top of state-node (if necessary)
                                 if (subgraph.mayHaveCycles && _.some(subgraph.inEdges(node.id), "isInverted")) {
                                     const topOutNode = new OrderNode([levelNode, "topOut"], false, "generalTopOutConnector");
-                                    groupNodes.push(topOutNode);
+                                    groupNodesIn.push(topOutNode);
                                     generalTopOutMap.set(node, topOutNode);
                                 }
                             }
                         }
                         if (node.childGraph === null || component.minRank() + r === node.rank + node.rankSpan - 1) {
                             Assert.assertImplies(node.rankSpan > 1, !node.hasScopedConnectors, "multirank node with scoped connectors");
-
                             // add output connectors
                             _.forEach(node.outConnectors, (connector: LayoutConnector) => {
-                                if (!connector.isScoped) {
-                                    const connectorNode = new OrderNode([levelNode, connector], false, connector.name);
-                                    groupNodes.push(connectorNode);
-                                    connectorMap.set(connector, connectorNode);
+                                const connectorNode = new OrderNode([levelNode, connector], false, connector.name);
+                                groupNodesOut.push(connectorNode);
+                                connectorMap.set(connector, connectorNode);
+                                if (connector.isScoped) {
+                                    edges.push([connectorMap.get(connector.counterpart), connectorNode]);
                                 }
                             });
-                            if (node.outConnectors.length === 0) {
+                            if (node.outConnectors.length === 0 && subgraph.outEdges(node.id).length > 0) {
                                 const outNode = new OrderNode([levelNode, "out"], false, "generalOutConnector");
-                                groupNodes.push(outNode);
+                                groupNodesOut.push(outNode);
                                 generalOutMap.set(node, outNode);
+                                if (node.rankSpan === 1 && generalInMap.has(node)) {
+                                    edges.push([generalInMap.get(node), outNode]);
+                                }
                                 // add invisible in-connector at bottom of state-node (if necessary)
                                 if (subgraph.mayHaveCycles && _.some(subgraph.outEdges(node.id), "isInverted")) {
                                     const bottomInNode = new OrderNode([levelNode, "bottomIn"], false, "generalBottomInConnector");
-                                    groupNodes.push(bottomInNode);
+                                    groupNodesOut.push(bottomInNode);
                                     generalBottomInMap.set(node, bottomInNode);
                                 }
                             }
                         }
-                        if (groupNodes.length === 0) {
+                        if (groupNodesIn.length === 0 && groupNodesOut.length === 0) {
                             return;
                         }
                         if ((pos === rank.length - 1) || rank[pos + 1].layoutNode.isVirtual ||
                             (rank[pos + 1].layoutNode.childGraph !== null) || node.isVirtual || node.childGraph !== null) {
-                            const connectorGroup = new OrderGroup(_.clone(groupNodes), groupNodes[0].reference[0].label());
-                            connectorGroup.position = index;
-                            if (indizes !== null) {
-                                connectorGroup.position += indizes[r];
-                            }
-                            //console.log("connectorGroup", connectorGroup.label(), "position", connectorGroup.position);
-                            orderRanks[levelNode.rank].addGroup(connectorGroup);
-                            _.forEach(groupNodes, (orderNode: OrderNode) => {
-                                connectorGroup.addNode(orderNode);
+                            _.forEach([groupNodesIn, groupNodesOut], (groupNodes: Array<OrderNode>, offset: number) => {
+                                if (groupNodes.length > 0) {
+                                    const connectorGroup = new OrderGroup(_.clone(groupNodes), groupNodes[0].reference[0].label());
+                                    connectorGroup.position = index;
+                                    if (indizes !== null) {
+                                        connectorGroup.position += indizes[r];
+                                    }
+                                    orderRanks[2 * levelNode.rank + offset].addGroup(connectorGroup);
+                                    _.forEach(groupNodes, (orderNode: OrderNode) => {
+                                        connectorGroup.addNode(orderNode);
+                                    });
+                                }
                             });
-                            groupNodes = [];
+                            groupNodesIn = [];
+                            groupNodesOut = [];
+                            _.forEach(edges, ([srcNode, dstNode]) => {
+                                orderGraph.addEdge(new Edge(srcNode.id, dstNode.id, Number.POSITIVE_INFINITY));
+                            });
+                            edges = [];
                         }
                         index++;
                     });
@@ -611,7 +621,7 @@ export default class SugiyamaLayouter extends Layouter
             let minPos = Number.POSITIVE_INFINITY;
             let inConnectorSeen = false;
             let outConnectorSeen = false;
-            _.forEach(orderGroup.orderedNodes(), (orderNode: OrderNode, pos) => {
+            _.forEach(orderGroup.orderedNodes(), (orderNode: OrderNode, pos: number) => {
                 const [levelNode, connector] = orderNode.reference;
                 const layoutNode = levelNode.layoutNode;
                 let sum = sumPerNode.get(levelNode) || 0;
@@ -641,9 +651,6 @@ export default class SugiyamaLayouter extends Layouter
                         break;
                     default:
                         connectors[connector.type].push(connector);
-                        if (connector.isScoped) {
-                            connectors["OUT"].push(connector.counterpart);
-                        }
                 }
                 levelNode.graph.invalidateRanks();
             });

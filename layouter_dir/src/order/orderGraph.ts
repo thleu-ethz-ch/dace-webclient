@@ -191,6 +191,7 @@ export default class OrderGraph {
                     nodeIndexes[node.id] = groupOffsets[group.id] + nodeIndex;
                 });
             });
+            const groupIndex = [];
             const groupOffset = []; // number of nodes in groups left of this group by rank
             const virtual = [];
             const neighborsDown = [];
@@ -202,6 +203,7 @@ export default class OrderGraph {
             const crossings = []; // number of crossings above each rank
             // set neighbors
             _.forEach(ranks, (rank: OrderRank, r: number) => {
+                groupIndex[r] = [];
                 groupOffset[r] = [];
                 virtual[r] = [];
                 neighborsDown[r] = [];
@@ -215,6 +217,7 @@ export default class OrderGraph {
                     groupOffset[r][g] = groupOffsets[group.id];
                     const groupOrder = _.range(groupOffset[r][g], groupOffset[r][g] + numNodesGroup[r][g]);
                     for (let n = 0; n < numNodesGroup[r][g]; ++n) {
+                        groupIndex[r][groupOrder[n]] = g;
                         order[r][groupOffset[r][g] + n] = groupOrder[n];
                     }
                     _.forEach(group.nodes, (node: OrderNode, n: number) => {
@@ -245,16 +248,25 @@ export default class OrderGraph {
 
             crossings[0] = 0;
 
-            const countCrossings = (testOrder: Array<number>, r: number, direction: "UP" | "DOWN", preventConflicts: boolean = false) => {
-                if (preventConflicts) {
+            const countCrossings = (testOrder: Array<number>, r: number, direction: "UP" | "DOWN", preventHeavyHeavyConflicts: boolean = false, preventHeavyLightConflicts: boolean = false) => {
+                if (preventHeavyHeavyConflicts) {
                     const originalOrder = _.clone(order[r]);
                     order[r] = _.clone(testOrder);
                     _.forEach(order[r], (node, pos) => {
                         positions[r][node] = pos;
                     });
-                    let hasConflict = getConflict("HEAVYHEAVY", r) || getConflict("HEAVYLIGHT", r);
+                    let hasConflict = false;
+                    if (r > 0) {
+                        hasConflict ||= (getConflict("HEAVYHEAVY", r) !== null);
+                        if (preventHeavyLightConflicts) {
+                            hasConflict ||= (getConflict("HEAVYLIGHT", r) !== null);
+                        }
+                    }
                     if (r < ranks.length - 1) {
-                        hasConflict = hasConflict || getConflict("HEAVYHEAVY", r + 1) || getConflict("HEAVYLIGHT", r + 1);
+                        hasConflict ||= (getConflict("HEAVYHEAVY", r + 1) !== null);
+                        if (preventHeavyLightConflicts) {
+                            hasConflict ||= (getConflict("HEAVYLIGHT", r + 1) !== null);
+                        }
                     }
                     order[r] = _.clone(originalOrder);
                     _.forEach(order[r], (node, pos) => {
@@ -287,7 +299,7 @@ export default class OrderGraph {
             /**
              * Sweeps the ranks up and down and reorders the nodes according to the barycenter heuristic
              */
-            const reorder = (shuffle: boolean = false, startRank: number = 0, preventConflicts: boolean = false) => {
+            const reorder = (shuffle: boolean = false, startRank: number = 0, preventHeavyHeavyConflicts: boolean = false, preventHeavyLightConflicts: boolean = false) => {
                 Timer.start("reorder");
 
                 if (shuffle) {
@@ -426,13 +438,13 @@ export default class OrderGraph {
                         const tryNewOrder = (newOrder) => {
                             // count crossings with new order
                             const prevCrossingsNorth = crossings[r + crossingOffsetNorth];
-                            const newCrossingsNorth = countCrossings(newOrder, r, northDirection, preventConflicts);
+                            const newCrossingsNorth = countCrossings(newOrder, r, northDirection, preventHeavyHeavyConflicts, preventHeavyLightConflicts);
 
                             let newCrossingsSouth = 0;
                             let prevCrossingsSouth = 0;
                             if (r !== lastRank) {
                                 prevCrossingsSouth = crossings[r + crossingOffsetSouth];
-                                newCrossingsSouth = countCrossings(newOrder, r, southDirection, preventConflicts);
+                                newCrossingsSouth = countCrossings(newOrder, r, southDirection, preventHeavyHeavyConflicts, preventHeavyLightConflicts);
                             }
                             const fewerCrossingsNorth = newCrossingsNorth < prevCrossingsNorth;
                             const fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth <= prevCrossingsNorth + prevCrossingsSouth);
@@ -559,9 +571,10 @@ export default class OrderGraph {
                         if (type === "HEAVYHEAVY" && !heavy) {
                             continue;
                         }
-                        const intranode = (heavy && !ranks[r].groups[0].nodes[n].isVirtual);
-                        if (type === "HEAVYLIGHT" && heavy && !intranode) {
-                            continue;
+                        if (type === "HEAVYLIGHT" && heavy) {
+                            if (ranks[r].groups[0].nodes[n].isVirtual) {
+                                continue; // heavy node is no intranode node
+                            }
                         }
                         const segment = [posNorth, posSouth, heavy];
                         segmentStarts[posNorth].push(segment);
@@ -666,7 +679,7 @@ export default class OrderGraph {
             /**
              * Tries to resolve illegal crossings, i. e. crossings of edges with infinite weight.
              */
-            const resolveConflicts = () => {
+            const resolveConflicts = (heavyHeavyOnly: boolean = false) => {
                 /*for (let r = 1; r < ranks.length; ++r) {
                     crossings[r] = countCrossings(order[r], r, "UP", false);
                 }
@@ -677,13 +690,13 @@ export default class OrderGraph {
                     Assert.assert(groupOffset[r].length === 1, "more than one group");
                     Assert.assert(groupOffset[r - 1].length === 1, "more than one group");
                     const crossedNorthN = order[r - 1][crossedNorthPos];
-                    const crossedNorthNode = ranks[r - 1].groups[0].nodes[crossedNorthN];
+                    const crossedNorthNode = ranks[r - 1].groups[groupIndex[r - 1][crossedNorthN]].nodes[crossedNorthN];
                     const crossedSouthN = order[r][crossedSouthPos];
-                    const crossedSouthNode = ranks[r].groups[0].nodes[crossedSouthN];
+                    const crossedSouthNode = ranks[r].groups[groupIndex[r][crossedSouthN]].nodes[crossedSouthN];
                     const crossingNorthN = order[r - 1][crossingNorthPos];
-                    let crossingNorthNode = ranks[r - 1].groups[0].nodes[crossingNorthN];
+                    let crossingNorthNode = ranks[r - 1].groups[groupIndex[r - 1][crossingNorthN]].nodes[crossingNorthN];
                     const crossingSouthN = order[r][crossingSouthPos];
-                    let crossingSouthNode = ranks[r].groups[0].nodes[crossingSouthN];
+                    let crossingSouthNode = ranks[r].groups[groupIndex[r][crossingSouthN]].nodes[crossingSouthN];
                     const crossingEdge = graph.edgeBetween(crossingNorthNode.id, crossingSouthNode.id);
                     //console.log(r, crossedNorthNode.label(), crossedSouthNode.label(), crossingNorthNode.label(), crossingSouthNode.label());
                     //console.log(r, crossedNorthNode.id, crossedSouthNode.id, crossingNorthNode.id, crossingSouthNode.id);
@@ -748,6 +761,7 @@ export default class OrderGraph {
                             order[r][pos] = nextN;
                             ranks[r].groups[0].addNode(node, node.id);
                             numNodesGroup[r][0]++;
+                            groupIndex[r].push(0);
                             node.rank = r;
                             node.index = nextN;
                             // update positions
@@ -781,6 +795,7 @@ export default class OrderGraph {
                             numNodesGroup[r][0]--;
                             order[r].length = numNodesGroup[r][0];
                             positions[r].length = numNodesGroup[r][0];
+                            groupIndex[r].length = numNodesGroup[r][0];
 
                             // update positions
                             _.forEach(order[r], (n, pos) => {
@@ -835,6 +850,7 @@ export default class OrderGraph {
                                 order[newR] = [];
                                 positions[newR] = [];
                                 crossings[newR] = 0;
+                                groupIndex[newR] = [];
                             }
 
                             // move nodes down and create virtual nodes
@@ -963,6 +979,7 @@ export default class OrderGraph {
                                 order[newR] = [];
                                 positions[newR] = [];
                                 crossings[newR] = 0;
+                                groupIndex[newR] = [];
                             }
 
                             // move nodes down and create virtual nodes
@@ -1300,11 +1317,13 @@ export default class OrderGraph {
                             storeLocal();
                         }
                     }
-                    while (getConflict("HEAVYLIGHT", r, true) !== null) {
-                        const conflict = getConflict("HEAVYLIGHT", r);
-                        resolveConflict(conflict);
-                        if (options["debug"]) {
-                            storeLocal();
+                    if (!heavyHeavyOnly) {
+                        while (getConflict("HEAVYLIGHT", r, true) !== null) {
+                            const conflict = getConflict("HEAVYLIGHT", r);
+                            resolveConflict(conflict);
+                            if (options["debug"]) {
+                                storeLocal();
+                            }
                         }
                     }
                 }
@@ -1322,12 +1341,12 @@ export default class OrderGraph {
             if (options["debug"]) {
                 storeLocal();
             }
-            if (hasGroups) {
+            /*if (hasGroups) {
                 console.log("NUMNODES", graph.nodes().length, _.map(graph.nodes(), node => node.label()).toString(), graph.nodes(), graph.groups());
                 if (graph.nodes().length === 17) {
                     storeLocal();
                 }
-            }
+            }*/
             reorder();
             if (hasGroups && graph.nodes().length === 17) storeLocal();
             if (options["shuffles"] > 0) {
@@ -1353,10 +1372,10 @@ export default class OrderGraph {
                     });
                 }
             }
-            if (!hasGroups) {
-                resolveConflicts();
-                reorder(false, 0, true);
-            }
+            //if (!hasGroups) {
+                resolveConflicts(hasGroups);
+                reorder(false, 0, true, !hasGroups);
+            //}
 
             // quickly getting the number of crossings for bert
             if (graph.nodes().length === 40721) {
