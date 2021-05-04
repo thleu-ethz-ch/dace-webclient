@@ -49,9 +49,7 @@ export default class OrderGraph {
     }
 
     storeLocal() {
-        if (typeof window !== "undefined") {
-            window.localStorage.setItem("storedGraph", this.toString());
-        }
+        this._nodeGraph.storeLocal();
     }
 
     public addRank(rank: OrderRank, id: number = null) {
@@ -288,8 +286,6 @@ export default class OrderGraph {
 
             /**
              * Sweeps the ranks up and down and reorders the nodes according to the barycenter heuristic
-             * @param countInitial
-             * @param shuffle
              */
             const reorder = (shuffle: boolean = false, startRank: number = 0, preventConflicts: boolean = false) => {
                 Timer.start("reorder");
@@ -303,6 +299,9 @@ export default class OrderGraph {
                                 positions[r][n] = groupOffset[r][g] + pos;
                             });
                         });
+                        if (graph.nodes().length === 34 && r === 8) {
+                            //console.log(order[r].toString());
+                        }
                     });
                 }
 
@@ -1323,7 +1322,14 @@ export default class OrderGraph {
             if (options["debug"]) {
                 storeLocal();
             }
+            if (hasGroups) {
+                console.log("NUMNODES", graph.nodes().length, _.map(graph.nodes(), node => node.label()).toString(), graph.nodes(), graph.groups());
+                if (graph.nodes().length === 17) {
+                    storeLocal();
+                }
+            }
             reorder();
+            if (hasGroups && graph.nodes().length === 17) storeLocal();
             if (options["shuffles"] > 0) {
                 let numCrossings = _.sum(crossings);
                 let minCrossings = numCrossings;
@@ -1353,13 +1359,13 @@ export default class OrderGraph {
             }
 
             // quickly getting the number of crossings for bert
-            /*if (graph.nodes().length === 40721) {
+            if (graph.nodes().length === 40721) {
                 for (let r = 1; r < ranks.length; ++r) {
                     crossings[r] = countCrossings(order[r], r, "UP");
                 }
                 console.log("crossings", _.sum(crossings));
                 throw new Error("halt");
-            }*/
+            }
 
             _.forEach(ranks, (rank: OrderRank, r: number) => {
                 _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {
@@ -1401,13 +1407,13 @@ export default class OrderGraph {
                 });
             });
 
-            componentGraph._addGroupEdges();
-            componentGraph._addRankEdges();
-
             if (componentGraph.edges().length === 0) {
                 // when there are no edges, no need to order
                 return;
             }
+
+            componentGraph._addGroupEdges();
+            componentGraph._addRankEdges();
 
             doOrder(componentGraph);
         });
