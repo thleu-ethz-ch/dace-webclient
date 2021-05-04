@@ -50,8 +50,9 @@
             //graphs = layoutLib.Bench.GRAPHS_ALL;
             const layouters = {
                 //"Dagre": new layoutLib.layouter.DagreLayouter(),
-                "Sugiyama": new layoutLib.layouter.SugiyamaLayouter(),
-                "Sugiyama-S": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16}),
+                "Sugiyama-0": new layoutLib.layouter.SugiyamaLayouter(),
+                "Sugiyama-16": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16}),
+                "Sugiyama-64": new layoutLib.layouter.SugiyamaLayouter({shuffles: 32}),
             };
 
             const table = document.getElementById("table");

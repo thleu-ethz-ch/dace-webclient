@@ -285,7 +285,7 @@ export default class SugiyamaLayouter extends Layouter
                             }
                         }
                         if (node.childGraph === null || component.minRank() + r === node.rank + node.rankSpan - 1) {
-                            if ((!node.hasScopedConnectors || !keepGroups)) {
+                            if (connectorGroup === undefined || (!node.hasScopedConnectors && keepGroups)) {
                                 connectorGroup = new OrderGroup(levelNode, node.label());
                                 orderRank[node.rank + node.rankSpan - 1].addGroup(connectorGroup);
                                 connectorGroup.position = index;
@@ -441,11 +441,11 @@ export default class SugiyamaLayouter extends Layouter
 
                 // do order
                 let debug = false;
-                // commented out: debug one subgraph
-                /*if (subgraph.parentNode !== null && subgraph.parentNode.label() === "s70_8") {
-                    debug = true;
-                }*/
-                orderGraph.order({keepGroups: true, resolveConflicts: true, resolveY: this._options["resolveY"], debug: debug, shuffles: this._options["shuffles"]});//subgraph.nodes().length === 851);
+                //debug one subgraph
+                if (subgraph.parentNode !== null && subgraph.parentNode.label() === "s70_8") {
+                    // debug = true;
+                }
+                orderGraph.order({keepGroups: true, resolveConflicts: true, resolveY: this._options["resolveY"], debug: debug});//subgraph.nodes().length === 851);
 
                 // copy node order into layout graph
                 const newOrderNodes: Set<OrderNode> = new Set();
