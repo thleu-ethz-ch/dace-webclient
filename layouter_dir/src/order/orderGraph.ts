@@ -254,9 +254,12 @@ export default class OrderGraph {
                     _.forEach(order[r], (node, pos) => {
                         positions[r][node] = pos;
                     });
-                    let hasConflict = getConflict("HEAVYHEAVY", r) || getConflict("HEAVYLIGHT", r);
+                    let hasConflict = false;
+                    if (r > 0) {
+                        hasConflict = hasConflict || (getConflict("HEAVYHEAVY", r) !== null) || (getConflict("HEAVYLIGHT", r) !== null);
+                    }
                     if (r < ranks.length - 1) {
-                        hasConflict = hasConflict || getConflict("HEAVYHEAVY", r + 1) || getConflict("HEAVYLIGHT", r + 1);
+                        hasConflict = hasConflict || (getConflict("HEAVYHEAVY", r + 1) !== null) || (getConflict("HEAVYLIGHT", r + 1) !== null);
                     }
                     order[r] = _.clone(originalOrder);
                     _.forEach(order[r], (node, pos) => {
