@@ -600,7 +600,7 @@ export default class OrderGraph {
                         }
                     });
                     for (let newSegment of newSegments) {
-                        const [posNorth, posSouth, heavy, intranode] = newSegment;
+                        const [posNorth, posSouth, heavy] = newSegment;
                         let newDir = Math.sign(posSouth - posNorth);
                         for (let openSegment of openSegments) {
                             const [openPosNorth, openPosSouth, openHeavy] = openSegment;
@@ -844,7 +844,6 @@ export default class OrderGraph {
                             // move nodes down and create virtual nodes
                             for (let tmpR = ranks.length - 1; tmpR >= r; --tmpR) {
                                 const movingNodes = _.sortBy(Array.from(movingNodesPerRank[tmpR - 1]), node => positions[tmpR - 1][node.index]);
-                                let northPos = 0;
                                 _.forEach(movingNodes, node => {
                                     if (node !== crossingNorthNode && graph.outNeighbors(node.id).length === 1 && graph.outNeighbors(node.id)[0].isVirtual) {
                                         // contract virtual node
@@ -1356,13 +1355,13 @@ export default class OrderGraph {
             }
 
             // quickly getting the number of crossings for bert
-            if (graph.nodes().length === 40721) {
+            /*if (graph.nodes().length === 40721) {
                 for (let r = 1; r < ranks.length; ++r) {
                     crossings[r] = countCrossings(order[r], r, "UP");
                 }
                 console.log("crossings", _.sum(crossings));
                 throw new Error("halt");
-            }
+            }*/
 
             _.forEach(ranks, (rank: OrderRank, r: number) => {
                 _.forEach(rank.orderedGroups(), (group: OrderGroup, g: number) => {
@@ -1380,9 +1379,7 @@ export default class OrderGraph {
         this._addGroupEdges();
 
         const groupComponents = this._groupGraph.components();
-        let counter = 0;
         _.forEach(groupComponents, (groupGraphComponent: Component<OrderGroup, Edge<any, any>>) => {
-            //console.log("component", counter++, "of", groupComponents.length);
             const componentGraph = new OrderGraph();
             const ranks: Array<OrderRank> = [];
             _.forEach(groupGraphComponent.nodes(), (group: OrderGroup) => {

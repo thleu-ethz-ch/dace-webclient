@@ -47,7 +47,7 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
         }
     }
 
-    public ranks(rankSpanning: boolean = true): Array<Array<LevelNode>> {
+    public ranks(): Array<Array<LevelNode>> {
         if (this._ranks === null) {
             this._minRank = Number.POSITIVE_INFINITY;
             this._maxRank = Number.NEGATIVE_INFINITY;

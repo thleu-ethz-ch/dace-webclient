@@ -3,7 +3,6 @@ import Component from "../graph/component";
 import LayoutNode from "./layoutNode";
 import LayoutEdge from "./layoutEdge";
 import LevelGraph from "../levelGraph/levelGraph";
-import LevelNode from "../levelGraph/levelNode";
 import Box from "../geometry/box";
 
 export default class LayoutComponent extends Component<LayoutNode, LayoutEdge>
@@ -33,7 +32,9 @@ export default class LayoutComponent extends Component<LayoutNode, LayoutEdge>
                 this._levelGraph.addLayoutNode(node);
             });
             _.forEach(this.edges(), (edge: LayoutEdge) => {
-                this._levelGraph.addLayoutEdge(edge);
+                if (!edge.isReplica) {
+                    this._levelGraph.addLayoutEdge(edge);
+                }
             });
         }
         return this._levelGraph;

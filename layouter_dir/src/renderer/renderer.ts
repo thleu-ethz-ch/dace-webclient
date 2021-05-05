@@ -1,5 +1,6 @@
 import * as _ from "lodash";
 import * as PIXI from "pixi.js";
+import {Container, Graphics} from "pixi.js";
 import {Viewport} from "pixi-viewport"
 import AccessNode from "../renderGraph/accessNode";
 import Box from "../geometry/box";
@@ -24,12 +25,8 @@ import RenderConnector from "../renderGraph/renderConnector";
 import Shape from "../shapes/shape";
 import Size from "../geometry/size";
 import Text from "../shapes/text";
-import Timer from "../util/timer";
 import UpwardTrapezoid from "../shapes/upwardTrapezoid";
 import Vector from "../geometry/vector";
-import {Container, Graphics} from "pixi.js";
-import MapEntry from "../renderGraph/mapEntry";
-import MapExit from "../renderGraph/mapExit";
 import Tasklet from "../renderGraph/tasklet";
 
 export default class Renderer {

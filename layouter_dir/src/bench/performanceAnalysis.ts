@@ -8,7 +8,7 @@ export default class PerformanceAnalysis {
         this._layouter = layouter;
     }
 
-    measure(name: string, runs: number = 3) {
+    measure(name: string, runs: number = 5) {
         return Loader.load(name).then(graph => {
             const start = Date.now();
             for (let run = 0; run < runs; ++run) {

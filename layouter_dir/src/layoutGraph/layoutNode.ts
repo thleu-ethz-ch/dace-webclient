@@ -31,11 +31,12 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
 
     public readonly padding: number = 0;
     public readonly isVirtual: boolean = false;
+    public readonly isBundle: boolean = false;
 
     private readonly _inConnectors: Map<string, LayoutConnector> = new Map();
     private readonly _outConnectors: Map<string, LayoutConnector> = new Map();
 
-    constructor(size: Size = null, padding: number = 0, isVirtual: boolean = false) {
+    constructor(size: Size = null, padding: number = 0, isVirtual: boolean = false, isBundle: boolean = false) {
         super();
         if (size !== null) {
             this.width = size.width;
@@ -43,6 +44,7 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         }
         this.padding = padding;
         this.isVirtual = isVirtual;
+        this.isBundle = isBundle;
     }
 
     connector(type: "IN" | "OUT", name: string): LayoutConnector {

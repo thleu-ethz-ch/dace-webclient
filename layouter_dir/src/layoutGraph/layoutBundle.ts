@@ -1,9 +1,10 @@
-import LayoutConnector from "./layoutConnector";
+import LayoutEdge from "./layoutEdge";
 import Vector from "../geometry/vector";
 
 export default class LayoutBundle
 {
     public connectors: Array<string> = [];
+    public edges: Array<LayoutEdge> = [];
     public x;
     public y;
 

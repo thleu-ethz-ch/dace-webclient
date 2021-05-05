@@ -370,6 +370,19 @@ export default abstract class Layouter {
             addBundles("inConnectorBundles", "inConnectors", "inEdges", "dstConnector", "dstBundle", "entryNode");
             addBundles("outConnectorBundles", "outConnectors", "outEdges", "srcConnector", "srcBundle", "exitNode");
         });
+        // mark all but one edges in a bundle as replica
+        const bundles = new Set();
+        _.forEach(layoutGraph.allEdges(), (edge: LayoutEdge) => {
+            if (edge.srcBundle !== null || edge.dstBundle !== null) {
+                const bundle = edge.srcBundle || edge.dstBundle;
+                if (bundles.has(bundle)) {
+                    edge.isReplica = true;
+                } else {
+                    bundles.add(bundle);
+                }
+                bundle.edges.push(edge);
+            }
+        });
     }
 
     private _copyLayoutInfo(layoutGraph: LayoutGraph, renderGraph: RenderGraph) {

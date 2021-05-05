@@ -18,6 +18,7 @@ export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
     public labelY: number = null;
     public srcBundle: LayoutBundle = null;
     public dstBundle: LayoutBundle = null;
+    public isReplica: boolean = false;
 
     constructor(src: number, dst: number, srcConnector: string = null, dstConnector: string = null, labelSize: Size = null) {
         super(src, dst);
