@@ -42,6 +42,7 @@
         }
     </style>
     <script src="./dist/layoutLib.js"></script>
+    <script src="./dist/renderLib.js"></script>
     <script>
         window.addEventListener("load", function () {
             let graphs = [];
@@ -50,13 +51,13 @@
                     graphs.push(layoutLib.Bench.GRAPHS_ALL[g]);
                 }
             }
-            //graphs = layoutLib.Bench.GRAPHS_ALL;
+            graphs = layoutLib.Bench.GRAPHS_ALL;
             const layouters = {
-                //"Dagre": new layoutLib.layouter.DagreLayouter(),
-                "Sugiyama": new layoutLib.layouter.SugiyamaLayouter({}),
-                "Sugiyama-S": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16}),
-                //"Sugiyama-SO": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16, maximizeAngles: true}),
-                //"Sugiyama-SOB": new layoutLib.layouter.SugiyamaLayouter({shuffles: 16, maximizeAngles: true, bundle: true}),
+                "Dagre": [layoutLib.layouter.DagreLayouter, {}],
+                "Sugiyama": [layoutLib.layouter.SugiyamaLayouter, {}],
+                "Sugiyama-S": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64}],
+                "Sugiyama-SO": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, optimizeAngles: true}],
+                "Sugiyama-SOB": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, optimizeAngles: true, bundle: true}],
             };
 
             const table = document.getElementById("table");
@@ -85,7 +86,7 @@
             let l = 0;
             for (let layouterName in layouters) {
                 let tmpL = l;
-                layoutLib.Bench.cost(layoutLib.Loader.load, layouters[layouterName], graphs).then((result) => {
+                layoutLib.Bench.cost(layoutLib.Loader.load, new layouters[layouterName][0](layouters[layouterName][1]), graphs).then((result) => {
                     let sum = 0;
                     for (let g = 0; g < graphs.length; ++g) {
                         tableRows[tmpL + 1].childNodes[g + 1].getElementsByClassName("cost")[0].innerHTML = result[g].toFixed(1);
@@ -106,7 +107,7 @@
                     }
                     //tableRows[tmpL + 1].childNodes[graphs.length + 1].innerHTML = (sum / graphs.length).toFixed(0);
                 });
-                layoutLib.Bench.crossings(layoutLib.Loader.load, layouters[layouterName], graphs).then((result) => {
+                layoutLib.Bench.crossings(layoutLib.Loader.load, new layouters[layouterName][0](layouters[layouterName][1]), graphs).then((result) => {
                     let sum = 0;
                     for (let g = 0; g < graphs.length; ++g) {
                         tableRows[tmpL + 1].childNodes[g + 1].getElementsByClassName("crossings")[0].innerHTML = "(" + result[g].toFixed(0) + ")";

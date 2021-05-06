@@ -21,7 +21,7 @@
     <script src="./dist/renderLib.js"></script>
     <script>
         window.addEventListener("load", function () {
-            const layouter = new renderLib.layouter.DagreLayouter({maximizeAngles: false, minimizeConnectorCrossings: false});
+            const layouter = new renderLib.layouter.DagreLayouter({optimizeAngles: false, minimizeConnectorCrossings: false});
             const renderer = new renderLib.Renderer(document.body);
             const graph = (new URLSearchParams(window.location.search)).get('graph') || "symm";
             renderer.show(layouter, graph);

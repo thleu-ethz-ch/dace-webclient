@@ -21,12 +21,12 @@ export default abstract class Layouter {
             targetEdgeLength: 50,
             withLabels: false,
             bundle: false,
-            maximizeAngles: false,
+            optimizeAngles: false,
             alignInAndOut: false,
             shuffles: 0,
             weightBends: 0.2,
             weightCrossings: 1,
-            weightLenghts: 0.1,
+            weightLengths: 0.1,
             resolveY: "normal",
         });
     }
@@ -36,7 +36,7 @@ export default abstract class Layouter {
             'targetEdgeLength',
             'weightBends',
             'weightCrossings',
-            'weightLenghts',
+            'weightLengths',
         ]);
     }
 

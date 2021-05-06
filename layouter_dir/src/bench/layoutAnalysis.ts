@@ -63,15 +63,11 @@ export default class LayoutAnalysis {
      */
     segmentCrossingsWithAngles() {
         let cost = 0;
-        for (let i = 0; i < this._segments.length; ++i) {
-            for (let j = i + 1; j < this._segments.length; ++j) {
-                if (this._segments[i].intersects(this._segments[j])) {
-                    const angle = this._segments[i].vector().acuteAngleTo(this._segments[j].vector());
-                    const angleCost = (1 + Math.cos(2 * angle + 1)) / 2;
-                    cost += 1 + angleCost;
-                }
-            }
-        }
+        _.forEach(this._getAllCrossingSegments(), ([segI, segJ]) => {
+            const angle = segI.vector().acuteAngleTo(segJ.vector());
+            const angleCost = (Math.cos(2 * angle) + 1) / 2;
+            cost += 1 + angleCost;
+        });
         return cost;
     }
 
@@ -135,7 +131,7 @@ export default class LayoutAnalysis {
             const node = this._nodes[i];
             let contained = true;
             this._nodeParents.get(node).forEach((parent: LayoutNode) => {
-                contained = contained && node.boundingBox().containedIn(parent.boundingBox())
+                contained = contained && node.boundingBox().containedIn(parent.boundingBox());
             });
             if (!contained) {
                 console.log("node not contained in parent", node, node.boundingBox(), _.map(Array.from(this._nodeParents.get(node)), (parent: LayoutNode) => parent.boundingBox()));

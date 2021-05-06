@@ -26,11 +26,6 @@ import {CONNECTOR_SIZE, CONNECTOR_SPACING} from "../util/constants";
 
 export default class SugiyamaLayouter extends Layouter
 {
-    private _crossingsPerRank = [];
-    private _segmentsPerRank = [];
-    private _segments = [];
-    private _segmentId = 0;
-
     protected doLayout(graph: LayoutGraph): void {
         if (graph.nodes().length === 0) {
             return;
@@ -63,15 +58,17 @@ export default class SugiyamaLayouter extends Layouter
         Timer.stop("orderRanks");
 
         // STEP 4: ASSIGN COORDINATES
+        const segmentsPerRank = [];
+        const crossingsPerRank = [];
         Timer.start("assignCoordinates");
-        this._assignCoordinates(graph);
+        this._assignCoordinates(graph, segmentsPerRank, crossingsPerRank);
         Timer.stop("assignCoordinates");
         Assert.assertNone(graph.allNodes(), node => typeof node.y !== "number" || isNaN(node.y), "invalid y assignment");
         Assert.assertNone(graph.allNodes(), node => typeof node.x !== "number" || isNaN(node.x), "invalid x assignment");
 
-        // STEP 4b (OPTIONAL): MAXIMIZE ANGLES
-        if (this._options['maximizeAngles']) {
-            this._maximizeAngles(graph);
+        // STEP 4b (OPTIONAL): OPTIMIZE ANGLES
+        if (this._options["optimizeAngles"]) {
+            this._optimizeAngles(graph, segmentsPerRank, crossingsPerRank);
         }
 
         // STEP 5: RESTORE CYCLES
@@ -725,7 +722,7 @@ export default class SugiyamaLayouter extends Layouter
      * @param offsetY
      * @private
      */
-    private _assignCoordinates(graph: LayoutGraph, offsetX: number = 0, offsetY: number = 0) {
+    private _assignCoordinates(graph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>, crossingsPerRank: Array<Array<[Segment, Segment]>>) {
         // assign y
         const rankTops = _.fill(new Array(graph.maxRank + 2), Number.POSITIVE_INFINITY);
         const rankBottoms = _.fill(new Array(graph.maxRank + 1), Number.NEGATIVE_INFINITY);
@@ -734,8 +731,8 @@ export default class SugiyamaLayouter extends Layouter
 
         rankTops[0] = 0;
         for (let r = 0; r < globalRanks.length; ++r) {
-            this._crossingsPerRank[r] = [];
-            this._segmentsPerRank[r] = [];
+            crossingsPerRank[r] = [];
+            segmentsPerRank[r] = [];
             let maxBottom = 0;
             _.forEach(globalRanks[r], (node: LayoutNode) => {
                 node.y = rankTops[r];
@@ -1024,9 +1021,9 @@ export default class SugiyamaLayouter extends Layouter
 
             });
 
-            // mark crossings for later maximization angles
-            if (this._options['maximizeAngles']) {
-                this._markCrossings(subgraph, rankTops, rankBottoms);
+            // mark crossings for later angle optimization
+            if (this._options["optimizeAngles"]) {
+                this._markCrossings(subgraph, segmentsPerRank, crossingsPerRank, rankTops, rankBottoms);
             }
         };
         placeSubgraph(graph, 0);
@@ -1394,52 +1391,58 @@ export default class SugiyamaLayouter extends Layouter
         });
     }
 
-    private _markCrossings(layoutGraph: LayoutGraph, rankTops: Array<number>, rankBottoms: Array<number>) {
+    private _markCrossings(subgraph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>, crossingsPerRank: Array<Array<[Segment, Segment]>>, rankTops: Array<number>, rankBottoms: Array<number>) {
+        const segments = [];
         const endpointsPerRank = new Array(rankTops.length);
         for (let r = 1; r < rankTops.length; ++r) {
             endpointsPerRank[r] = [];
         }
-        _.forEach(layoutGraph.edges(), (edge: LayoutEdge) => {
+        _.forEach(subgraph.edges(), (edge: LayoutEdge) => {
             _.forEach(edge.rawSegments(), (segment: Segment) => {
-                let startRank = _.sortedIndexOf(rankBottoms, segment.start.y);
-                let endRank = _.sortedIndexOf(rankTops, segment.end.y);
-                if (startRank > -1 && endRank > -1 && startRank + 1 === endRank) {
-                    endpointsPerRank[endRank].push([segment.start, this._segmentId]);
-                    endpointsPerRank[endRank].push([segment.end, this._segmentId]);
-                    this._segments[this._segmentId++] = segment;
-                    this._segmentsPerRank[endRank].push(segment);
+                let startRank = _.sortedIndex(rankBottoms, segment.start.y);
+                if ((startRank < rankTops.length - 1) && (segment.end.y >= rankTops[startRank + 1])) {
+                    let start = segment.start.clone();
+                    if (segment.start.y < rankBottoms[startRank]) {
+                        start.add(segment.vector().setY(rankBottoms[startRank] - segment.start.y));
+                    }
+                    let end = segment.end.clone();
+                    if (segment.end.y > rankTops[startRank + 1]) {
+                        end = start.clone().add(segment.vector().setY(this._options["targetEdgeLength"]));
+                    }
+                    segment = new Segment(start, end);
+                    endpointsPerRank[startRank + 1].push([segment.start, segment]);
+                    endpointsPerRank[startRank + 1].push([segment.end, segment]);
+                    segmentsPerRank[startRank + 1].push(segment);
                 }
             });
         });
         for (let r = 1; r < rankTops.length; ++r) {
-            const pointsSorted = _.sortBy(endpointsPerRank[r], ([point, segmentId]) => {
-                return point.x;
-            });
-            const openSegments: Set<number> = new Set();
-            _.forEach(pointsSorted, ([point, segmentId]) => {
-                if (openSegments.has(segmentId)) {
-                    openSegments.delete(segmentId);
+            const pointsSorted = _.sortBy(endpointsPerRank[r], ([point, segment]) => point.x); // sort by x
+
+            const openSegments: Set<Segment> = new Set();
+            _.forEach(pointsSorted, ([point, segment]) => {
+                if (openSegments.has(segment)) {
+                    openSegments.delete(segment);
                 } else {
-                    openSegments.forEach((otherSegmentId) => {
-                        if (this._segments[segmentId].end.x !== this._segments[otherSegmentId].end.x) {
-                            this._crossingsPerRank[r].push([Math.min(segmentId, otherSegmentId), Math.max(segmentId, otherSegmentId)]);
+                    openSegments.forEach((otherSegment) => {
+                        if ((segment.start.x !== otherSegment.start.x) &&
+                            (segment.end.x !== otherSegment.end.x)) {
+                            crossingsPerRank[r].push([segment, otherSegment]);
                         }
                     });
-                    openSegments.add(segmentId);
+                    openSegments.add(segment);
                 }
             });
         }
     }
 
-    private _maximizeAngles(layoutGraph: LayoutGraph) {
+    private _optimizeAngles(layoutGraph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>, crossingsPerRank: Array<Array<[Segment, Segment]>>) {
         const forces = [];
-        _.forEach(this._crossingsPerRank, (crossings, r) => {
+        _.forEach(crossingsPerRank, (crossings, r) => {
             let maxForce = Number.NEGATIVE_INFINITY;
             let maxY = Number.NEGATIVE_INFINITY;
             const deltaXs = [];
-            _.forEach(crossings, ids => {
-                const segmentA = this._segments[ids[0]];
-                const segmentB = this._segments[ids[1]];
+            _.forEach(crossings, ([segmentA, segmentB]) => {
                 const vectorA = segmentA.vector();
                 const vectorB = segmentB.vector();
                 if (vectorA.x === 0 || vectorB.x === 0 || Math.sign(vectorA.x) !== -Math.sign(vectorB.x)) {
@@ -1457,7 +1460,7 @@ export default class SugiyamaLayouter extends Layouter
             });
             if (maxForce > 0) {
                 const allDeltaXsSquared = [];
-                _.forEach(this._segmentsPerRank[r], (segment: Segment) => {
+                _.forEach(segmentsPerRank[r], (segment: Segment) => {
                     const vector = segment.vector();
                     allDeltaXsSquared.push(vector.x * vector.x);
                 });
@@ -1469,11 +1472,11 @@ export default class SugiyamaLayouter extends Layouter
                     let cost = 0;
                     _.forEach(deltaXs, ([deltaXA, deltaXB]) => {
                         const angle = Math.atan(deltaY / deltaXA) + Math.atan(deltaY / deltaXB);
-                        cost += this._options["weightCrossings"] * (1 + Math.cos(2 * angle + 1)) / 2;
+                        cost += this._options["weightCrossings"] * (Math.cos(2 * angle) + 1) / 2;
                     });
                     const deltaYSquared = deltaY * deltaY;
                     _.forEach(allDeltaXsSquared, deltaXSquared => {
-                        cost += this._options["weightLenghts"] * Math.sqrt(deltaYSquared + deltaXSquared) / this._options["targetEdgeLength"];
+                        cost += this._options["weightLengths"] * Math.sqrt(deltaYSquared + deltaXSquared) / this._options["targetEdgeLength"];
                     });
                     return cost;
                 }
