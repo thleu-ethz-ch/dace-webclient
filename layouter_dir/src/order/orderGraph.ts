@@ -1376,7 +1376,7 @@ export default class OrderGraph {
             }*/
             if (!options["keepGroups"]) {
                 _.forEach(graph.groups(), group => {
-                    if (group.label() === "stateFOR966_map[ii=0:8]") {
+                    if (group.label() === "declareTasklettasklet969") {
                         storeLocal();
                         options["debug"] = true;
                     }

@@ -463,7 +463,7 @@ export default class SugiyamaLayouter extends Layouter
                 if (subgraph.parentNode !== null && subgraph.parentNode.label() === "s70_8") {
                     // debug = true;
                 }
-                orderGraph.order({keepGroups: true, resolveConflicts: true, resolveY: this._options["resolveY"], debug: debug});//subgraph.nodes().length === 851);
+                orderGraph.order({keepGroups: true, resolveConflicts: true, resolveY: this._options["resolveY"], debug: debug, doNothing: true});//subgraph.nodes().length === 851);
 
                 // copy node order into layout graph
                 const newOrderNodes: Set<OrderNode> = new Set();
