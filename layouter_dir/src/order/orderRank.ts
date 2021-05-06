@@ -23,7 +23,6 @@ export default class OrderRank extends Node<Graph<any, any>, Edge<any, any>>
         this.order = _.map(_.sortBy(_.map(this.groups, (group, n) => {
             return {n: n, pos: group.position};
         }), "pos"), "n");
-        Assert.assertEqual(_.map(this.groups, group => group.index), _.range(this.groups.length), "group indizes corrupt");
     }
 
     orderedGroups(): Array<OrderGroup> {
@@ -34,7 +33,6 @@ export default class OrderRank extends Node<Graph<any, any>, Edge<any, any>>
         _.forEach(this.order, pos => {
             groups.push(this.groups[pos]);
         });
-        Assert.assertEqual(_.map(this.groups, group => group.index), _.range(this.groups.length), "group indizes corrupt");
         return groups;
     }
 
@@ -43,7 +41,6 @@ export default class OrderRank extends Node<Graph<any, any>, Edge<any, any>>
         this.groups.push(group);
         group.index = nextIndex;
         group.rank = this;
-        Assert.assertEqual(_.map(this.groups, group => group.index), _.range(this.groups.length), "group indizes corrupt");
         return this.orderGraph.addGroup(group, id);
     }
 }

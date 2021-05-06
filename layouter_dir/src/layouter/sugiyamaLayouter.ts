@@ -26,11 +26,6 @@ import {CONNECTOR_SIZE, CONNECTOR_SPACING} from "../util/constants";
 
 export default class SugiyamaLayouter extends Layouter
 {
-    private _crossingsPerRank = [];
-    private _segmentsPerRank = [];
-    private _segments = [];
-    private _segmentId = 0;
-
     protected doLayout(graph: LayoutGraph): void {
         if (graph.nodes().length === 0) {
             return;
@@ -53,9 +48,9 @@ export default class SugiyamaLayouter extends Layouter
         Timer.start("addVirtualNodes");
         this._addVirtualNodes(graph);
         Timer.stop("addVirtualNodes");
-        Assert.assertNone(graph.allEdges(), edge => {
+        Assert.assertAll(graph.allEdges(), edge => {
             const srcNode = edge.graph.node(edge.src)
-            return srcNode.rank + srcNode.rankSpan !== edge.graph.node(edge.dst).rank;
+            return edge.isReplica || (srcNode.rank + srcNode.rankSpan === edge.graph.node(edge.dst).rank);
         }, "edge not between neighboring ranks");
 
         Timer.start("orderRanks");
@@ -63,15 +58,17 @@ export default class SugiyamaLayouter extends Layouter
         Timer.stop("orderRanks");
 
         // STEP 4: ASSIGN COORDINATES
+        const segmentsPerRank = [];
+        const crossingsPerRank = [];
         Timer.start("assignCoordinates");
-        this._assignCoordinates(graph);
+        this._assignCoordinates(graph, segmentsPerRank, crossingsPerRank);
         Timer.stop("assignCoordinates");
         Assert.assertNone(graph.allNodes(), node => typeof node.y !== "number" || isNaN(node.y), "invalid y assignment");
         Assert.assertNone(graph.allNodes(), node => typeof node.x !== "number" || isNaN(node.x), "invalid x assignment");
 
-        // STEP 4b (OPTIONAL): MAXIMIZE ANGLES
-        if (this._options['maximizeAngles']) {
-            this._maximizeAngles(graph);
+        // STEP 4b (OPTIONAL): OPTIMIZE ANGLES
+        if (this._options["optimizeAngles"]) {
+            this._optimizeAngles(graph, segmentsPerRank, crossingsPerRank);
         }
 
         // STEP 5: RESTORE CYCLES
@@ -146,14 +143,19 @@ export default class SugiyamaLayouter extends Layouter
     private _addVirtualNodes(graph: LayoutGraph, component: LayoutComponent = null) {
         // place intermediate nodes between long edges
         _.forEach(graph.allEdges(), (edge: LayoutEdge) => {
+            if (edge.isReplica) {
+                return;
+            }
             let srcNode = edge.graph.node(edge.src);
             let dstNode = edge.graph.node(edge.dst);
             if (srcNode.rank + srcNode.rankSpan < dstNode.rank) {
                 let tmpSrcId = srcNode.id;
                 let tmpDstId;
                 const dstConnector = edge.dstConnector;
+                let bundle = ((edge.srcBundle !== null) && (edge.srcBundle.edges.length > 1));
                 for (let tmpDstRank = srcNode.rank + srcNode.rankSpan; tmpDstRank < dstNode.rank; ++tmpDstRank) {
-                    const newNode = new LayoutNode({width: 0, height: 0}, 0, true);
+                    const newNode = new LayoutNode({width: 0, height: 0}, 0, !bundle, bundle);
+                    bundle = ((edge.dstBundle !== null) && (edge.dstBundle.edges.length > 1) && (tmpDstRank === dstNode.rank - 2));
                     newNode.rank = tmpDstRank;
                     newNode.setLabel("virtual node on edge from " + srcNode.label() + " to " + dstNode.label());
                     tmpDstId = edge.graph.addNode(newNode, null, component !== null);
@@ -166,9 +168,21 @@ export default class SugiyamaLayouter extends Layouter
                         edge.dst = tmpDstId;
                         edge.dstConnector = null;
                         edge.graph.addEdge(edge, edge.id, component !== null);
+                        // add bundle edges
+                        if (edge.srcBundle !== null && edge.srcBundle.edges.length > 1) {
+                            _.forEach(edge.srcBundle.edges, (bundleEdge: LayoutEdge) => {
+                                if (bundleEdge.isReplica) {
+                                    bundleEdge.graph.removeEdge(bundleEdge.id, component !== null);
+                                    bundleEdge.dst = tmpDstId;
+                                    bundleEdge.graph.addEdge(bundleEdge, bundleEdge.id, component !== null);
+                                }
+                            });
+                        }
                     } else {
                         const tmpEdge = new LayoutEdge(tmpSrcId, tmpDstId);
-                        tmpEdge.weight = Number.POSITIVE_INFINITY;
+                        if (!bundle) {
+                            tmpEdge.weight = Number.POSITIVE_INFINITY;
+                        }
                         tmpEdge.isInverted = edge.isInverted;
                         edge.graph.addEdge(tmpEdge, null, component !== null);
                         if (component !== null) {
@@ -183,6 +197,16 @@ export default class SugiyamaLayouter extends Layouter
                 edge.graph.addEdge(tmpEdge, null, component !== null);
                 if (component !== null) {
                     component.addEdge(tmpEdge.id);
+                }
+                // add bundle edges
+                if ((edge.dstBundle !== null) && (edge.dstBundle.edges.length > 1)) {
+                    _.forEach(edge.dstBundle.edges, (bundleEdge: LayoutEdge) => {
+                        if (bundleEdge.isReplica) {
+                            bundleEdge.graph.removeEdge(bundleEdge.id, component !== null);
+                            bundleEdge.src = tmpSrcId;
+                            bundleEdge.graph.addEdge(bundleEdge, bundleEdge.id, component !== null);
+                        }
+                    });
                 }
             }
         });
@@ -452,9 +476,9 @@ export default class SugiyamaLayouter extends Layouter
                     }
                 });
 
-                Assert.assertNone(subgraph.edges(), edge => {
+                Assert.assertAll(subgraph.edges(), edge => {
                     const srcNode = edge.graph.node(edge.src)
-                    return srcNode.rank + srcNode.rankSpan !== edge.graph.node(edge.dst).rank;
+                    return edge.isReplica || (srcNode.rank + srcNode.rankSpan === edge.graph.node(edge.dst).rank);
                 }, "edge not between neighboring ranks");
 
                 // do order
@@ -463,7 +487,7 @@ export default class SugiyamaLayouter extends Layouter
                 if (subgraph.parentNode !== null && subgraph.parentNode.label() === "s70_8") {
                     // debug = true;
                 }
-                orderGraph.order({keepGroups: true, resolveConflicts: true, resolveY: this._options["resolveY"], debug: debug, doNothing: true});//subgraph.nodes().length === 851);
+                orderGraph.order({keepGroups: true, resolveConflicts: true, resolveY: this._options["resolveY"], debug: debug, shuffles: this._options["shuffles"]});
 
                 // copy node order into layout graph
                 const newOrderNodes: Set<OrderNode> = new Set();
@@ -632,9 +656,9 @@ export default class SugiyamaLayouter extends Layouter
             });
         });
 
-        Assert.assertNone(graph.allEdges(), edge => {
+        Assert.assertAll(graph.allEdges(), edge => {
             const srcNode = edge.graph.node(edge.src)
-            return srcNode.rank + srcNode.rankSpan !== edge.graph.node(edge.dst).rank;
+            return edge.isReplica || (srcNode.rank + srcNode.rankSpan === edge.graph.node(edge.dst).rank);
         }, "edge not between neighboring ranks");
 
         // order connectors
@@ -661,15 +685,82 @@ export default class SugiyamaLayouter extends Layouter
                         }
                     }
                 });
-                if (connectors["IN"].length > 0) {
-                    layoutNode.inConnectors = connectors["IN"];
-                }
-                if (connectors["OUT"].length > 0) {
-                    layoutNode.outConnectors = connectors["OUT"];
+                if (connectors["IN"].length > 0 || connectors["OUT"].length > 0) {
+                   if (connectors["IN"].length > 0 && layoutNode.inConnectorBundles.length > 0) {
+                        this._bundleConnectors(connectors["IN"], connectors["OUT"], layoutNode.inConnectorBundles);
+                    }
+                    if (connectors["OUT"].length > 0 && layoutNode.outConnectorBundles.length > 0) {
+                        this._bundleConnectors(connectors["OUT"], connectors["IN"], layoutNode.outConnectorBundles);
+                    }
+                    if (connectors["IN"].length > 0) {
+                        layoutNode.inConnectors = connectors["IN"];
+                        Assert.assertAll(layoutNode.inConnectors, connector => connector !== undefined, "undefined inconnector");
+                    }
+                    if (connectors["OUT"].length > 0) {
+                        layoutNode.outConnectors = connectors["OUT"];
+                        Assert.assertAll(layoutNode.outConnectors, connector => connector !== undefined, "undefined outconnector");
+                    }
                 }
             }
         });
+    }
 
+    private _bundleConnectors(connectors: Array<LayoutConnector>, counterPartConnectors: Array<LayoutConnector>, bundles: Array<LayoutBundle>) {
+        // order bundles by the mean of their connectors positions
+        // within a bundle, the connectors do not change their relative position
+        let connectorByName = new Map();
+        let indexByConnector = new Map();
+        _.forEach(connectors, (connector: LayoutConnector, pos: number) => {
+            connectorByName.set(connector.name, connector);
+            indexByConnector.set(connector.name, pos);
+        });
+        let bundleMeans = [];
+        _.forEach(bundles, (bundle: LayoutBundle) => {
+            bundle.connectors = _.sortBy(bundle.connectors, (name: string) => indexByConnector.get(name));
+            bundleMeans.push([bundle, _.mean(_.map(bundle.connectors, (name: string) => indexByConnector.get(name)))]);
+        });
+        connectors.length = 0;
+        _.forEach(_.sortBy(bundleMeans, "1"), ([bundle, mean]) => {
+            _.forEach(bundle.connectors, (name: string) => {
+                const connector = connectorByName.get(name);
+                connectors.push(connector);
+            });
+        });
+
+        // reflect unbroken sequences of scoped connectors on other side
+        const scopeGroups = [];
+        let group = [];
+        _.forEach(connectors, (connector: LayoutConnector, pos: number) => {
+            if (connector.isScoped) {
+                group.push(connector);
+            }
+            if ((pos === connectors.length - 1) || !connectors[pos + 1].isScoped) {
+                scopeGroups.push(group);
+                group = [];
+            }
+        });
+        const counterMeans = [];
+        let scopeCount = 0;
+        let scopeSum = 0;
+        let scopeGroupPointer = 0;
+        _.forEach(counterPartConnectors, (connector: LayoutConnector, pos: number) => {
+            if (connector.isScoped) {
+                scopeSum += pos;
+                if (++scopeCount === scopeGroups[scopeGroupPointer].length) {
+                    counterMeans.push([_.map(scopeGroups[scopeGroupPointer++], "counterpart"), pos / scopeCount]);
+                    scopeCount = 0;
+                    scopeSum = 0;
+                }
+            } else {
+                counterMeans.push([[connector], pos]);
+            }
+        });
+        counterPartConnectors.length = 0;
+        _.forEach(_.sortBy(counterMeans, "1"), ([connectors, mean]) => {
+            _.forEach(connectors, (connector: LayoutConnector) => {
+                counterPartConnectors.push(connector);
+            });
+        });
     }
 
     /**
@@ -679,7 +770,7 @@ export default class SugiyamaLayouter extends Layouter
      * @param offsetY
      * @private
      */
-    private _assignCoordinates(graph: LayoutGraph, offsetX: number = 0, offsetY: number = 0) {
+    private _assignCoordinates(graph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>, crossingsPerRank: Array<Array<[Segment, Segment]>>) {
         // assign y
         const rankTops = _.fill(new Array(graph.maxRank + 2), Number.POSITIVE_INFINITY);
         const rankBottoms = _.fill(new Array(graph.maxRank + 1), Number.NEGATIVE_INFINITY);
@@ -688,8 +779,8 @@ export default class SugiyamaLayouter extends Layouter
 
         rankTops[0] = 0;
         for (let r = 0; r < globalRanks.length; ++r) {
-            this._crossingsPerRank[r] = [];
-            this._segmentsPerRank[r] = [];
+            crossingsPerRank[r] = [];
+            segmentsPerRank[r] = [];
             let maxBottom = 0;
             _.forEach(globalRanks[r], (node: LayoutNode) => {
                 node.y = rankTops[r];
@@ -783,24 +874,16 @@ export default class SugiyamaLayouter extends Layouter
 
             const getInPoint = (node: LayoutNode, edge: LayoutEdge): Vector => {
                 let inPoint = node.boundingBox().topCenter();
-                if (!node.isVirtual) {
-                    if (edge.dstConnector !== null) {
-                        let dstConnector = node.connector("IN", edge.dstConnector);
-                        if (dstConnector === undefined && node.childGraph !== null) {
-                            const childGraph = node.childGraph;
-                            if (childGraph.entryNode !== null) {
-                                dstConnector = childGraph.entryNode.connector("IN", edge.dstConnector);
-                            }
-                        }
-                        if (dstConnector !== undefined) {
-                            inPoint = dstConnector.boundingBox().topCenter();
-                        }
-                    } else if (node.topOutConnectorIndex !== null) {
-                        if (edge.isInverted) {
-                            inPoint.x += (node.topOutConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
-                        } else {
-                            inPoint.x += (0.5 - node.topOutConnectorIndex) * 2 * this._options["connectorSpacing"];
-                        }
+                if (edge.dstConnector !== null) {
+                    let dstConnector = node.connector("IN", edge.dstConnector);
+                    if (dstConnector !== undefined) {
+                        inPoint = dstConnector.boundingBox().topCenter();
+                    }
+                } else if (node.topOutConnectorIndex !== null) {
+                    if (edge.isInverted) {
+                        inPoint.x += (node.topOutConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
+                    } else {
+                        inPoint.x += (0.5 - node.topOutConnectorIndex) * 2 * this._options["connectorSpacing"];
                     }
                 }
                 inPoint.y = rankTops[node.rank];
@@ -815,24 +898,16 @@ export default class SugiyamaLayouter extends Layouter
 
             const getOutPoint = (node: LayoutNode, edge: LayoutEdge): Vector => {
                 let outPoint = node.boundingBox().bottomCenter();
-                if (!node.isVirtual) {
-                    if (edge.srcConnector !== null) {
-                        let srcConnector = node.connector("OUT", edge.srcConnector);
-                        if (srcConnector === undefined && node.childGraph !== null) {
-                            const childGraph = node.childGraph;
-                            if (childGraph.entryNode !== null) {
-                                srcConnector = childGraph.exitNode.connector("OUT", edge.srcConnector);
-                            }
-                        }
-                        if (srcConnector !== undefined) {
-                            outPoint = srcConnector.boundingBox().bottomCenter();
-                        }
-                    } else if (node.bottomInConnectorIndex !== null) {
-                        if (edge.isInverted) {
-                            outPoint.x += (node.bottomInConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
-                        } else {
-                            outPoint.x += (0.5 - node.bottomInConnectorIndex) * 2 * this._options["connectorSpacing"];
-                        }
+                if (edge.srcConnector !== null) {
+                    let srcConnector = node.connector("OUT", edge.srcConnector);
+                    if (srcConnector !== undefined) {
+                        outPoint = srcConnector.boundingBox().bottomCenter();
+                    }
+                } else if (node.bottomInConnectorIndex !== null) {
+                    if (edge.isInverted) {
+                        outPoint.x += (node.bottomInConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
+                    } else {
+                        outPoint.x += (0.5 - node.bottomInConnectorIndex) * 2 * this._options["connectorSpacing"];
                     }
                 }
                 return outPoint;
@@ -902,10 +977,15 @@ export default class SugiyamaLayouter extends Layouter
             });
 
             _.forEach(subgraph.edges(), (edge: LayoutEdge) => {
-                const startNode = subgraph.node(edge.src);
+                if (edge.isReplica) {
+                    return; // replica edges are added with their primary
+                }
+                let startNode = subgraph.node(edge.src);
                 if (startNode.isVirtual) {
-                    // do not assign points to this edge
-                    return;
+                    return; // do not assign points to this edge
+                }
+                if (startNode.childGraph !== null && startNode.childGraph.exitNode !== null) {
+                    startNode = startNode.childGraph.exitNode;
                 }
 
                 const startPoint = getOutPoint(startNode, edge);
@@ -917,7 +997,7 @@ export default class SugiyamaLayouter extends Layouter
 
                 let nextNode = subgraph.node(edge.dst);
                 let tmpEdge = null;
-                while (nextNode.isVirtual) {
+                while (nextNode.isVirtual || nextNode.isBundle) {
                     const nextPoint = getInPoint(nextNode, edge);
                     const nextInProxyPoint = getInProxyPoint(nextNode, nextPoint);
                     const nextOutProxyPoint = getOutProxyPoint(nextNode, nextPoint);
@@ -931,13 +1011,16 @@ export default class SugiyamaLayouter extends Layouter
                     tmpEdge = subgraph.outEdges(nextNode.id)[0];
                     nextNode = subgraph.node(tmpEdge.dst);
                 }
-
+                let endNode = nextNode;
+                if (endNode.childGraph !== null && endNode.childGraph.entryNode !== null) {
+                    endNode = endNode.childGraph.entryNode;
+                }
                 if (tmpEdge !== null) {
                     edge.dstConnector = tmpEdge.dstConnector;
                 }
-                const endPoint = getInPoint(nextNode, edge);
-                const endProxyPoint = (edge.dstBundle !== null ? edge.dstBundle.position() : getInProxyPoint(nextNode, endPoint));
-                if (!_.isEqual(endProxyPoint, endPoint) && !noInProxyNodes.has(nextNode)) {
+                const endPoint = getInPoint(endNode, edge);
+                const endProxyPoint = (edge.dstBundle !== null ? edge.dstBundle.position() : getInProxyPoint(endNode, endPoint));
+                if (!_.isEqual(endProxyPoint, endPoint) && !noInProxyNodes.has(endPoint)) {
                     edge.points.push(endProxyPoint);
                 }
                 edge.points.push(endPoint);
@@ -948,11 +1031,31 @@ export default class SugiyamaLayouter extends Layouter
                     edge.dst = tmpEdge.dst;
                     edge.graph.addEdge(edge, edge.id);
                 }
+
+                // place replicas
+                if (edge.srcBundle !== null) {
+                    _.forEach(edge.srcBundle.edges, (bundleEdge: LayoutEdge) => {
+                        if (bundleEdge.isReplica) {
+                            bundleEdge.points = _.cloneDeep(edge.points);
+                            bundleEdge.points[0] = getOutPoint(startNode, bundleEdge);
+                        }
+                    });
+                }
+                if (edge.dstBundle !== null) {
+                    _.forEach(edge.dstBundle.edges, (bundleEdge: LayoutEdge) => {
+                        if (bundleEdge.isReplica) {
+                            bundleEdge.points = _.cloneDeep(edge.points);
+                            bundleEdge.points[bundleEdge.points.length - 1] = getInPoint(endNode, bundleEdge);
+                        }
+                    });
+                }
             });
 
             _.forEach(subgraph.nodes(), (node: LayoutNode) => {
                 // remove virtual nodes and edges
                 if (node.isVirtual) {
+                    Assert.assert(subgraph.inEdges(node.id).length <= 1, "virtual node has more than 1 in-edge", node, subgraph.inEdges(node.id));
+                    Assert.assert(subgraph.outEdges(node.id).length <= 1, "virtual node has more than 1 out-edge", node, subgraph.outEdges(node.id));
                     _.forEach(subgraph.inEdges(node.id), (inEdge) => {
                         subgraph.removeEdge(inEdge.id);
                     });
@@ -969,9 +1072,9 @@ export default class SugiyamaLayouter extends Layouter
 
             });
 
-            // mark crossings for later maximization angles
-            if (this._options['maximizeAngles']) {
-                this._markCrossings(subgraph, rankTops, rankBottoms);
+            // mark crossings for later angle optimization
+            if (this._options["optimizeAngles"]) {
+                this._markCrossings(subgraph, segmentsPerRank, crossingsPerRank, rankTops, rankBottoms);
             }
         };
         placeSubgraph(graph, 0);
@@ -1063,7 +1166,6 @@ export default class SugiyamaLayouter extends Layouter
         const verticalDir = (neighbors === "UP" ? 1 : -1);
         const neighborOutMethod = (neighbors === "UP" ? "outEdges" : "inEdges");
         const neighborInMethod = (neighbors === "UP" ? "inEdges" : "outEdges");
-        const neighborEdgeOutAttr = (neighbors === "UP" ? "src" : "dst");
         const neighborEdgeInAttr = (neighbors === "UP" ? "dst" : "src");
 
         const blockPerNode = new Array(levelGraph.maxId() + 1);
@@ -1328,102 +1430,70 @@ export default class SugiyamaLayouter extends Layouter
         });
 
         // place bundles
-        const assignX = (bundles: Array<LayoutBundle>, type: "IN" | "OUT") => {
-            const xs: Array<[LayoutBundle, number]> = _.sortBy(_.map(bundles, bundle =>
-                [bundle, _.mean(_.map(bundle.connectors, (name: string) => node.connector(type, name).x)) + SIZE / 2]
-            ), "1");
-            let left = 0;
-            let right = -1;
-            let frontier = 0;
-            _.forEach(xs, ([bundle, idealX], i: number) => {
-                if ((idealX >= frontier + SPACE + SIZE) || (i === xs.length - 1)) {
-                    if (i === xs.length - 1 && idealX < frontier + SPACE) {
-                        right = i;
-                    }
-                    if (right >= 0) {
-                        const num = right - left + 1;
-                        const middle = (xs[left][1] + xs[right][1]) / 2;
-                        let x = middle - (num * (SPACE + SIZE) - SPACE) / 2 + SIZE / 2;
-                        if (left > 0) {
-                            x = Math.max(x, xs[left - 1][0].x + SPACE + SIZE);
-                        }
-                        for (let tmpI = left; tmpI <= right; ++tmpI) {
-                            xs[tmpI][0].x = x;
-                            x += SPACE + SIZE;
-                        }
-                    }
-                    if ((i === xs.length - 1) && (idealX >= frontier + SPACE)) {
-                        bundle.x = idealX;
-                    }
-                    left = i;
-                    right = i;
-                    frontier = idealX;
-                } else {
-                    right = i;
-                    const num = right - left + 1;
-                    const middle = (xs[left][1] + xs[right][1]) / 2;
-                    frontier = middle + (num * (SPACE + SIZE)) / 2;
-                }
-            });
-        }
-        assignX(node.inConnectorBundles, "IN");
-        assignX(node.outConnectorBundles, "OUT");
         _.forEach(node.inConnectorBundles, (inBundle: LayoutBundle) => {
             const top = rankTops[node.rank];
             inBundle.y = Math.min(top, node.y - CONNECTOR_SIZE / 2 - this._options["targetEdgeLength"] / 3);
+            inBundle.x = _.mean(_.map(inBundle.connectors, (name: string) => node.connector("IN", name).x)) + SIZE / 2;
         });
         _.forEach(node.outConnectorBundles, (outBundle: LayoutBundle) => {
             const bottom = rankBottoms[node.rank + node.rankSpan - 1];
             outBundle.y = Math.max(bottom, node.y + node.height + CONNECTOR_SIZE / 2 + this._options["targetEdgeLength"] / 3);
+            outBundle.x = _.mean(_.map(outBundle.connectors, (name: string) => node.connector("OUT", name).x)) + SIZE / 2;
         });
     }
 
-    private _markCrossings(layoutGraph: LayoutGraph, rankTops: Array<number>, rankBottoms: Array<number>) {
+    private _markCrossings(subgraph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>, crossingsPerRank: Array<Array<[Segment, Segment]>>, rankTops: Array<number>, rankBottoms: Array<number>) {
+        const segments = [];
         const endpointsPerRank = new Array(rankTops.length);
         for (let r = 1; r < rankTops.length; ++r) {
             endpointsPerRank[r] = [];
         }
-        _.forEach(layoutGraph.edges(), (edge: LayoutEdge) => {
+        _.forEach(subgraph.edges(), (edge: LayoutEdge) => {
             _.forEach(edge.rawSegments(), (segment: Segment) => {
-                let startRank = _.sortedIndexOf(rankBottoms, segment.start.y);
-                let endRank = _.sortedIndexOf(rankTops, segment.end.y);
-                if (startRank > -1 && endRank > -1 && startRank + 1 === endRank) {
-                    endpointsPerRank[endRank].push([segment.start, this._segmentId]);
-                    endpointsPerRank[endRank].push([segment.end, this._segmentId]);
-                    this._segments[this._segmentId++] = segment;
-                    this._segmentsPerRank[endRank].push(segment);
+                let startRank = _.sortedIndex(rankBottoms, segment.start.y);
+                if ((startRank < rankTops.length - 1) && (segment.end.y >= rankTops[startRank + 1])) {
+                    let start = segment.start.clone();
+                    if (segment.start.y < rankBottoms[startRank]) {
+                        start.add(segment.vector().setY(rankBottoms[startRank] - segment.start.y));
+                    }
+                    let end = segment.end.clone();
+                    if (segment.end.y > rankTops[startRank + 1]) {
+                        end = start.clone().add(segment.vector().setY(this._options["targetEdgeLength"]));
+                    }
+                    segment = new Segment(start, end);
+                    endpointsPerRank[startRank + 1].push([segment.start, segment]);
+                    endpointsPerRank[startRank + 1].push([segment.end, segment]);
+                    segmentsPerRank[startRank + 1].push(segment);
                 }
             });
         });
         for (let r = 1; r < rankTops.length; ++r) {
-            const pointsSorted = _.sortBy(endpointsPerRank[r], ([point, segmentId]) => {
-                return point.x;
-            });
-            const openSegments: Set<number> = new Set();
-            _.forEach(pointsSorted, ([point, segmentId]) => {
-                if (openSegments.has(segmentId)) {
-                    openSegments.delete(segmentId);
+            const pointsSorted = _.sortBy(endpointsPerRank[r], ([point, segment]) => point.x); // sort by x
+
+            const openSegments: Set<Segment> = new Set();
+            _.forEach(pointsSorted, ([point, segment]) => {
+                if (openSegments.has(segment)) {
+                    openSegments.delete(segment);
                 } else {
-                    openSegments.forEach((otherSegmentId) => {
-                        if (this._segments[segmentId].end.x !== this._segments[otherSegmentId].end.x) {
-                            this._crossingsPerRank[r].push([Math.min(segmentId, otherSegmentId), Math.max(segmentId, otherSegmentId)]);
+                    openSegments.forEach((otherSegment) => {
+                        if ((segment.start.x !== otherSegment.start.x) &&
+                            (segment.end.x !== otherSegment.end.x)) {
+                            crossingsPerRank[r].push([segment, otherSegment]);
                         }
                     });
-                    openSegments.add(segmentId);
+                    openSegments.add(segment);
                 }
             });
         }
     }
 
-    private _maximizeAngles(layoutGraph: LayoutGraph) {
+    private _optimizeAngles(layoutGraph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>, crossingsPerRank: Array<Array<[Segment, Segment]>>) {
         const forces = [];
-        _.forEach(this._crossingsPerRank, (crossings, r) => {
+        _.forEach(crossingsPerRank, (crossings, r) => {
             let maxForce = Number.NEGATIVE_INFINITY;
             let maxY = Number.NEGATIVE_INFINITY;
             const deltaXs = [];
-            _.forEach(crossings, ids => {
-                const segmentA = this._segments[ids[0]];
-                const segmentB = this._segments[ids[1]];
+            _.forEach(crossings, ([segmentA, segmentB]) => {
                 const vectorA = segmentA.vector();
                 const vectorB = segmentB.vector();
                 if (vectorA.x === 0 || vectorB.x === 0 || Math.sign(vectorA.x) !== -Math.sign(vectorB.x)) {
@@ -1441,7 +1511,7 @@ export default class SugiyamaLayouter extends Layouter
             });
             if (maxForce > 0) {
                 const allDeltaXsSquared = [];
-                _.forEach(this._segmentsPerRank[r], (segment: Segment) => {
+                _.forEach(segmentsPerRank[r], (segment: Segment) => {
                     const vector = segment.vector();
                     allDeltaXsSquared.push(vector.x * vector.x);
                 });
@@ -1453,11 +1523,11 @@ export default class SugiyamaLayouter extends Layouter
                     let cost = 0;
                     _.forEach(deltaXs, ([deltaXA, deltaXB]) => {
                         const angle = Math.atan(deltaY / deltaXA) + Math.atan(deltaY / deltaXB);
-                        cost += this._options["weightCrossings"] * (1 + Math.cos(2 * angle + 1)) / 2;
+                        cost += this._options["weightCrossings"] * (Math.cos(2 * angle) + 1) / 2;
                     });
                     const deltaYSquared = deltaY * deltaY;
                     _.forEach(allDeltaXsSquared, deltaXSquared => {
-                        cost += this._options["weightLenghts"] * Math.sqrt(deltaYSquared + deltaXSquared) / this._options["targetEdgeLength"];
+                        cost += this._options["weightLengths"] * Math.sqrt(deltaYSquared + deltaXSquared) / this._options["targetEdgeLength"];
                     });
                     return cost;
                 }
@@ -1492,12 +1562,11 @@ export default class SugiyamaLayouter extends Layouter
                 points.push([point.y, "EDGE", edge, i]);
             });
         });
-        const pointsSorted = _.sortBy(points, ([pointY, type, object, position]) => pointY);
+        const pointsSorted = _.sortBy(points, "0"); // sort by y
         let forcePointer = 0;
         let totalForce = 0;
         const movedSet = new Set();
         _.forEach(pointsSorted, ([pointY, type, object, position]) => {
-            let maxForce = 0;
             while (forcePointer < sortedForces.length && sortedForces[forcePointer][0] < pointY) {
                 totalForce += sortedForces[forcePointer][1];
                 forcePointer++;
