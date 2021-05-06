@@ -13,6 +13,7 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
     public order: Array<number> = [];
     public position: number = 0;
     public rank: OrderRank;
+    public index: number = 0; // the index within the rank, used as an id, other than position this does not change
 
     constructor(reference: any, label: string = null) {
         super(label);

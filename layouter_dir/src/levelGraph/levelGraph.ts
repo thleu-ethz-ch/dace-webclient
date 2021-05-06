@@ -48,7 +48,7 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
     }
 
     public ranks(rankSpanning: boolean = true): Array<Array<LevelNode>> {
-        if (this._ranks === null) {
+        //if (this._ranks === null) {
             this._minRank = Number.POSITIVE_INFINITY;
             this._maxRank = Number.NEGATIVE_INFINITY;
             _.forEach(this.nodes(), (node: LevelNode) => {
@@ -70,8 +70,11 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
                 this._ranks[r] = _.sortBy(rank, (node: LevelNode) => {
                     return node.position;
                 });
+                for (let pos = 0; pos < this._ranks[r].length; ++pos) {
+                    this._ranks[r][pos].position = pos;
+                }
             });
-        }
+        //}
         return this._ranks;
     }
 

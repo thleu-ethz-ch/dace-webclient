@@ -7,6 +7,7 @@ import Segment from "../geometry/segment";
 import Size from "../geometry/size";
 import Vector from "../geometry/vector";
 import LayoutBundle from "./layoutBundle";
+import {EPSILON} from "../util/constants";
 
 export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
     public readonly labelSize: Size = null;
@@ -18,6 +19,7 @@ export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
     public labelY: number = null;
     public srcBundle: LayoutBundle = null;
     public dstBundle: LayoutBundle = null;
+    public isReplica: boolean = false;
 
     constructor(src: number, dst: number, srcConnector: string = null, dstConnector: string = null, labelSize: Size = null) {
         super(src, dst);
@@ -68,7 +70,7 @@ export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
             const deltaYPrev = end.y - start.y;
             const deltaXNext = this.points[i].x - end.x;
             const deltaYNext = this.points[i].y - end.y;
-            if (Math.abs(deltaXPrev * deltaYNext - deltaXNext * deltaYPrev) < 1e-10) {
+            if (Math.abs(deltaXPrev * deltaYNext - deltaXNext * deltaYPrev) < EPSILON) {
                 end = _.clone(this.points[i]);
             } else {
                 segments.push(new Segment(start, end));

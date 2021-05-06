@@ -361,6 +361,19 @@ export default class SugiyamaLayouter extends Layouter
         return orderGraph;
     }
 
+    private _scopeLevelNodes(layoutNode: LayoutNode) {
+        const levelNodes = []
+        const levelGraph = (<LayoutComponent>layoutNode.graph.components()[0]).levelGraph();
+        _.forEach(levelGraph.ranks(), rank => {
+            _.forEach(rank, (levelNode: LevelNode) => {
+                if (levelNode.layoutNode === layoutNode) {
+                    levelNodes.push(levelNode);
+                }
+            });
+        });
+        return levelNodes;
+    }
+
     private _orderRanks(graph: LayoutGraph) {
         // transform relative ranks to absolute
         this._makeRanksAbsolute(graph, 0);
@@ -379,6 +392,11 @@ export default class SugiyamaLayouter extends Layouter
             const levelNode = orderGroup.reference;
             if (levelNode !== null) {
                 levelNode.position = orderGroup.position;
+                /*let tmpNode = levelNode;
+                while (tmpNode.layoutNode.graph.entryNode !== null) {
+                    tmpNode = this._scopeLevelNodes(tmpNode.layoutNode.graph.parentNode)[levelNode.rank - levelNode.layoutNode.rank];
+                    tmpNode.position = levelNode.position;
+                }*/
             }
         });
 
