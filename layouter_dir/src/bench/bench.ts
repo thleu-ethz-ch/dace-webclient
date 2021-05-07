@@ -1,7 +1,10 @@
+import * as _ from "lodash";
 import DagreLayouter from "../layouter/dagreLayouter";
 import LayoutAnalysis from "./layoutAnalysis";
 import Layouter from "../layouter/layouter";
 import RenderGraph from "../renderGraph/renderGraph";
+import PerformanceAnalysis from "./performanceAnalysis";
+import Serializer from "../util/serializer";
 
 export default class Bench {
     public static GRAPHS_SMALL = ["gemm_opt", "jacobi", "placement", "symm", "syrk", "trisolv", "trmm", "wrong"];
@@ -43,6 +46,14 @@ export default class Bench {
             });
         });
         return Promise.all(promises);
+    }
+
+    public static performance(loadFunction: (name: string) => Promise<RenderGraph>, layouter: Layouter, graphs: Array<string> = Bench.GRAPHS_ALL) {
+        const promises = graphs.map(name => {
+            const performanceAnalysis = new PerformanceAnalysis(layouter);
+            return performanceAnalysis.measure(name);
+        });
+        return Serializer.serializePromises(promises);
     }
 
 }
