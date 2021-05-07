@@ -32,9 +32,7 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
     }
 
     public nodes(): Array<NodeT> {
-        Timer.start("component.nodes()");
         const nodes = _.clone(this._nodes);
-        Timer.stop("component.nodes()");
         return nodes;
     }
 

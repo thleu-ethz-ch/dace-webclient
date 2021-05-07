@@ -254,7 +254,6 @@ export default class LayoutAnalysis {
     }
 
     private _getAllCrossingSegments() {
-        Timer.start("get crossings");
         const overlaps = {};
         _.forEach(["x", "y"], axis => {
             overlaps[axis] = new Array(this._segments.length);
@@ -290,7 +289,6 @@ export default class LayoutAnalysis {
                 }
             });
         }
-        Timer.stop("get crossings");
         return intersections;
     }
 }

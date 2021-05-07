@@ -28,6 +28,7 @@ import Text from "../shapes/text";
 import UpwardTrapezoid from "../shapes/upwardTrapezoid";
 import Vector from "../geometry/vector";
 import Tasklet from "../renderGraph/tasklet";
+import Timer from "../util/timer";
 
 export default class Renderer {
     private readonly _app;
@@ -161,7 +162,7 @@ export default class Renderer {
             console.log("Total size: " + box.width.toFixed(0) +  "x" + box.height.toFixed(0));
             //console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
-            //Timer.printTimes();
+            Timer.printTimes();
 
             this.render(graph);
         });

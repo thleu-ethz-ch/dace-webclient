@@ -30,53 +30,55 @@ export default class SugiyamaLayouter extends Layouter
         if (graph.nodes().length === 0) {
             return;
         }
-        Timer.start("doLayout()");
+        Timer.start(["doLayout"]);
 
         // STEP 1: REMOVE CYCLES
-        Timer.start("removeCycles");
+        Timer.start(["doLayout", "removeCycles"]);
         this._removeCycles(graph);
-        Timer.stop("removeCycles");
+        Timer.stop(["doLayout", "removeCycles"]);
         Assert.assert(!graph.hasCycle(), "graph has cycle");
 
         // STEP 2: ASSIGN RANKS
-        Timer.start("assignRanks");
+        Timer.start(["doLayout", "assignRanks"]);
         this._assignRanks(graph);
-        Timer.stop("assignRanks");
+        Timer.stop(["doLayout", "assignRanks"]);
         Assert.assertNone(graph.allNodes(), node => node.rank < 0, "invalid rank assignment");
 
         // STEP 3: ADD VIRTUAL NODES
-        Timer.start("addVirtualNodes");
+        Timer.start(["doLayout", "addVirtualNodes"]);
         this._addVirtualNodes(graph);
-        Timer.stop("addVirtualNodes");
+        Timer.stop(["doLayout", "addVirtualNodes"]);
         Assert.assertAll(graph.allEdges(), edge => {
             const srcNode = edge.graph.node(edge.src)
             return edge.isReplica || (srcNode.rank + srcNode.rankSpan === edge.graph.node(edge.dst).rank);
         }, "edge not between neighboring ranks");
 
-        Timer.start("orderRanks");
+        Timer.start(["doLayout", "orderRanks"]);
         this._orderRanks(graph);
-        Timer.stop("orderRanks");
+        Timer.stop(["doLayout", "orderRanks"]);
 
         // STEP 4: ASSIGN COORDINATES
         const segmentsPerRank = [];
         const crossingsPerRank = [];
-        Timer.start("assignCoordinates");
+        Timer.start(["doLayout", "assignCoordinates"]);
         this._assignCoordinates(graph, segmentsPerRank, crossingsPerRank);
-        Timer.stop("assignCoordinates");
+        Timer.stop(["doLayout", "assignCoordinates"]);
         Assert.assertNone(graph.allNodes(), node => typeof node.y !== "number" || isNaN(node.y), "invalid y assignment");
         Assert.assertNone(graph.allNodes(), node => typeof node.x !== "number" || isNaN(node.x), "invalid x assignment");
 
         // STEP 4b (OPTIONAL): OPTIMIZE ANGLES
         if (this._options["optimizeAngles"]) {
+            Timer.start(["doLayout", "optimizeAngles"]);
             this._optimizeAngles(graph, segmentsPerRank, crossingsPerRank);
+            Timer.stop(["doLayout", "optimizeAngles"]);
         }
 
         // STEP 5: RESTORE CYCLES
-        Timer.start("restoreCycles");
+        Timer.start(["doLayout", "restoreCycles"]);
         this._restoreCycles(graph);
-        Timer.stop("restoreCycles");
+        Timer.stop(["doLayout", "restoreCycles"]);
 
-        Timer.stop("doLayout()");
+        Timer.stop(["doLayout"]);
     }
 
     private _removeCycles(graph: LayoutGraph): void {

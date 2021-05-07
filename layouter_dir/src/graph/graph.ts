@@ -149,9 +149,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
     }
 
     nodes(): Array<NodeT> {
-        Timer.start("graph.nodes()");
         const nodes = _.clone(this._nodesDense);
-        Timer.stop("graph.nodes()");
         return nodes;
     }
 

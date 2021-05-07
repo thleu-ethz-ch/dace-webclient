@@ -170,7 +170,7 @@ export default class OrderGraph {
             doNothing: false,
         });
         const doOrder = (graph: OrderGraph, downward: boolean = true) => {
-            Timer.start("doOrder")
+            Timer.start(["doLayout", "orderRanks", "doOrder"]);
             const ranks = graph._rankGraph.toposort();
             const groupOffsets = []; // number of nodes in groups left of this group by group id
             const numNodesGroup = []; // number of nodes per group per rank
@@ -295,7 +295,7 @@ export default class OrderGraph {
              * @param shuffle
              */
             const reorder = (shuffle: boolean = false, startRank: number = 0, preventConflicts: boolean = false) => {
-                Timer.start("reorder");
+                Timer.start(["doLayout", "orderRanks", "doOrder", "reorder"]);
 
                 if (shuffle) {
                     _.forEach(ranks, (rank: OrderRank, r: number) => {
@@ -510,7 +510,7 @@ export default class OrderGraph {
                     crossings[r] = countCrossings(order[r], r, "UP");
                 }
 
-                Timer.stop("reorder");
+                Timer.stop(["doLayout", "orderRanks", "doOrder", "reorder"]);
             };
 
             const assertNeighborCoherence = (r: number = null) => {
@@ -675,7 +675,7 @@ export default class OrderGraph {
                     crossings[r] = countCrossings(order[r], r, "UP", false);
                 }
                 console.log("crossings", _.sum(crossings));*/
-                Timer.start("resolve");
+                Timer.start(["doLayout", "orderRanks", "doOrder", "resolve"]);
                 const resolveConflict = (conflict) => {
                     const [r, crossedNorthPos, crossedSouthPos, crossingNorthPos, crossingSouthPos] = conflict;
                     Assert.assert(groupOffset[r].length === 1, "more than one group");
@@ -1319,7 +1319,7 @@ export default class OrderGraph {
                 }
                 console.log("crossings", _.sum(crossings));*/
 
-                Timer.stop("resolve");
+                Timer.stop(["doLayout", "orderRanks", "doOrder", "resolve"]);
             }
 
             if (options["debug"]) {
@@ -1373,7 +1373,7 @@ export default class OrderGraph {
                     });
                 });
             });
-            Timer.stop("doOrder");
+            Timer.stop(["doLayout", "orderRanks", "doOrder"]);
         }
 
         this._addGroupEdges();
