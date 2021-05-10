@@ -448,7 +448,7 @@ export default class OrderGraph {
                             // first reorder groups
                             if (!options["keepGroups"]  ) {
                                 const newGroupOrder = _.map(_.sortBy(groupMeans, "1"), "0");
-                                _.forEach(this._getPartialOrders(newGroupOrder, groupOrder[r], groupPositions[r]), tmpGroupOrder => {
+                                _.forEach(this._getPartialOrders(newGroupOrder, groupOrder[r], groupPositions[r], options["debug"]), tmpGroupOrder => {
                                     // transform new group order to node order
                                     const tmpOrder = [];
                                     _.forEach(tmpGroupOrder, g => {
@@ -463,7 +463,7 @@ export default class OrderGraph {
                                         // store new group order
                                         groupOrder[r] = tmpGroupOrder;
                                         this._setGroupPositionAndOffset(groupOrder[r], groupPositions[r], groupOffsets[r], ranks[r]);
-                                        if (options["debug"]) {
+                                        if (r === 9 && options["debug"]) {
                                             storeLocal();
                                         }
                                     }
@@ -512,7 +512,7 @@ export default class OrderGraph {
                                     const result = tryNewOrder(tmpOrder);
                                     if (result > 0) {
                                         hasChanged = true;
-                                        if (options["debug"]) {
+                                        if (r=== 9 && options["debug"]) {
                                             storeLocal();
                                         }
                                     }
@@ -902,7 +902,6 @@ export default class OrderGraph {
                                             // add virtual node
                                             const newNode = new OrderNode(null, true, node.label() + "'");
                                             this.addNode(newNode);
-                                            newNode.initialRank = tmpR - 1;
                                             const pos = positions[tmpR - 1][crossedSouthN] + (crossingNorthPos > crossedNorthPos ? 1 : 0);
                                             addNode(tmpR - 1, pos, newNode);
                                             removeEdge(crossingNorthNode, node);
@@ -933,7 +932,6 @@ export default class OrderGraph {
                                                 // create new virtual node and route edge through it
                                                 const newNode = new OrderNode(null, true, node.label() + "'");
                                                 this.addNode(newNode);
-                                                newNode.initialRank = tmpR - 1;
                                                 addNode(tmpR - 1, nodePos, newNode);
                                                 const inEdge = graph.edgeBetween(inNeighbor.id, node.id);
                                                 removeEdge(inNeighbor, node);
@@ -1026,7 +1024,6 @@ export default class OrderGraph {
                                                 const newNode = new OrderNode(null, true, node.label() + "'");
                                                 this.addNode(newNode);
                                                 addNode(r - 1, pos, newNode);
-                                                newNode.initialRank = r - 1;
                                                 const srcNode = graph.node(inEdge.src);
                                                 removeEdge(srcNode, node);
                                                 addEdge(srcNode, newNode, inEdge.weight);
@@ -1043,7 +1040,6 @@ export default class OrderGraph {
                                                 const newNode = new OrderNode(null, true, node.label() + "'");
                                                 this.addNode(newNode);
                                                 addNode(tmpR, order[tmpR].length, newNode);
-                                                newNode.initialRank = tmpR;
                                                 const dstNode = graph.node(outEdge.dst);
                                                 removeEdge(node, dstNode);
                                                 addEdge(node, newNode, outEdge.weight);
@@ -1362,15 +1358,22 @@ export default class OrderGraph {
 
                 Timer.stop("resolve");
             }
-            /*if (options["keepGroups"] && !options["resolveConflicts"]) {
-                console.log("NUMNODES", graph.nodes().length, graph.groups() , graph.nodes());
-                if (graph.nodes().length === 14) {
-                    options["debug"] = true;
-                }
-            }*/
+            if (!options["keepGroups"] && !options["resolveConflicts"]) {
+                //console.log("NUMNODES", graph.nodes().length, graph.groups() , graph.nodes());
+                //if (_.some(graph.groups(), group => group.label() === "declareTasklettasklet969")) {
+                    //options["debug"] = true;
+                //}
+            }
             if (options["resolveConflicts"]) {
+                for (let r = 1; r < ranks.length; ++r) {
+                    crossings[r] = countCrossings(order[r], r, "UP", false);
+                }
                 reorder();
                 resolveConflicts();
+                for (let r = 1; r < ranks.length; ++r) {
+                    crossings[r] = countCrossings(order[r], r, "UP", false);
+                }
+                //console.log("crossings", _.sum(crossings));
                 reorder(false, 0, true);
             } else {
                 if (options["debug"]) {
@@ -1533,7 +1536,7 @@ export default class OrderGraph {
         return sameMeanSequences;
     }
 
-    private _getPartialOrders(newOrder: Array<number>, order: Array<number>, positions: Array<number>) {
+    private _getPartialOrders(newOrder: Array<number>, order: Array<number>, positions: Array<number>, debug: boolean = false) {
         const changes = [];
         const permutation = new Array(newOrder.length);
         _.forEach(newOrder, (index, pos) => {
@@ -1565,6 +1568,9 @@ export default class OrderGraph {
             changes.push([seqStart, permutation.length - 1]);
         }
         const tmpOrders = [];
+        if (debug) {
+            console.log(changes);
+        }
         _.forEach(changes, change => {
             tmpOrders.push(_.concat(
                 _.slice(order, 0, change[0]),

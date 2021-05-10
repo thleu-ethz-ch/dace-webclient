@@ -26,23 +26,6 @@ export default class LayoutComponent extends Component<LayoutNode, LayoutEdge>
         return maxRank;
     }
 
-    public levelGraph(): LevelGraph {
-        if (this._levelGraph === null) {
-            this._levelGraph = new LevelGraph();
-            _.forEach(this.nodes(), (node: LayoutNode) => {
-                this._levelGraph.addLayoutNode(node);
-            });
-            _.forEach(this.edges(), (edge: LayoutEdge) => {
-                this._levelGraph.addLayoutEdge(edge);
-            });
-        }
-        return this._levelGraph;
-    }
-
-    public invalidateLevelGraph(): void {
-        this._levelGraph = null;
-    }
-
     public boundingBox(): Box {
         let minX = Number.POSITIVE_INFINITY;
         let maxX = Number.NEGATIVE_INFINITY;

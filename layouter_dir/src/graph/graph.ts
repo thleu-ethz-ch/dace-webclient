@@ -159,45 +159,11 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return this._nodes.length - 1;
     }
 
-    allNodes(): Array<NodeT> {
-        const allNodes = [];
-
-        const addNodesForGraph = (graph: this) => {
-            _.forEach(graph.nodes(), (node: NodeT) => {
-                allNodes.push(node);
-                if (node.childGraph !== null) {
-                    addNodesForGraph(node.childGraph);
-                }
-            });
-        };
-        addNodesForGraph(this);
-
-        return allNodes;
-    }
-
     edges(): Array<EdgeT> {
         return _.compact(this._edges);
     }
 
-    allEdges(): Array<EdgeT> {
-        const allEdges = [];
-
-        const addEdgesForGraph = (graph: this) => {
-            _.forEach(graph.edges(), (edge: EdgeT) => {
-                allEdges.push(edge);
-            });
-            _.forEach(graph.nodes(), (node: NodeT) => {
-                if (node.childGraph !== null) {
-                    addEdgesForGraph(node.childGraph);
-                }
-            });
-        };
-        addEdgesForGraph(this);
-
-        return allEdges;
-    }
-
-    allGraphs(): Array<this> {
+    allGraphs(): Array<Graph<NodeT, EdgeT>> {
         const allGraphs = [this];
 
         const addSubgraphs = (graph: this) => {
@@ -211,6 +177,26 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         addSubgraphs(this);
 
         return allGraphs;
+    }
+
+    allNodes(): Array<NodeT> {
+        const allNodes = [];
+        _.forEach(this.allGraphs(), (subgraph: Graph<NodeT, EdgeT>) => {
+            _.forEach(subgraph.nodes(), (node: NodeT) => {
+                allNodes.push(node);
+            });
+        });
+        return allNodes;
+    }
+
+    allEdges(): Array<EdgeT> {
+        const allEdges = [];
+        _.forEach(this.allGraphs(), (subgraph: Graph<NodeT, EdgeT>) => {
+            _.forEach(subgraph.edges(), (edge: EdgeT) => {
+                allEdges.push(edge);
+            });
+        });
+        return allEdges;
     }
 
     outEdges(id: number): Array<EdgeT> {

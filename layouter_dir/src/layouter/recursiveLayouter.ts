@@ -13,8 +13,8 @@ export default abstract class RecursiveLayouter extends Layouter {
 
     setNodeSizes(graph: LayoutGraph, withLabels: boolean = false) {
         _.forEach(graph.nodes(), (node: LayoutNode) => {
-            if (node.childGraph !== null) {
-                const childGraph = <LayoutGraph>node.childGraph;
+            if (node.childGraphs.length > 0) {
+                const childGraph = node.childGraphs[0];
                 let childGraphBox = {
                     width: 0,
                     height: 0,

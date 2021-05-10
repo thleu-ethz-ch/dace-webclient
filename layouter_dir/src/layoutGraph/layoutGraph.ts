@@ -5,6 +5,7 @@ import LayoutComponent from "./layoutComponent";
 import LayoutEdge from "./layoutEdge";
 import LayoutNode from "./layoutNode";
 import {CONNECTOR_SIZE} from "../util/constants";
+import LevelGraph from "../levelGraph/levelGraph";
 
 export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
     public readonly mayHaveCycles: boolean;
@@ -13,11 +14,31 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
     public exitNode: LayoutNode = null;
 
     public minRank = 0;
-    public maxRank = 0;
+    public numRanks = 1;
+
+    private _levelGraph: LevelGraph = null;
 
     constructor(mayHaveCycles: boolean = false) {
         super();
         this.mayHaveCycles = mayHaveCycles;
+    }
+
+    allGraphs(): Array<LayoutGraph> {
+        const allGraphs = [<LayoutGraph>this];
+        const addSubgraphs = (graph: LayoutGraph) => {
+            _.forEach(graph.nodes(), (node: LayoutNode) => {
+                if (node.childGraph !== null) {
+                    allGraphs.push(node.childGraph);
+                    addSubgraphs(node.childGraph);
+                }
+                _.forEach(node.childGraphs, (childGraph: LayoutGraph) => {
+                    allGraphs.push(childGraph);
+                    addSubgraphs(childGraph);
+                });
+            });
+        };
+        addSubgraphs(this);
+        return allGraphs;
     }
 
     translateElements(x: number, y: number) {
@@ -64,8 +85,8 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
     }
 
     public globalRanks(): Array<Array<LayoutNode>> {
-        const nodesPerRank = new Array(this.maxRank + 1);
-        for (let r = 0; r <= this.maxRank; ++r) {
+        const nodesPerRank = new Array(this.numRanks);
+        for (let r = 0; r < this.numRanks; ++r) {
             nodesPerRank[r] = [];
         }
         _.forEach(this.allNodes(), (node: LayoutNode) => {
@@ -74,12 +95,10 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
         return nodesPerRank;
     }
 
-    public updateRank(newRank: number): void {
-        const offset = newRank - this.minRank;
+    public offsetRank(offset: number): void {
         this.minRank += offset;
-        this.maxRank += offset;
         _.forEach(this.nodes(), node => {
-            node.updateRank(node.rank + offset);
+            node.offsetRank(offset);
         });
     }
 
@@ -89,6 +108,22 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
             maxIndex = Math.max(maxIndex, node.index);
         });
         return maxIndex;
+    }
+
+    public levelGraph(): LevelGraph {
+        const addSubgraph = (subgraph: LayoutGraph) => {
+            _.forEach(subgraph.nodes(), (node: LayoutNode) => {
+                this._levelGraph.addLayoutNode(node);
+            });
+            _.forEach(this.edges(), (edge: LayoutEdge) => {
+                this._levelGraph.addLayoutEdge(edge);
+            });
+        };
+        if (this._levelGraph === null) {
+            this._levelGraph = new LevelGraph();
+            addSubgraph(this);
+        }
+        return this._levelGraph;
     }
 
     protected _createComponent(): LayoutComponent {
