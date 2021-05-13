@@ -31,6 +31,7 @@ import {Container, Graphics} from "pixi.js";
 import MapEntry from "../renderGraph/mapEntry";
 import MapExit from "../renderGraph/mapExit";
 import Tasklet from "../renderGraph/tasklet";
+import Segment from "../geometry/segment";
 
 export default class Renderer {
     private readonly _app;
@@ -83,6 +84,10 @@ export default class Renderer {
     }
 
     show(layouter: Layouter, name: string) {
+        const segA = new Segment(new Vector(4212, 6049), new Vector(4212, 9860));
+        const segB = new Segment(new Vector(2726, 9850), new Vector(5136, 9910));
+        //console.log(segA.intersects(segB)));
+        //return;
         Loader.load(name).then((graph) => {
             /*graph = new RenderGraph();
             const a = new AccessNode("AccessNode", "a");

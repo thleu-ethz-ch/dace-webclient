@@ -6,6 +6,7 @@ import LayoutEdge from "./layoutEdge";
 import LayoutNode from "./layoutNode";
 import {CONNECTOR_SIZE} from "../util/constants";
 import LevelGraph from "../levelGraph/levelGraph";
+import LevelNode from "../levelGraph/levelNode";
 
 export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
     public readonly mayHaveCycles: boolean;
@@ -17,6 +18,7 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
     public numRanks = 1;
 
     private _levelGraph: LevelGraph = null;
+    private _maxNodesPerRank = null;
 
     constructor(mayHaveCycles: boolean = false) {
         super();
@@ -102,12 +104,23 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
         });
     }
 
-    public maxIndex(): number {
-        let maxIndex = 0;
-        _.forEach(this.nodes(), (node: LayoutNode) => {
-            maxIndex = Math.max(maxIndex, node.index);
-        });
-        return maxIndex;
+    public maxNodesPerRank(): number {
+        if (this._maxNodesPerRank === null) {
+            let max = 0;
+            _.forEach(this.levelGraph().ranks(), (rank: Array<LevelNode>) => {
+                let num = 0;
+                _.forEach(rank, (levelNode: LevelNode) => {
+                    if (levelNode.layoutNode.isScopeNode) {
+                        num += levelNode.layoutNode.childGraphs[0].maxNodesPerRank();
+                    } else {
+                        num++;
+                    }
+                });
+                max = Math.max(max, num);
+            });
+            this._maxNodesPerRank = max;
+        }
+        return this._maxNodesPerRank;
     }
 
     public levelGraph(): LevelGraph {
@@ -124,6 +137,10 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
             addSubgraph(this);
         }
         return this._levelGraph;
+    }
+
+    public setLevelGraph(levelGraph: LevelGraph) {
+        this._levelGraph = levelGraph;
     }
 
     protected _createComponent(): LayoutComponent {

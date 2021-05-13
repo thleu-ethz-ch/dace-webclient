@@ -8,15 +8,19 @@ import Timer from "../util/timer";
 export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any, any>> {
     public parentNode: NodeT = null;
 
-    protected _numNodes: number;
     protected _nodes: Array<NodeT>;
     protected _nodeIds: Array<number>;
     protected _nodesDense: Array<NodeT>;
     protected _edges: Array<EdgeT>;
+    protected _edgeIds: Array<number>;
+    protected _edgesDense: Array<EdgeT>;
     protected _outEdges: Array<Array<number>>;
     protected _inEdges: Array<Array<number>>;
 
-    private _components;
+    private _nodesDenseOutdated: boolean;
+    private _nodesDenseSorted: boolean;
+    private _edgesDenseOutdated: boolean;
+    private _edgesDenseSorted: boolean;
 
     public constructor() {
         this._init();
@@ -39,42 +43,41 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return clone;
     }
 
-    addNode(node: NodeT, id: number = null, keepComponents: boolean = false): number {
+    addNode(node: NodeT, id: number = null): number {
+        this._updateNodesDense();
         if (id === null) {
             id = this._nodes.length;
         }
         node.id = id;
         node.graph = this;
+        this._nodesDenseSorted &&= ((this._nodesDense.length === 0) || (node.id < this._nodesDense[this._nodesDense.length - 1].id));
+
         this._nodes[id] = node;
-        const index = _.sortedIndex(this._nodeIds, id);
-        this._nodeIds.splice(index, 0, id);
-        this._nodesDense.splice(index, 0, node);
+        this._nodeIds.push(id);
+        this._nodesDense.push(node);
         if (this._outEdges[id] === undefined) {
             this._outEdges[id] = [];
             this._inEdges[id] = [];
         }
-        if (!keepComponents) {
-            this._components = null;
-        }
-        this._numNodes++;
         return id;
     }
 
     /**
      * Assumption: Both end nodes of the edge have been added before.
      */
-    addEdge(edge: EdgeT, id: number = null, keepComponents: boolean = false): number {
+    addEdge(edge: EdgeT, id: number = null): number {
+        this._updateEdgesDense();
         if (id === null) {
             id = this._edges.length;
         }
         edge.id = id;
         edge.graph = this;
+        this._edgesDenseSorted &&= ((this._edgesDense.length === 0) || (edge.id < this._edgesDense[this._edgesDense.length - 1].id));
         this._edges[id] = edge;
+        this._edgeIds.push(id);
+        this._edgesDense.push(edge);
         this._outEdges[edge.src].push(id);
         this._inEdges[edge.dst].push(id);
-        if (!keepComponents) {
-            this._components = null;
-        }
         return id;
     }
 
@@ -88,6 +91,20 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         this._outEdges[edge.src].push(edgeId);
         this._inEdges[edge.dst].push(edgeId);
         edge.isInverted = true;
+    }
+
+    redirectEdge(edgeId: number, newSrc: number, newDst: number) {
+        const edge = this._edges[edgeId];
+        if (newSrc !== edge.src) {
+            _.pull(this._outEdges[edge.src], edgeId);
+            this._outEdges[newSrc].push(edgeId);
+            edge.src = newSrc;
+        }
+        if (newDst !== edge.dst) {
+            _.pull(this._inEdges[edge.dst], edgeId);
+            this._inEdges[newDst].push(edgeId);
+            edge.dst = newDst;
+        }
     }
 
     node(id: number): NodeT {
@@ -122,45 +139,41 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return _.filter(this.edges(), edge => edge.src === srcId && edge.dst === dstId);
     }
 
-    removeNode(id: number, keepComponents: boolean = false): void {
+    removeNode(id: number): void {
         this._nodes[id] = undefined;
-        const index = _.sortedIndexOf(this._nodeIds, id);
-        for (let i = index; i < this._numNodes - 1; ++i) {
-            this._nodeIds[i] = this._nodeIds[i + 1];
-            this._nodesDense[i] = this._nodesDense[i + 1];
-        }
-        this._numNodes--;
-        this._nodeIds.length = this._numNodes;
-        this._nodesDense.length = this._numNodes;
-        if (!keepComponents) {
-            this._components = null;
-        }
+        this._nodesDenseOutdated = true;
     }
 
-    removeEdge(id: number, keepComponents: boolean = false): void {
+    removeEdge(id: number): void {
         const edge = this.edge(id);
         _.pull(this._outEdges[edge.src], id);
         _.pull(this._inEdges[edge.dst], id);
         this._edges[id] = undefined;
-        if (!keepComponents) {
-            this._components = null;
-        }
-        Assert.assertAll(this._edges, (edge, id) => edge === undefined || edge.id === id, "edge has wrong id");
+        this._edgesDenseOutdated = true;
+    }
+
+    numNodes(): number {
+        this._updateNodesDense();
+        return this._nodesDense.length;
     }
 
     nodes(): Array<NodeT> {
-        Timer.start("graph.nodes()");
-        const nodes = _.clone(this._nodesDense);
-        Timer.stop("graph.nodes()");
-        return nodes;
+        this._updateNodesDense();
+        return this._nodesDense;
     }
 
     maxId(): number {
         return this._nodes.length - 1;
     }
 
+    numEdges(): number {
+        this._updateEdgesDense();
+        return this._edgesDense.length;
+    }
+
     edges(): Array<EdgeT> {
-        return _.compact(this._edges);
+        this._updateEdgesDense();
+        return this._edgesDense;
     }
 
     allGraphs(): Array<Graph<NodeT, EdgeT>> {
@@ -199,12 +212,20 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return allEdges;
     }
 
-    outEdges(id: number): Array<EdgeT> {
-        return _.map(this._outEdges[id], edgeId => this.edge(edgeId));
+    numInEdges(id: number): number {
+        return this._inEdges[id].length;
     }
 
     inEdges(id: number): Array<EdgeT> {
         return _.map(this._inEdges[id], edgeId => this.edge(edgeId));
+    }
+
+    numOutEdges(id: number): number {
+        return this._outEdges[id].length;
+    }
+
+    outEdges(id: number): Array<EdgeT> {
+        return _.map(this._outEdges[id], edgeId => this.edge(edgeId));
     }
 
     incidentEdges(id: number): Array<EdgeT> {
@@ -357,66 +378,64 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
     }
 
     components(): Array<Component<NodeT, EdgeT>> {
-        if (this._components === null) {
-            const nodes = this.nodes();
-            if (nodes.length === 0) {
-                return [];
-            }
-            const componentNumbers = _.fill(new Array(this._nodes.length), null);
-            let currentNumber = 0;
-            _.forEach(nodes, (node: NodeT) => {
-                if (componentNumbers[node.id] !== null) {
-                    return;
-                }
-                componentNumbers[node.id] = currentNumber;
-                const queue = [node];
-                let queuePointer = 0;
-                while (queuePointer < queue.length) {
-                    const node = queue[queuePointer++];
-                    _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
-                        if (componentNumbers[edge.dst] === null) {
-                            componentNumbers[edge.dst] = currentNumber;
-                            queue.push(this.node(edge.dst));
-                        }
-                    });
-                    _.forEach(this.inEdges(node.id), (edge: EdgeT) => {
-                        if (componentNumbers[edge.src] === null) {
-                            componentNumbers[edge.src] = currentNumber;
-                            queue.push(this.node(edge.src));
-                        }
-                    });
-                }
-                currentNumber++;
-            });
-
-            this._components = [];
-            // create components
-            for (let i = 0; i < currentNumber; ++i) {
-                this._components.push(this._createComponent());
-            }
-            // add nodes
-            _.forEach(nodes, (node: NodeT) => {
-                const componentId = componentNumbers[node.id];
-                this._components[componentId].addNode(node.id);
-            });
-            // add edges
-            _.forEach(nodes, (node: NodeT) => {
-                _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
-                    const componentId = componentNumbers[node.id];
-                    this._components[componentId].addEdge(edge.id);
-                });
-            });
+        const nodes = this.nodes();
+        if (nodes.length === 0) {
+            return [];
         }
+        const componentNumbers = _.fill(new Array(this._nodes.length), null);
+        let currentNumber = 0;
+        _.forEach(nodes, (node: NodeT) => {
+            if (componentNumbers[node.id] !== null) {
+                return;
+            }
+            componentNumbers[node.id] = currentNumber;
+            const queue = [node];
+            let queuePointer = 0;
+            while (queuePointer < queue.length) {
+                const node = queue[queuePointer++];
+                _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
+                    if (componentNumbers[edge.dst] === null) {
+                        componentNumbers[edge.dst] = currentNumber;
+                        queue.push(this.node(edge.dst));
+                    }
+                });
+                _.forEach(this.inEdges(node.id), (edge: EdgeT) => {
+                    if (componentNumbers[edge.src] === null) {
+                        componentNumbers[edge.src] = currentNumber;
+                        queue.push(this.node(edge.src));
+                    }
+                });
+            }
+            currentNumber++;
+        });
+
+        const components = [];
+        // create components
+        for (let i = 0; i < currentNumber; ++i) {
+            components.push(this._createComponent());
+        }
+        // add nodes
+        _.forEach(nodes, (node: NodeT) => {
+            const componentId = componentNumbers[node.id];
+            components[componentId].addNode(node.id);
+        });
+        // add edges
+        _.forEach(nodes, (node: NodeT) => {
+            _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
+                const componentId = componentNumbers[node.id];
+                components[componentId].addEdge(edge.id);
+            });
+        });
 
         const nodeSet = new Set();
-        _.forEach(this._components, component => {
+        _.forEach(components, component => {
             _.forEach(component.nodes(), node => {
-                Assert.assert(!nodeSet.has(node), "node", node, "is in multiple components", this._components);
+                Assert.assert(!nodeSet.has(node), "node", node, "is in multiple components", components);
                 nodeSet.add(node);
             });
         });
 
-        return this._components;
+        return components;
     }
 
     toString(): string {
@@ -450,13 +469,39 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
     }
 
     private _init() {
-        this._numNodes = 0;
         this._nodes = [];
         this._nodeIds = [];
         this._nodesDense = [];
         this._edges = [];
+        this._edgeIds = [];
+        this._edgesDense = [];
         this._outEdges = [];
         this._inEdges = [];
-        this._components = null;
+        this._nodesDenseOutdated = false;
+        this._nodesDenseSorted = true;
+        this._edgesDenseOutdated = false;
+        this._edgesDenseSorted = true;
+    }
+
+    private _updateNodesDense() {
+        if (this._nodesDenseOutdated) {
+            this._nodesDense = _.compact(this._nodes);
+            if (!this._nodesDenseSorted) {
+                this._nodesDense = _.sortBy(this._nodesDense, "id");
+            }
+            this._nodesDenseOutdated = false;
+            this._nodesDenseSorted = true;
+        }
+    }
+
+    private _updateEdgesDense() {
+        if (this._edgesDenseOutdated) {
+            this._edgesDense = _.compact(this._edges);
+            if (!this._edgesDenseSorted) {
+                this._edgesDense = _.sortBy(this._edgesDense, "id");
+            }
+            this._edgesDenseOutdated = false;
+            this._edgesDenseSorted = true;
+        }
     }
 }

@@ -25,10 +25,14 @@ export default abstract class Layouter {
             bundle: false,
             maximizeAngles: false,
             shuffles: 0,
+            shuffleGlobal: false,
             weightBends: 0.2,
             weightCrossings: 1,
             weightLenghts: 0.1,
             resolveY: "normal",
+            preorderConnectors: false,
+            orderNodes: "NOCOUNT",
+            orderAfterResolution: true,
         });
     }
 
@@ -56,7 +60,6 @@ export default abstract class Layouter {
         Math.random = tmpRandom;
 
         this._copyLayoutInfo(layoutGraph, renderGraph);
-        Assert.assertAll(renderGraph.allEdges(), (edge: RenderEdge) => edge.points.length > 0, "edge has no points assigned");
 
         return layoutGraph;
     }
@@ -266,7 +269,6 @@ export default abstract class Layouter {
                         srcLayoutNode = srcNode.layoutGraph.parentNode;
                     }
                 }
-                Assert.assert(srcLayoutNode.graph === dstLayoutNode.graph, "edge between different graphs", edge);
                 edge.layoutEdge = new LayoutEdge(srcLayoutNode.id, dstLayoutNode.id, edge.srcConnector, edge.dstConnector, edge.labelSize);
                 srcLayoutNode.graph.addEdge(edge.layoutEdge);
             });
@@ -302,6 +304,9 @@ export default abstract class Layouter {
                         node.childGraphs.push(childGraph);
                         childGraph.parentNode = node;
                     });
+                    if (node.childGraphs.length === 0) {
+                        node.childGraphs.push(node.childGraph);
+                    }
                 }
                 node.childGraph = null; // property childGraph should not be used after this point
             }

@@ -8,6 +8,7 @@ import * as _ from "lodash";
 export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
 {
     public readonly reference: any;
+    public shuffleHierarchy: Array<any> = null;
     public nodes: Array<OrderNode> = [];
 
     public order: Array<number> = [];
@@ -25,6 +26,7 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
         this.nodes.push(node);
         node.group = this;
         node.index = nextIndex;
+        node.rank = this.rank.rank;
         return this.rank.orderGraph.addNode(node, id);
     }
 

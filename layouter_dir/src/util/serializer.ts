@@ -13,4 +13,17 @@ export default class Serializer
         };
         return new Promise(resolve => createRun(0, foldNeutral, resolve));
     }
+
+    static async serializePromises(promises: Array<Promise<any>>) {
+        const results = [];
+        function createPromise(promise: Promise<any>) {
+            return new Promise(resolve => {
+                promise.then((result) => resolve(result));
+            });
+        }
+        for (let p = 0; p < promises.length; ++p) {
+            results.push(await createPromise(promises[p]));
+        }
+        return results;
+    }
 }

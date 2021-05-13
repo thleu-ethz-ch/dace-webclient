@@ -13,8 +13,8 @@ export default abstract class RecursiveLayouter extends Layouter {
 
     setNodeSizes(graph: LayoutGraph, withLabels: boolean = false) {
         _.forEach(graph.nodes(), (node: LayoutNode) => {
-            if (node.childGraphs.length > 0) {
-                const childGraph = node.childGraphs[0];
+            let x = 0;
+            _.forEach(node.childGraphs, (childGraph: LayoutGraph) => {
                 let childGraphBox = {
                     width: 0,
                     height: 0,
@@ -39,11 +39,13 @@ export default abstract class RecursiveLayouter extends Layouter {
                         childGraph.exitNode.translate(-childNodeBox.x, 0);
                     }
                 }
+                childGraph.translateElements(x, 0);
+                x += childGraphBox.width + this._options["targetEdgeLength"];
                 node.updateSize({
-                    width: childGraphBox.width + 2 * node.padding,
-                    height: childGraphBox.height + 2 * node.padding,
+                    width: x - this._options["targetEdgeLength"] + 2 * node.padding,
+                    height: Math.max(node.height, childGraphBox.height + 2 * node.padding),
                 });
-            }
+            });
         });
     }
 

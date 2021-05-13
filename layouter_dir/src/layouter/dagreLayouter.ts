@@ -31,8 +31,7 @@ export default class DagreLayouter extends RecursiveLayouter {
             if (this._options['withLabels']) {
                 _.assign(edgeOptions, edge.labelSize);
             }
-            let edgeId: any = edge.id;
-            dagreGraph.setEdge(edge.src, edge.dst, edgeOptions, edgeId);
+            dagreGraph.setEdge(edge.src, edge.dst, edgeOptions, edge.id);
         });
 
         // call dagre layouter
@@ -42,11 +41,10 @@ export default class DagreLayouter extends RecursiveLayouter {
         _.forEach(graph.nodes(), (node: LayoutNode) => {
             const dagreNode = dagreGraph.node(node.id);
             const box = new Box(dagreNode.x, dagreNode.y, dagreNode.width, dagreNode.height, true);
-            node.setPosition(box.topLeft());
+            node.updatePosition(box.topLeft());
         });
         _.forEach(graph.edges(), (edge: LayoutEdge) => {
-            let edgeId: any = edge.id;
-            const dagreEdge = dagreGraph.edge(edge.src, edge.dst, edgeId);
+            const dagreEdge = dagreGraph.edge(edge.src, edge.dst, edge.id);
 
             edge.points = _.cloneDeep(dagreEdge.points);
             if (this._options['withLabels']) {

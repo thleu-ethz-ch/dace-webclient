@@ -17,10 +17,10 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public bottomInConnectorIndex = null;
     public topOutConnectorIndex = null;
 
-    public x: number = null;
-    public y: number = null;
-    public width: number = null;
-    public height: number = null;
+    public x: number = 0;
+    public y: number = 0;
+    public width: number = 0;
+    public height: number = 0;
 
     public selfLoop: LayoutEdge = null;
 
@@ -31,9 +31,9 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public rankSpan: number = 1;
     public index: number = 0; // index of the node, when indexes is set, it should eventually be the max index
 
-    public readonly childGraphs: Array<LayoutGraph> = [];
+    public levelNodes: Array<LevelNode> = [];
 
-    public readonly levelNodes: Array<LevelNode> = [];
+    public readonly childGraphs: Array<LayoutGraph> = [];
 
     public readonly padding: number = 0;
     public readonly isVirtual: boolean = false;
@@ -105,8 +105,13 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     }
 
     setPosition(position: Vector) {
-        const prevX = this.x || 0;
-        const prevY = this.y || 0;
+        this.x = position.x;
+        this.y = position.y;
+    }
+
+    updatePosition(position: Vector) {
+        const prevX = this.x;
+        const prevY = this.y;
         const offsetX = position.x - prevX;
         const offsetY = position.y - prevY;
         this.x = position.x;
@@ -147,9 +152,12 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
 
     offsetRank(offset: number) {
         this.rank += offset;
-        if (offset > 0) {
+        if (offset !== 0) {
             _.forEach(this.childGraphs, (childGraph) => {
                 childGraph.offsetRank(offset);
+            });
+            _.forEach(this.levelNodes, (levelNode: LevelNode, r: number) => {
+                levelNode.rank = this.rank + r;
             });
         }
     }

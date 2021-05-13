@@ -10,8 +10,9 @@ export default class LevelNode extends Node<LevelGraph, Edge<any, any>>
     public width: number = null;
     public x: number = null;
 
-    public readonly layoutNode: LayoutNode;
-    public readonly isFirst: boolean;
+    public layoutNode: LayoutNode;
+    public isFirst: boolean;
+    public isLast: boolean;
 
     constructor(layoutNode: LayoutNode, rank: number, isFirst: boolean = false) {
         super(layoutNode.label());
