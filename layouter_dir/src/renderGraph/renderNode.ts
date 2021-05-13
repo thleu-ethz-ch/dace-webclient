@@ -7,6 +7,7 @@ import RenderConnector from "./renderConnector";
 import RenderEdge from "./renderEdge";
 import RenderGraph from "./renderGraph";
 import Size from "../geometry/size";
+import {CONNECTOR_SIZE, CONNECTOR_SPACING} from "../util/constants";
 
 export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
     public readonly childPadding: number = 0;
@@ -76,7 +77,6 @@ export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
      */
     connectorsWidth(): number {
         const numConnectors = Math.max(this.inConnectors.length, this.outConnectors.length);
-        return numConnectors * (RenderConnector.DIAMETER + RenderConnector.MARGIN) - RenderConnector.MARGIN
-            + 2 * this.connectorPadding;
+        return numConnectors * (CONNECTOR_SIZE + CONNECTOR_SPACING) - CONNECTOR_SPACING + 2 * this.connectorPadding;
     }
 }

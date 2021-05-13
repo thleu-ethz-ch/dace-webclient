@@ -3,12 +3,12 @@ import LayoutNode from "./layoutNode";
 import Box from "../geometry/box";
 import Vector from "../geometry/vector";
 import Size from "../geometry/size";
+import {CONNECTOR_SIZE} from "../util/constants";
 
 export default class LayoutConnector {
     public readonly node: LayoutNode;
     public readonly type: "IN" | "OUT";
     public readonly name: string;
-    public readonly diameter: number;
 
     public isScoped: boolean = false;
     public counterpart: LayoutConnector = null;
@@ -19,13 +19,12 @@ export default class LayoutConnector {
     public readonly width;
     public readonly height;
 
-    constructor(node: LayoutNode, type: "IN" | "OUT", name: string, diameter: number) {
+    constructor(node: LayoutNode, type: "IN" | "OUT", name: string) {
         this.node = node;
         this.type = type;
         this.name = name;
-        this.diameter = diameter;
-        this.width = diameter;
-        this.height = diameter;
+        this.width = CONNECTOR_SIZE;
+        this.height = CONNECTOR_SIZE;
         if (name.startsWith("IN_")) {
             const matchingConnectorIndex = _.map(node.outConnectors, "name").indexOf("OUT_" + name.substr(3));
             if (matchingConnectorIndex > -1) {

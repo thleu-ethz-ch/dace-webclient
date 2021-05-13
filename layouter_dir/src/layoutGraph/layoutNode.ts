@@ -60,8 +60,8 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         }
     }
 
-    addConnector(type: "IN" | "OUT", name: string, diameter: number) {
-        const connector = new LayoutConnector(this, type, name, diameter);
+    addConnector(type: "IN" | "OUT", name: string) {
+        const connector = new LayoutConnector(this, type, name);
         if (type === "IN") {
             this._inConnectors.set(name, connector);
             this.inConnectors.push(connector);

@@ -34,6 +34,9 @@
         td:first-child {
             text-align: left;
         }
+        td:last-child {
+            background-color: #eee;
+        }
         .best {
             font-weight: bold;
         }
@@ -48,18 +51,18 @@
                     graphs.push(layoutLib.Bench.GRAPHS_ALL[g]);
                 }
             }
-            graphs = layoutLib.Bench.GRAPHS_POLYBENCH;
+            layoutLib.Bench.GRAPHS_POLYBENCH;
             const layouters = {
                 //"Dagre": [layoutLib.layouter.DagreLayouter, {}],
                 "Sugiyama": [layoutLib.layouter.SugiyamaLayouter, {}],
-                //"Sugiyama-SL": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, shuffleGlobal: false}],
-                //"Sugiyama-SG": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, shuffleGlobal: true}],
-                //"Sugiyama-V1": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "COUNT"}],
-                //"Sugiyama-V1-SL": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "COUNT", shuffles: 64, shuffleGlobal: false}],
-                //"Sugiyama-V1-SG": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "COUNT", shuffles: 64, shuffleGlobal: true}],
-                //"Sugiyama-V2": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "NONE"}],
-                //"Sugiyama-V2-SL": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "NONE", shuffles: 64, shuffleGlobal: false}],
-                //"Sugiyama-V2-SG": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "NONE", shuffles: 64, shuffleGlobal: true}],
+                "Sugiyama-SL": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, shuffleGlobal: false}],
+                "Sugiyama-SG": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, shuffleGlobal: true}],
+                "Sugiyama-V1": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "COUNT"}],
+                "Sugiyama-V1-SL": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "COUNT", shuffles: 64, shuffleGlobal: false}],
+                "Sugiyama-V1-SG": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "COUNT", shuffles: 64, shuffleGlobal: true}],
+                "Sugiyama-V2": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "NONE"}],
+                "Sugiyama-V2-SL": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "NONE", shuffles: 64, shuffleGlobal: false}],
+                "Sugiyama-V2-SG": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "NONE", shuffles: 64, shuffleGlobal: true}],
                 //"Sugiyama-S": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64}],
                 //"Sugiyama-SO": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, optimizeAngles: true}],
                 //"Sugiyama-SOB": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, optimizeAngles: true, bundle: true}],
@@ -75,14 +78,19 @@
                 let parts = name.split("/");
                 tableRows[0].innerHTML += "<td><b>" + parts[parts.length - 1] + "</b></td>";
                 for (let i = 1; i < tableRows.length; ++i) {
-                    tableRows[i].innerHTML += '<td><p class="cost"></p><p class="crossings"></p></td>';
+                    tableRows[i].innerHTML += '<td><p class="crossings"></p></td>';
                 }
+            }
+            tableRows[0].innerHTML += "<td><b>mean</b></td>";
+            for (let i = 1; i < tableRows.length; ++i) {
+                tableRows[i].innerHTML += '<td><p class="crossings"></p></td>';
             }
             const numLayouters = Object.keys(layouters).length;
             let crossingsFinished = 0;
-            let bestCostScore = [],  bestCostLayouters = [], bestCrossingsScore= [],bestCrossingsLayouters = [];
+            let bestScorePerGraph = [], bestLayoutersPerGraph = [];
+            let bestMean = Number.POSITIVE_INFINITY, bestMeanLayouters = new Set();
             for (let g = 0; g < graphs.length; ++g) {
-                bestCrossingsScore[g] = Number.POSITIVE_INFINITY;
+                bestScorePerGraph[g] = Number.POSITIVE_INFINITY;
             }
             let l = 0;
             for (let layouterName in layouters) {
@@ -91,20 +99,32 @@
                     let sum = 0;
                     for (let g = 0; g < graphs.length; ++g) {
                         tableRows[tmpL + 1].childNodes[g + 1].getElementsByClassName("crossings")[0].innerHTML = result[g].toFixed(0);
-                        if (result[g] < bestCrossingsScore[g]) {
-                            bestCrossingsScore[g] = result[g];
-                            bestCrossingsLayouters[g] = new Set([tmpL]);
-                        } else if (result[g] === bestCrossingsScore[g]) {
-                            bestCrossingsLayouters[g].add(tmpL);
+                        if (result[g] < bestScorePerGraph[g]) {
+                            bestScorePerGraph[g] = result[g];
+                            bestLayoutersPerGraph[g] = new Set([tmpL]);
+                        } else if (result[g] === bestScorePerGraph[g]) {
+                            bestLayoutersPerGraph[g].add(tmpL);
                         }
                         sum += result[g];
                     }
+                    let mean = sum / graphs.length;
+                    tableRows[tmpL + 1].childNodes[graphs.length + 1].getElementsByClassName("crossings")[0].innerHTML = mean.toFixed(0);
+                    if (mean < bestMean) {
+                        bestMean = mean;
+                        bestMeanLayouters = new Set([tmpL]);
+                    } else if (mean === bestMean) {
+                        bestMeanLayouters.add(tmpL);
+                    }
                     if (++crossingsFinished === numLayouters) {
                         for (let g = 0; g < graphs.length; ++g) {
-                            bestCrossingsLayouters[g].forEach(tmpL => {
+                            bestLayoutersPerGraph[g].forEach(tmpL => {
                                 tableRows[tmpL + 1].childNodes[g + 1].getElementsByClassName("crossings")[0].classList.add("best");
                             });
                         }
+                        bestMeanLayouters.forEach(tmpL => {
+                            console.log(tableRows[tmpL + 1].lastChild)
+                            tableRows[tmpL + 1].lastChild.getElementsByClassName("crossings")[0].classList.add("best");
+                        });
                     }
                 });
                 l++;

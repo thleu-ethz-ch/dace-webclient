@@ -1,9 +1,7 @@
 import RenderNode from "./renderNode";
+import {CONNECTOR_SIZE} from "../util/constants";
 
 export default class RenderConnector {
-    public static DIAMETER = 10;
-    public static MARGIN = 10;
-
     public name: string;
     public node: RenderNode;
 
@@ -15,7 +13,7 @@ export default class RenderConnector {
     constructor(name: string, node: RenderNode) {
         this.name = name;
         this.node = node;
-        this.width = RenderConnector.DIAMETER;
-        this.height = RenderConnector.DIAMETER;
+        this.width = CONNECTOR_SIZE;
+        this.height = CONNECTOR_SIZE;
     }
 }

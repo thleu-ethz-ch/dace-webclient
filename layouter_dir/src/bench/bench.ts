@@ -35,7 +35,7 @@ export default class Bench {
                 return layoutAnalysis.cost();
             });
         });
-        return Promise.all(promises);
+        return Serializer.serializePromises(promises);
     }
 
     public static crossings(loadFunction: (name: string) => Promise<RenderGraph>, layouter: Layouter, graphs: Array<string> = Bench.GRAPHS_ALL) {
@@ -46,7 +46,7 @@ export default class Bench {
                 return layoutAnalysis.segmentCrossings();
             });
         });
-        return Promise.all(promises);
+        return Serializer.serializePromises(promises);
     }
 
     public static performance(loadFunction: (name: string) => Promise<RenderGraph>, layouter: Layouter, graphs: Array<string> = Bench.GRAPHS_ALL) {

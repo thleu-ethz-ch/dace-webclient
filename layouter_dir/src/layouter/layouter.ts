@@ -12,6 +12,7 @@ import RenderNode from "../renderGraph/renderNode";
 import LayoutBundle from "../layoutGraph/layoutBundle";
 import LayoutComponent from "../layoutGraph/layoutComponent";
 import Component from "../graph/component";
+import {CONNECTOR_SIZE, CONNECTOR_SPACING} from "../util/constants";
 
 export default abstract class Layouter {
     protected _options: any;
@@ -101,25 +102,25 @@ export default abstract class Layouter {
 
             const connectorDifference = node.inConnectors.length - node.outConnectors.length;
             if (node.inConnectors.length > 0) {
-                let inConnectorsWidth = node.inConnectors.length * node.inConnectors[0].diameter + (node.inConnectors.length - 1) * this._options.connectorSpacing;
+                let inConnectorsWidth = node.inConnectors.length * CONNECTOR_SIZE + (node.inConnectors.length - 1) * CONNECTOR_SPACING;
                 if (connectorDifference % 2 === -1 && inConnectorsScoped.length > 0) {
-                    inConnectorsWidth += node.inConnectors[0].diameter + this._options.connectorSpacing;
+                    inConnectorsWidth += CONNECTOR_SIZE + CONNECTOR_SPACING;
                 }
                 const firstX = node.x + (node.width - inConnectorsWidth) / 2;
-                const y = node.y - node.inConnectors[0].diameter / 2;
+                const y = node.y - CONNECTOR_SIZE / 2;
                 _.forEach(arrangedInConnectors, (connector: LayoutConnector, i) => {
-                    connector.setPosition(firstX + (connector.diameter + this._options.connectorSpacing) * i, y);
+                    connector.setPosition(firstX + (CONNECTOR_SIZE + CONNECTOR_SPACING) * i, y);
                 });
             }
             if (node.outConnectors.length > 0) {
-                let outConnectorsWidth = node.outConnectors.length * node.outConnectors[0].diameter + (node.outConnectors.length - 1) * this._options.connectorSpacing;
+                let outConnectorsWidth = node.outConnectors.length * CONNECTOR_SIZE + (node.outConnectors.length - 1) * CONNECTOR_SPACING;
                 if (connectorDifference % 2 === 1 && inConnectorsScoped.length > 0) {
-                    outConnectorsWidth += node.outConnectors[0].diameter + this._options.connectorSpacing;
+                    outConnectorsWidth += CONNECTOR_SIZE + CONNECTOR_SPACING;
                 }
                 const firstX = node.x + (node.width - outConnectorsWidth) / 2;
-                const y = node.y + node.height - node.outConnectors[0].diameter / 2;
+                const y = node.y + node.height - CONNECTOR_SIZE / 2;
                 _.forEach(arrangedOutConnectors, (connector, i) => {
-                    connector.setPosition(firstX + (connector.diameter + this._options.connectorSpacing) * i, y);
+                    connector.setPosition(firstX + (CONNECTOR_SIZE + CONNECTOR_SPACING) * i, y);
                 });
             }
         });
@@ -139,10 +140,7 @@ export default abstract class Layouter {
                 if (srcConnector === undefined) {
                     return;
                 }
-                const position = srcConnector.position();
-                position.x += srcConnector.diameter / 2;
-                position.y += srcConnector.diameter;
-                edge.points[0] = position;
+                edge.points[0] = srcConnector.boundingBox().bottomCenter();
             }
             if (edge.dstConnector !== null) {
                 const dstNode = <LayoutNode>edge.graph.node(edge.dst);
@@ -156,9 +154,7 @@ export default abstract class Layouter {
                 if (dstConnector === undefined) {
                     return;
                 }
-                const position = dstConnector.position();
-                position.x += dstConnector.diameter / 2;
-                edge.points[edge.points.length - 1] = position;
+                edge.points[edge.points.length - 1] = dstConnector.boundingBox().topCenter();
             }
         });
     }
@@ -178,10 +174,10 @@ export default abstract class Layouter {
                     layoutNode.isAccessNode = true;
                 }
                 _.forEach(node.inConnectors, (connector: RenderConnector) => {
-                    layoutNode.addConnector("IN", connector.name, connector.width);
+                    layoutNode.addConnector("IN", connector.name);
                 });
                 _.forEach(node.outConnectors, (connector: RenderConnector) => {
-                    layoutNode.addConnector("OUT", connector.name, connector.width);
+                    layoutNode.addConnector("OUT", connector.name);
                 });
                 node.layoutNode = layoutNode;
                 layoutNode.setLabel(node.label()); // for debugging

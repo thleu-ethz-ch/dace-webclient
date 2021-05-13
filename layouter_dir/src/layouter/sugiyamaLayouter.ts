@@ -87,6 +87,8 @@ export default class SugiyamaLayouter extends Layouter
 
                 // remove normal cycles
                 subgraph.removeCycles();
+
+                //Assert.assert(!subgraph.hasCycle(), "subgraph has cycle");
             }
         });
     }
