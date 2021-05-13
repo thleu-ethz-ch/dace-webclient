@@ -510,7 +510,7 @@ export default class OrderGraph {
                             });
 
                             // first reorder groups
-                            if (!options["keepGroups"]  ) {
+                            if (!options["keepGroups"]) {
                                 const newGroupOrder = _.map(_.sortBy(groupMeans, "1"), "0");
                                 _.forEach(this._getPartialOrders(newGroupOrder, groupOrder[r], groupPositions[r], options["debug"]), tmpGroupOrder => {
                                     // transform new group order to node order
@@ -1494,7 +1494,7 @@ export default class OrderGraph {
             if (options["resolveConflicts"]) {
                 resolveConflicts();
                 if (options["orderAfterResolution"]) {
-                    //reorder(false, false, 0, true);
+                    reorder(false, false, 0, true);
                 }
             }
 
