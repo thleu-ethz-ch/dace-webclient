@@ -8,8 +8,8 @@ import RankNode from "./rankNode";
 export default class RankGraph extends Graph<RankNode, Edge<any, any>>
 {
     rank(): void {
-        Assert.assert(this.components().length === 1, "rank graph has more than one component");
-        Assert.assert(!this.hasCycle(), "rank graph has cycle");
+        //Assert.assert(this.components().length === 1, "rank graph has more than one component");
+        //Assert.assert(!this.hasCycle(), "rank graph has cycle");
 
         // do toposort and allocate each node with one of its ancestor sources
         const rankPerNode: Array<Map<number, number>> = new Array(this.maxId() + 1);

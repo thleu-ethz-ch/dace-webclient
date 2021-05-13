@@ -287,6 +287,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
                 const nextNode = this.node(nextNodeId); // first remaining node
                 _.forEach(this.inEdges(nextNode.id), (inEdge: EdgeT) => {
                     if (remainingNodes.has(inEdge.src)) {
+                        predecessors[inEdge.src]++;
                         this.invertEdge(inEdge.id);
                         invertedEdges.push(this._edges[inEdge.id]);
                     }
