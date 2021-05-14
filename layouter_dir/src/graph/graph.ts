@@ -424,13 +424,13 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
             });
         });
 
-        const nodeSet = new Set();
+        /*const nodeSet = new Set();
         _.forEach(components, component => {
             _.forEach(component.nodes(), node => {
                 Assert.assert(!nodeSet.has(node), "node", node, "is in multiple components", components);
                 nodeSet.add(node);
             });
-        });
+        });*/
 
         return components;
     }

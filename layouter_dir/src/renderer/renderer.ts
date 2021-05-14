@@ -169,7 +169,7 @@ export default class Renderer {
             console.log("Total size: " + box.width.toFixed(0) +  "x" + box.height.toFixed(0));
             console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
-            //Timer.printTimes();
+            Timer.printTimes();
 
             this.render(graph);
         });

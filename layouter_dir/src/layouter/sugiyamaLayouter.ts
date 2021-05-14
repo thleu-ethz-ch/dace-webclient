@@ -389,7 +389,7 @@ export default class SugiyamaLayouter extends Layouter
             if (dstNode.isScopeNode) {
                 dstNode = dstNode.childGraphs[0].entryNode;
             }
-            Assert.assert(dstNode.rank > srcNode.rank, "bad edge", edge, srcNode, dstNode);
+            //Assert.assert(dstNode.rank > srcNode.rank, "bad edge", edge, srcNode, dstNode);
             let srcOrderNodeId;
             if (edge.srcConnector !== null) {
                 srcOrderNodeId = connectorMap.get(srcNode.connector("OUT", edge.srcConnector));
@@ -424,8 +424,6 @@ export default class SugiyamaLayouter extends Layouter
                         const dstNode = node.levelNodes[r + 1];
                         let srcOrderNode = generalOutMap.get(srcNode);
                         let dstOrderNode = generalInMap.get(dstNode);
-                        Assert.assert(srcOrderNode !== undefined, "error");
-                        Assert.assert(dstOrderNode !== undefined, "error");
                         orderGraph.addEdge(new Edge(srcOrderNode, dstOrderNode, 1));
                     }
                 }
@@ -438,6 +436,7 @@ export default class SugiyamaLayouter extends Layouter
     private _orderRanks(graph: LayoutGraph) {
 
         const doOrder = (graph: LayoutGraph, shuffle: boolean = false): void => {
+            Timer.start(["doLayout", "orderRanks", "doOrder"]);
             /**
              * STEP 1: ORDER NODES BASED ON CONNECTORS (OPTIONAL)
              * In this step, scope insides and outsides are handled in the same order graph.
@@ -512,11 +511,11 @@ export default class SugiyamaLayouter extends Layouter
                     }
                 });
 
-                Assert.assertAll(orderGraph.edges(), edge => {
+                /*Assert.assertAll(orderGraph.edges(), edge => {
                     const srcNode = edge.graph.node(edge.src);
                     const dstNode = edge.graph.node(edge.dst);
                     return (srcNode.group.rank.rank + 1 === dstNode.group.rank.rank);
-                }, "edge not between neighboring ranks");
+                }, "edge not between neighboring ranks");*/
 
                 // do order
                 let debug = false;
@@ -770,13 +769,16 @@ export default class SugiyamaLayouter extends Layouter
                     }
                 }
             });
+            Timer.stop(["doLayout", "orderRanks", "doOrder"]);
         };
 
         let connectorOrderGraph, numCrossings;
         if (!this._options["shuffleGlobal"]) {
             doOrder(graph);
         } else {
+            Timer.start(["doLayout", "orderRanks", "cloneGraph"]);
             const graphCopy = _.cloneDeep(graph);
+            Timer.stop(["doLayout", "orderRanks", "cloneGraph"]);
             doOrder(graphCopy);
             let numCrossings = this._countCrossings(graphCopy)
             //console.log("numCrossings", numCrossings);
@@ -786,7 +788,9 @@ export default class SugiyamaLayouter extends Layouter
                 if (minCrossings === 0) {
                     break;
                 }
+                Timer.start(["doLayout", "orderRanks", "cloneGraph"]);
                 const graphCopy = _.cloneDeep(graph);
+                Timer.stop(["doLayout", "orderRanks", "cloneGraph"]);
                 doOrder(graphCopy, true);
                 let numCrossings = this._countCrossings(graphCopy);
                 //console.log("numCrossings", numCrossings);
@@ -855,7 +859,9 @@ export default class SugiyamaLayouter extends Layouter
                     to.removeEdge(edge.id);
                 });
             };
+            Timer.start(["doLayout", "orderRanks", "copyBack"]);
             copySubgraph(bestGraphCopy, graph);
+            Timer.stop(["doLayout", "orderRanks", "copyBack"]);
         }
     }
 
@@ -1252,12 +1258,14 @@ export default class SugiyamaLayouter extends Layouter
 
     private _assignX(subgraph: LayoutGraph, offset = 0) {
         Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX"]);
+        Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "cloneGraphs"]);
         const alignGraphs = [
             subgraph.levelGraph().clone(),
             subgraph.levelGraph().clone(),
             subgraph.levelGraph().clone(),
             subgraph.levelGraph().clone(),
         ];
+        Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "cloneGraphs"]);
 
         this._alignMedian(alignGraphs[0], "UP", "LEFT");
         this._alignMedian(alignGraphs[1], "UP", "RIGHT");
@@ -1265,6 +1273,7 @@ export default class SugiyamaLayouter extends Layouter
         this._alignMedian(alignGraphs[3], "DOWN", "RIGHT");
 
         // align left-most and right-most nodes
+        Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "merge"]);
         let minMaxX = Number.POSITIVE_INFINITY;
         _.forEach(alignGraphs, (alignGraph: LevelGraph) => {
             minMaxX = Math.min(minMaxX, alignGraph.maxX());
@@ -1294,10 +1303,13 @@ export default class SugiyamaLayouter extends Layouter
         _.forEach(subgraph.nodes(), (node: LayoutNode) => {
             node.translate(diff, 0);
         });
+        Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "merge"]);
+
         Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX"]);
     }
 
     private _alignMedian(levelGraph: LevelGraph, neighbors: "UP" | "DOWN", preference: "LEFT" | "RIGHT") {
+        Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian"]);
         const ranks = levelGraph.ranks();
         const firstRank = (neighbors === "UP" ? 1 : (ranks.length - 2));
         const lastRank = (neighbors === "UP" ? (ranks.length - 1) : 0);
@@ -1467,6 +1479,7 @@ export default class SugiyamaLayouter extends Layouter
                 }
             }
         });
+        Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian"]);
     }
 
     private _restoreCycles(graph: LayoutGraph) {

@@ -30,9 +30,9 @@
     <script src="./dist/renderLib.js"></script>
     <script>
         window.addEventListener("load", function () {
-            const options1 = {shuffles: 64, shuffleGlobal: true};
-            const options2 = {shuffles: 64, shuffleGlobal: true, preorderConnectors: true, orderNodes: "NONE"}
-            const layouter = new renderLib.layouter.SugiyamaLayouter(options2);
+            const options1 = {shuffles: 0, shuffleGlobal: false};
+            const options2 = {shuffles: 16, shuffleGlobal: true, preorderConnectors: true, orderNodes: "COUNT"}
+            const layouter = new renderLib.layouter.SugiyamaLayouter(options1);
             const renderer = new renderLib.Renderer(document.body, document.getElementById("coordinateBox"));
             const graph = (new URLSearchParams(window.location.search)).get('graph') || "symm";
             renderer.show(layouter, graph);

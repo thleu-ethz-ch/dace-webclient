@@ -163,7 +163,7 @@ export default class OrderGraph {
     }
 
     public order(options: object = {}): number {
-        Timer.start(["doLayout", "orderRanks", "order"]);
+        Timer.start(["doLayout", "orderRanks", "doOrder", "order"]);
         options = _.defaults(options, {
             keepGroups: true,
             resolveConflicts: true,
@@ -175,7 +175,7 @@ export default class OrderGraph {
             orderAfterResolution: true,
         });
         const doOrder = (graph: OrderGraph): number => {
-            Timer.start(["doLayout", "orderRanks", "order", "doOrder"]);
+            Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder"]);
             let minRank = Number.POSITIVE_INFINITY;
             const ranks = graph._rankGraph.toposort();
             const groupOffsetsN  = []; // number of nodes in groups left of this group per rank (at start)
@@ -316,7 +316,7 @@ export default class OrderGraph {
              * @param shuffle
              */
             const reorder = (shuffle: boolean = false, shuffleNodes: boolean = false, startRank: number = 0, preventConflicts: boolean = false) => {
-                Timer.start(["doLayout", "orderRanks", "order", "doOrder", "reorder"]);
+                Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "reorder"]);
                 if (shuffle) {
                     _.forEach(ranks, (rank: OrderRank, r: number) => {
                         if (options["keepGroups"]) {
@@ -612,7 +612,7 @@ export default class OrderGraph {
                     crossings[r] = countCrossings(order[r], r, "UP");
                 }
 
-                Timer.stop(["doLayout", "orderRanks", "order", "doOrder", "reorder"]);
+                Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "reorder"]);
             };
 
             const assertNeighborCoherence = (r: number = null) => {
@@ -639,11 +639,11 @@ export default class OrderGraph {
                 Assert.assertNone(order[r], (ord, o) => positions[r][ord] !== o, "positions and orders do not match");
             }
 
-            const assertEdgesBetweenNeighboringRanks = () => {
+            /*const assertEdgesBetweenNeighboringRanks = () => {
                 Assert.assertAll(this.edges(), edge => {
                     return this.node(edge.src).rank + 1 === this.node(edge.dst).rank;
                 }, "edge not between neighboring ranks");
-            }
+            }*/
 
             const getConflict = (type: "HEAVYHEAVY" | "HEAVYLIGHT", r: number, skipIfZero: boolean = false) => {
                 if (skipIfZero && crossings[r] === 0) {
@@ -778,7 +778,7 @@ export default class OrderGraph {
                     crossings[r] = countCrossings(order[r], r, "UP", false);
                 }
                 console.log("crossings", _.sum(crossings));*/
-                Timer.start(["doLayout", "orderRanks", "order", "doOrder", "resolve"]);
+                Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve"]);
                 const resolveConflict = (conflict) => {
                     const [r, crossedNorthPos, crossedSouthPos, crossingNorthPos, crossingSouthPos] = conflict;
                     //Assert.assert(groupOffsets[r].length === 1, "more than one group");
@@ -1417,7 +1417,7 @@ export default class OrderGraph {
                 }
                 console.log("crossings", _.sum(crossings));*/
 
-                Timer.stop(["doLayout", "orderRanks", "order", "doOrder", "resolve"]);
+                Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve"]);
             }
             /*if (!options["keepGroups"] && !options["resolveConflicts"]) {
                 //console.log("NUMNODES", graph.nodes().length, graph.groups() , graph.nodes());
@@ -1519,7 +1519,7 @@ export default class OrderGraph {
 
             const numCrossings = _.sum(crossings);
 
-            Timer.stop(["doLayout", "orderRanks", "order", "doOrder"]);
+            Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder"]);
 
             return numCrossings;
         }
@@ -1565,7 +1565,7 @@ export default class OrderGraph {
             }*/
             numCrossings += doOrder(componentGraph);
         });
-        Timer.stop(["doLayout", "orderRanks", "order"]);
+        Timer.stop(["doLayout", "orderRanks", "doOrder", "order"]);
 
         return numCrossings;
     }
