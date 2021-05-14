@@ -412,9 +412,6 @@ export default class SugiyamaLayouter extends Layouter
                     }
                 }
             }
-            if (dstOrderNodeId === undefined) {
-                //console.log(srcOrderNodeId, dstOrderNodeId, srcNode, dstNode, edge);
-            }
             orderGraph.addEdge(new Edge(srcOrderNodeId, dstOrderNodeId, 1));
         });
 

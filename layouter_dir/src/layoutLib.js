@@ -8,4 +8,7 @@ module.exports = {
         MagneticSpringLayouter: require('./layouter/magneticSpringLayouter').default,
         SugiyamaLayouter: require('./layouter/sugiyamaLayouter').default,
     },
+    util: {
+        Serializer: require('./util/serializer').default
+    }
 };

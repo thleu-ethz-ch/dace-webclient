@@ -1635,7 +1635,7 @@
               1
             ],
             "wcr": "(lambda a, b: max(a, b))",
-            "identity": -Infinity,
+            "identity": "-Infinity",
             "name": "Reduce",
             "implementation": null,
             "schedule": "Default",

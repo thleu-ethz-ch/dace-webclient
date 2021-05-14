@@ -223,7 +223,7 @@ export default abstract class Layouter {
                         node.layoutGraph = layoutGraph;
                     }
                 } else {
-                    layoutChildren.get((<RenderNode>renderGraph.node(node.scopeEntry)).layoutGraph.parentNode).push(node);
+                    layoutChildren.get((renderGraph.node(node.scopeEntry)).layoutGraph.parentNode).push(node);
                 }
             });
 
@@ -238,15 +238,15 @@ export default abstract class Layouter {
                             } else {
                                 const layoutNode = createLayoutNode(renderNode);
                                 node.childGraph.addNode(layoutNode);
-                                renderNode.layoutGraph = <LayoutGraph>node.childGraph;
+                                renderNode.layoutGraph = node.childGraph;
                                 if (renderNode.type().endsWith("Exit")) {
-                                    (<LayoutGraph>node.childGraph).exitNode = layoutNode;
+                                    node.childGraph.exitNode = layoutNode;
                                 }
                             }
                         });
                     }
                     if (node.childGraph !== null) {
-                        addScopeChildren(<LayoutGraph>node.childGraph);
+                        addScopeChildren(node.childGraph);
                     }
                 });
             };
