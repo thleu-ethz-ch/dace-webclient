@@ -470,7 +470,7 @@ export default class SugiyamaLayouter extends Layouter
 
             const nodeMap: Map<number, number> = new Map(); // map from level node to corresponding order node
 
-            // child graphs are visited before their parents
+            // child graphs are visited before their parents (guaranteed by forEachRight)
             _.forEachRight(graph.allGraphs(), (subgraph: LayoutGraph) => {
                 this._addVirtualNodes(subgraph, true);
 
@@ -541,8 +541,6 @@ export default class SugiyamaLayouter extends Layouter
                     unfoundLevelNodes.add(node);
                 });
 
-                let offsetMap: Map<LayoutNode, number> = new Map();
-
                 //console.log("rankOffset", rankOffset);
                 _.forEach(orderGraph.nodes(), (orderNode: OrderNode) => {
                     let levelNode: LevelNode = orderNode.reference;
@@ -572,29 +570,44 @@ export default class SugiyamaLayouter extends Layouter
                     const newRankSpan = Math.max(prevRankSpan, tmpSubgraph.numRanks);
                     const diff = newRankSpan - prevRankSpan;
                     if (diff !== 0) {
-                        //console.log("graph", tmpSubgraph.parentNode.label(), "changes rankspan from", prevRankSpan, "to", newRankSpan);
+                        const levelGraph = parent.graph.levelGraph();
                         parent.rankSpan = newRankSpan;
 
-                        // update level nodes representation in parent
+                        /**
+                         * UPDATE LEVEL NODES REPRESENTATION IN PARENT
+                         */
                         let positions = _.map(parent.levelNodes, "position");
                         positions.length = newRankSpan;
                         _.fill(positions, positions[prevRankSpan - 1], prevRankSpan);
-                        _.forEach(parent.levelNodes, (levelNode: LevelNode) => {
-                            parent.graph.levelGraph().removeNode(levelNode.id);
-                            _.forEach(parent.graph.levelGraph().incidentEdges(levelNode.id), edge => {
-                                parent.graph.levelGraph().removeEdge(edge.id);
-                            });
-                        });
-                        parent.graph.levelGraph().addLayoutNode(parent);
+                        const lastLevelNode = _.last(parent.levelNodes);
+                        // add new nodes
+                        const newNodes = [];
+                        for (let r = 0; r < diff; ++r) {
+                            const newNode = new LevelNode(parent, lastLevelNode.rank + r)
+                            levelGraph.addNode(newNode);
+                            newNodes.push(newNode);
+                        }
+                        parent.levelNodes.length--;
+                        Array.prototype.push.apply(parent.levelNodes, newNodes);
+                        parent.levelNodes.push(lastLevelNode);
+                        lastLevelNode.rank += diff;
+                        // redirect last edge
+                        const lastEdge = levelGraph.inEdges(lastLevelNode.id)[0];
+                        levelGraph.redirectEdge(lastEdge.id, _.last(newNodes).id, lastLevelNode.id);
+                        // update positions
                         _.forEach(parent.levelNodes, (levelNode: LevelNode, r: number) => {
                             levelNode.position = positions[r];
                         });
+                        // add edges between new nodes
+                        for (let r = prevRankSpan - 2; r < newRankSpan - 2; ++r) {
+                            levelGraph.addEdge(new Edge(parent.levelNodes[r].id, parent.levelNodes[r + 1].id, Number.POSITIVE_INFINITY));
+                        }
+                        /////////////////////////////////////////////////////
 
                         _.forEach(parent.graph.bfs(parent.id), (node: LayoutNode) => {
                             if (node !== parent) {
                                 //console.log("offset dominated node", node.label(), "from", node.rank, "to", node.rank + diff);
                                 node.offsetRank(diff);
-                                offsetMap.set(node, diff);
                             }
                             node.graph.numRanks = Math.max(node.graph.numRanks, node.rank + node.rankSpan - node.graph.minRank);
                         });
