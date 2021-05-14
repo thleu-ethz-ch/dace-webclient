@@ -18,9 +18,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
     protected _inEdges: Array<Array<number>>;
 
     private _nodesDenseOutdated: boolean;
-    private _nodesDenseSorted: boolean;
     private _edgesDenseOutdated: boolean;
-    private _edgesDenseSorted: boolean;
 
     public constructor() {
         this._init();
@@ -50,7 +48,6 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         }
         node.id = id;
         node.graph = this;
-        this._nodesDenseSorted &&= ((this._nodesDense.length === 0) || (node.id < this._nodesDense[this._nodesDense.length - 1].id));
 
         this._nodes[id] = node;
         this._nodeIds.push(id);
@@ -72,7 +69,6 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         }
         edge.id = id;
         edge.graph = this;
-        this._edgesDenseSorted &&= ((this._edgesDense.length === 0) || (edge.id < this._edgesDense[this._edgesDense.length - 1].id));
         this._edges[id] = edge;
         this._edgeIds.push(id);
         this._edgesDense.push(edge);
@@ -479,30 +475,20 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         this._outEdges = [];
         this._inEdges = [];
         this._nodesDenseOutdated = false;
-        this._nodesDenseSorted = true;
         this._edgesDenseOutdated = false;
-        this._edgesDenseSorted = true;
     }
 
     private _updateNodesDense() {
         if (this._nodesDenseOutdated) {
             this._nodesDense = _.compact(this._nodes);
-            if (!this._nodesDenseSorted) {
-                this._nodesDense = _.sortBy(this._nodesDense, "id");
-            }
             this._nodesDenseOutdated = false;
-            this._nodesDenseSorted = true;
         }
     }
 
     private _updateEdgesDense() {
         if (this._edgesDenseOutdated) {
             this._edgesDense = _.compact(this._edges);
-            if (!this._edgesDenseSorted) {
-                this._edgesDense = _.sortBy(this._edgesDense, "id");
-            }
             this._edgesDenseOutdated = false;
-            this._edgesDenseSorted = true;
         }
     }
 }
