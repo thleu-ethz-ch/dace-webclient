@@ -1,4 +1,4 @@
-// Copyright 2019-2020 ETH Zurich and the DaCe authors. All rights reserved.
+// Copyright 2019-2021 ETH Zurich and the DaCe authors. All rights reserved.
 
 const animation_duration = 1000;
 const animation_function = t => 1 - Math.pow(1 - t, 3);  // cubic ease out
@@ -1473,6 +1473,7 @@ class SDFGRenderer {
 
     set_sdfg(new_sdfg) {
         this.sdfg = new_sdfg;
+        this.all_memlet_trees_sdfg = memlet_tree_complete(this.sdfg);
         this.relayout();
         this.draw_async();
     }
@@ -1710,8 +1711,8 @@ class SDFGRenderer {
     on_pre_draw() { }
 
     on_post_draw() {
-		if (this.overlay_manager !== null)
-			this.overlay_manager.draw();
+        if (this.overlay_manager !== null)
+            this.overlay_manager.draw();
 
         try {
             this.ctx.end();
@@ -2208,7 +2209,7 @@ class SDFGRenderer {
             if (intersected && obj instanceof Edge && obj.parent_id != null) {
                 let tree = this.get_nested_memlet_tree(obj);
                 tree.forEach(te => {
-                    if (te != obj) {
+                    if (te != obj && te !== undefined) {
                         te.highlighted = true;
                     }
                 });

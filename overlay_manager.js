@@ -1,4 +1,4 @@
-// Copyright 2019-2020 ETH Zurich and the DaCe authors. All rights reserved.
+// Copyright 2019-2021 ETH Zurich and the DaCe authors. All rights reserved.
 
 class SymbolResolver {
 
@@ -113,8 +113,8 @@ class SymbolResolver {
     }
 
     init_overlay_popup_dialogue() {
-        let dialogue_background = createElement('div', '', ['modal_background'],
-            document.body);
+        let dialogue_background = createElement('div', '',
+            ['sdfv_modal_background'], document.body);
         dialogue_background._show = function () {
             this.style.display = 'block';
         };
@@ -123,17 +123,17 @@ class SymbolResolver {
         };
 
         let popup_dialogue = createElement('div', 'sdfv_overlay_dialogue',
-            ['modal'], dialogue_background);
+            ['sdfv_modal'], dialogue_background);
         popup_dialogue.addEventListener('click', (ev) => {
             ev.stopPropagation();
         });
         popup_dialogue.style.display = 'none';
         this.popup_dialogue = popup_dialogue;
 
-        let header_bar = createElement('div', '', ['modal_title_bar'],
+        let header_bar = createElement('div', '', ['sdfv_modal_title_bar'],
             this.popup_dialogue);
-        this.popup_dialogue._title = createElement('span', '', ['modal_title'],
-            header_bar);
+        this.popup_dialogue._title = createElement('span', '',
+            ['sdfv_modal_title'], header_bar);
         let close_button = createElement('div', '', ['modal_close'],
             header_bar);
         close_button.innerHTML = '<i class="material-icons">close</i>';
@@ -141,12 +141,12 @@ class SymbolResolver {
             popup_dialogue._hide();
         });
 
-        let content_box = createElement('div', '', ['modal_content_box'],
+        let content_box = createElement('div', '', ['sdfv_modal_content_box'],
             this.popup_dialogue);
         this.popup_dialogue._content = createElement('div', '',
-            ['modal_content'], content_box);
+            ['sdfv_modal_content'], content_box);
         this.popup_dialogue._input = createElement('input', 'symbol_input',
-            ['modal_input_text'], this.popup_dialogue._content);
+            ['sdfv_modal_input_text'], this.popup_dialogue._content);
         
         function set_val() {
             if (popup_dialogue._map && popup_dialogue._symbol) {
@@ -166,10 +166,10 @@ class SymbolResolver {
                 set_val();
         });
 
-        let footer_bar = createElement('div', '', ['modal_footer_bar'],
+        let footer_bar = createElement('div', '', ['sdfv_modal_footer_bar'],
             this.popup_dialogue);
         let confirm_button = createElement('div', '',
-            ['button', 'modal_confirm_button'], footer_bar);
+            ['button', 'sdfv_modal_confirm_button'], footer_bar);
         confirm_button.addEventListener('click', (ev) => { set_val(); });
         let confirm_button_text = createElement('span', '', [], confirm_button);
         confirm_button_text.innerText = 'Confirm';
@@ -351,7 +351,8 @@ class RuntimeMicroSecondsOverlay extends GenericSdfgOverlay {
                         'Min: ' + this.pretty_print_micros(rt_summary['min']) +
                         '\nMax: ' + this.pretty_print_micros(rt_summary['max']) +
                         '\nMean: ' + this.pretty_print_micros(rt_summary['mean']) +
-                        '\nMedian: ' + this.pretty_print_micros(rt_summary['med'])
+                        '\nMedian: ' + this.pretty_print_micros(rt_summary['med']) +
+                        '\nCount: ' + rt_summary['count']
                     );
                 };
         }
@@ -754,8 +755,10 @@ class MemoryVolumeOverlay extends GenericSdfgOverlay {
         let volume_string = undefined;
         if (edge.data && edge.data.attributes) {
             volume_string = edge.data.attributes.volume;
-            if (volume_string !== undefined)
-                volume_string = volume_string.replace('**', '^');
+            if (volume_string !== undefined) {
+                volume_string = volume_string.replace(/\*\*/g, '^');
+                volume_string = volume_string.replace(/ceiling/g, 'ceil');
+            }
         }
         let volume = undefined;
         if (volume_string !== undefined)
