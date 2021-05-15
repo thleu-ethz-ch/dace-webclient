@@ -825,7 +825,7 @@ function get_sdfg_graph(ctx, sdfg, sdfg_list, state_parent_list, omit_access_nod
 function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list, omit_access_nodes) {
     const g = get_sdfg_graph(ctx, sdfg,  sdfg_list, state_parent_list, omit_access_nodes);
 
-    const layouter = new layoutLib.layouter.SugiyamaLayouter({connectorSpacing: LINEHEIGHT});
+    const layouter = new layoutLib.layouter.DagreLayouter({connectorSpacing: LINEHEIGHT});
     layouter.layout(g);
 
     function postlayout_sdfg(g, sdfg) {
@@ -852,14 +852,11 @@ function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list, omit_access_node
                 edge = check_and_redirect_edge(edge, stateNode.childGraph.drawn_nodes, sdfg_state);
                 if (!edge) return;
                 let gedge = stateNode.childGraph.edge(id);
-                if (!gedge || (omit_access_nodes && gedge.data.attributes.shortcut === false
-                    || !omit_access_nodes && gedge.data.attributes.shortcut)) {
+                if (!gedge || (omit_access_nodes && gedge.data.attributes.shortcut === false)
+                    || (!omit_access_nodes && gedge.data.attributes.shortcut)) {
                     // if access nodes omitted, don't draw non-shortcut edges and vice versa
                     return;
                 }
-
-                /*if (gedge.points.length == 3 && gedge.points[0].x == gedge.points[n].x)
-                    gedge.points = [gedge.points[0], gedge.points[n]];*/
 
                 gedge.updateBoundingBox();
             });

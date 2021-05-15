@@ -262,7 +262,8 @@ export default abstract class Layouter {
                 if (srcNode.layoutGraph !== dstNode.layoutGraph) {
                     if (dstNode.layoutGraph.entryNode === dstLayoutNode) {
                         dstLayoutNode = dstNode.layoutGraph.parentNode;
-                    } else {
+                    }
+                    if (srcNode.layoutGraph.exitNode === srcLayoutNode) {
                         srcLayoutNode = srcNode.layoutGraph.parentNode;
                     }
                 }
