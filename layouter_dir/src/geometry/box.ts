@@ -23,12 +23,24 @@ export default class Box {
         return new Vector(this.x, this.y);
     }
 
+    topRight(): Vector {
+        return new Vector(this.x + this.width, this.y);
+    }
+
     center(): Vector {
         return new Vector(this.x + this.width / 2, this.y + this.height / 2);
     }
 
     topCenter(): Vector {
         return new Vector(this.x + this.width / 2, this.y);
+    }
+
+    bottomLeft(): Vector {
+        return new Vector(this.x, this.y + this.height);
+    }
+
+    bottomRight(): Vector {
+        return new Vector(this.x + this.width, this.y + this.height);
     }
 
     bottomCenter(): Vector {

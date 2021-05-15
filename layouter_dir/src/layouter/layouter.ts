@@ -10,6 +10,9 @@ import RenderEdge from "../renderGraph/renderEdge";
 import RenderGraph from "../renderGraph/renderGraph";
 import RenderNode from "../renderGraph/renderNode";
 import LayoutBundle from "../layoutGraph/layoutBundle";
+import LayoutComponent from "../layoutGraph/layoutComponent";
+import Component from "../graph/component";
+import {CONNECTOR_SIZE, CONNECTOR_SPACING} from "../util/constants";
 
 export default abstract class Layouter {
     protected _options: any;
@@ -21,13 +24,16 @@ export default abstract class Layouter {
             targetEdgeLength: 50,
             withLabels: false,
             bundle: false,
-            optimizeAngles: false,
-            alignInAndOut: false,
+            maximizeAngles: false,
             shuffles: 0,
+            shuffleGlobal: false,
             weightBends: 0.2,
             weightCrossings: 1,
             weightLengths: 0.1,
             resolveY: "normal",
+            preorderConnectors: false,
+            orderNodes: "NOCOUNT",
+            orderAfterResolution: true,
         });
     }
 
@@ -43,6 +49,8 @@ export default abstract class Layouter {
     public layout(renderGraph: RenderGraph): LayoutGraph {
         const layoutGraph = this.createLayoutGraph(renderGraph);
 
+        this._createComponents(layoutGraph);
+
         if (this._options['bundle']) {
             this._createBundles(layoutGraph);
         }
@@ -53,7 +61,7 @@ export default abstract class Layouter {
         Math.random = tmpRandom;
 
         this._copyLayoutInfo(layoutGraph, renderGraph);
-        Assert.assertAll(renderGraph.allEdges(), (edge: RenderEdge) => edge.points.length > 0, "edge has no points assigned");
+        //Assert.assertAll(renderGraph.allEdges(), (edge: RenderEdge) => edge.points.length > 0, "edge has no points assigned");
 
         return layoutGraph;
     }
@@ -95,25 +103,25 @@ export default abstract class Layouter {
 
             const connectorDifference = node.inConnectors.length - node.outConnectors.length;
             if (node.inConnectors.length > 0) {
-                let inConnectorsWidth = node.inConnectors.length * node.inConnectors[0].diameter + (node.inConnectors.length - 1) * this._options.connectorSpacing;
+                let inConnectorsWidth = node.inConnectors.length * CONNECTOR_SIZE + (node.inConnectors.length - 1) * CONNECTOR_SPACING;
                 if (connectorDifference % 2 === -1 && inConnectorsScoped.length > 0) {
-                    inConnectorsWidth += node.inConnectors[0].diameter + this._options.connectorSpacing;
+                    inConnectorsWidth += CONNECTOR_SIZE + CONNECTOR_SPACING;
                 }
                 const firstX = node.x + (node.width - inConnectorsWidth) / 2;
-                const y = node.y - node.inConnectors[0].diameter / 2;
+                const y = node.y - CONNECTOR_SIZE / 2;
                 _.forEach(arrangedInConnectors, (connector: LayoutConnector, i) => {
-                    connector.setPosition(firstX + (connector.diameter + this._options.connectorSpacing) * i, y);
+                    connector.setPosition(firstX + (CONNECTOR_SIZE + CONNECTOR_SPACING) * i, y);
                 });
             }
             if (node.outConnectors.length > 0) {
-                let outConnectorsWidth = node.outConnectors.length * node.outConnectors[0].diameter + (node.outConnectors.length - 1) * this._options.connectorSpacing;
+                let outConnectorsWidth = node.outConnectors.length * CONNECTOR_SIZE + (node.outConnectors.length - 1) * CONNECTOR_SPACING;
                 if (connectorDifference % 2 === 1 && inConnectorsScoped.length > 0) {
-                    outConnectorsWidth += node.outConnectors[0].diameter + this._options.connectorSpacing;
+                    outConnectorsWidth += CONNECTOR_SIZE + CONNECTOR_SPACING;
                 }
                 const firstX = node.x + (node.width - outConnectorsWidth) / 2;
-                const y = node.y + node.height - node.outConnectors[0].diameter / 2;
+                const y = node.y + node.height - CONNECTOR_SIZE / 2;
                 _.forEach(arrangedOutConnectors, (connector, i) => {
-                    connector.setPosition(firstX + (connector.diameter + this._options.connectorSpacing) * i, y);
+                    connector.setPosition(firstX + (CONNECTOR_SIZE + CONNECTOR_SPACING) * i, y);
                 });
             }
         });
@@ -124,8 +132,8 @@ export default abstract class Layouter {
             if (edge.srcConnector !== null) {
                 const srcNode = <LayoutNode>edge.graph.node(edge.src);
                 let srcConnector = srcNode.connector("OUT", edge.srcConnector);
-                if (srcConnector === undefined && srcNode.childGraph !== null) {
-                    const childGraph = <LayoutGraph>srcNode.childGraph;
+                if (srcConnector === undefined && srcNode.childGraphs.length > 0) {
+                    const childGraph = srcNode.childGraphs[0];
                     if (childGraph.exitNode !== null) {
                         srcConnector = childGraph.exitNode.connector("OUT", edge.srcConnector);
                     }
@@ -133,16 +141,13 @@ export default abstract class Layouter {
                 if (srcConnector === undefined) {
                     return;
                 }
-                const position = srcConnector.position();
-                position.x += srcConnector.diameter / 2;
-                position.y += srcConnector.diameter;
-                edge.points[0] = position;
+                edge.points[0] = srcConnector.boundingBox().bottomCenter();
             }
             if (edge.dstConnector !== null) {
                 const dstNode = <LayoutNode>edge.graph.node(edge.dst);
                 let dstConnector = dstNode.connector("IN", edge.dstConnector);
-                if (dstConnector === undefined && dstNode.childGraph !== null) {
-                    const childGraph = <LayoutGraph>dstNode.childGraph;
+                if (dstConnector === undefined && dstNode.childGraphs.length > 0) {
+                    const childGraph = <LayoutGraph>dstNode.childGraphs[0];
                     if (childGraph.entryNode !== null) {
                         dstConnector = childGraph.entryNode.connector("IN", edge.dstConnector);
                     }
@@ -150,9 +155,7 @@ export default abstract class Layouter {
                 if (dstConnector === undefined) {
                     return;
                 }
-                const position = dstConnector.position();
-                position.x += dstConnector.diameter / 2;
-                edge.points[edge.points.length - 1] = position;
+                edge.points[edge.points.length - 1] = dstConnector.boundingBox().topCenter();
             }
         });
     }
@@ -172,10 +175,10 @@ export default abstract class Layouter {
                     layoutNode.isAccessNode = true;
                 }
                 _.forEach(node.inConnectors, (connector: RenderConnector) => {
-                    layoutNode.addConnector("IN", connector.name, connector.width);
+                    layoutNode.addConnector("IN", connector.name);
                 });
                 _.forEach(node.outConnectors, (connector: RenderConnector) => {
-                    layoutNode.addConnector("OUT", connector.name, connector.width);
+                    layoutNode.addConnector("OUT", connector.name);
                 });
                 node.layoutNode = layoutNode;
                 layoutNode.setLabel(node.label()); // for debugging
@@ -205,6 +208,7 @@ export default abstract class Layouter {
                     node.layoutGraph = scopeGraph;
                     node.layoutNode = entryNode;
                     scopeGraph.entryNode = entryNode;
+                    scopeNode.isScopeNode = true;
                     layoutChildren.set(scopeNode, []);
                     scopeNode.setLabel("Map with entry " + entryNode.label()); // for debugging
                 }
@@ -220,7 +224,7 @@ export default abstract class Layouter {
                         node.layoutGraph = layoutGraph;
                     }
                 } else {
-                    layoutChildren.get((<RenderNode>renderGraph.node(node.scopeEntry)).layoutGraph.parentNode).push(node);
+                    layoutChildren.get((renderGraph.node(node.scopeEntry)).layoutGraph.parentNode).push(node);
                 }
             });
 
@@ -235,15 +239,15 @@ export default abstract class Layouter {
                             } else {
                                 const layoutNode = createLayoutNode(renderNode);
                                 node.childGraph.addNode(layoutNode);
-                                renderNode.layoutGraph = <LayoutGraph>node.childGraph;
+                                renderNode.layoutGraph = node.childGraph;
                                 if (renderNode.type().endsWith("Exit")) {
-                                    (<LayoutGraph>node.childGraph).exitNode = layoutNode;
+                                    node.childGraph.exitNode = layoutNode;
                                 }
                             }
                         });
                     }
                     if (node.childGraph !== null) {
-                        addScopeChildren(<LayoutGraph>node.childGraph);
+                        addScopeChildren(node.childGraph);
                     }
                 });
             };
@@ -262,7 +266,7 @@ export default abstract class Layouter {
                         srcLayoutNode = srcNode.layoutGraph.parentNode;
                     }
                 }
-                Assert.assert(srcLayoutNode.graph === dstLayoutNode.graph, "edge between different graphs", edge);
+                //Assert.assert(srcLayoutNode.graph === dstLayoutNode.graph, "edge between different graphs", edge);
                 edge.layoutEdge = new LayoutEdge(srcLayoutNode.id, dstLayoutNode.id, edge.srcConnector, edge.dstConnector, edge.labelSize);
                 srcLayoutNode.graph.addEdge(edge.layoutEdge);
             });
@@ -277,18 +281,43 @@ export default abstract class Layouter {
             return layoutGraph;
         }
         const layoutGraph = transformSubgraph(renderGraph);
-
-        const printLayout = (graph: LayoutGraph, level: number = 0) => {
-            _.forEach(graph.nodes(), (node: LayoutNode) => {
-                console.log("  ".repeat(level) + node.label());
-                if (node.childGraph !== null) {
-                    printLayout(node.childGraph, level + 1);
-                }
-            });
-        }
-        //printLayout(layoutGraph); // for debugging
-
         return layoutGraph;
+    }
+
+    private _createComponents(graph: LayoutGraph): void {
+        _.forEach(graph.allNodes(), (node: LayoutNode) => {
+            if (node.childGraph !== null) {
+                if (node.isScopeNode || node.childGraph.mayHaveCycles) {
+                    node.childGraphs.push(node.childGraph);
+                } else {
+                    // only nodes of type NestedSDFG may have more than one component as child graph
+                    _.forEach(node.childGraph.components(), (component: Component<LayoutNode, LayoutEdge>) => {
+                        const childGraph = new LayoutGraph();
+                        _.forEach(component.nodes(), (node: LayoutNode) => {
+                            childGraph.addNode(node, node.id);
+                        });
+                        _.forEach(component.edges(), (edge: LayoutEdge) => {
+                            childGraph.addEdge(edge, edge.id);
+                        });
+                        node.childGraphs.push(childGraph);
+                        childGraph.parentNode = node;
+                    });
+                    if (node.childGraphs.length === 0) {
+                        node.childGraphs.push(node.childGraph);
+                    }
+                }
+                node.childGraph = null; // property childGraph should not be used after this point
+            }
+        });
+    }
+
+    private printLayout(graph: LayoutGraph, level: number = 0) {
+        _.forEach(graph.nodes(), (node: LayoutNode) => {
+            console.log("  ".repeat(level) + node.label());
+            _.forEach(node.childGraphs, (childGraph: LayoutGraph) => {
+                this.printLayout(childGraph, level + 1);
+            });
+        });
     }
 
     private _createBundles(layoutGraph: LayoutGraph): void
@@ -311,7 +340,7 @@ export default abstract class Layouter {
                             srcNode.outConnectorBundles.push(bundle);
                         } else {
                             let dstNode = graph.node(edge.dst);
-                            if (dstNode.childGraph !== null && dstNode.childGraph.entryNode !== null) {
+                            if (dstNode.isScopeNode !== null) {
                                 dstNode = dstNode.childGraph.entryNode;
                             }
                             dstNode.inConnectorBundles.push(bundle);
@@ -407,7 +436,6 @@ export default abstract class Layouter {
             delete graph.layoutGraph;
         });
     }
-
 
 
 }

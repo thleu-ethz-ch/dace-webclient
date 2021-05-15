@@ -28,4 +28,16 @@ export default class RenderGraph extends Graph<RenderNode, RenderEdge> {
         });
         return new Box(minX, minY, maxX - minX, maxY - minY);
     }
+
+    numNodes(): number {
+        return this.allNodes().length;
+    }
+
+    numEdges(): number {
+        return this.allEdges().length;
+    }
+
+    numConnectors(): number {
+        return _.sum(_.map(this.allNodes(), node => node.inConnectors.length + node.outConnectors.length));
+    }
 }

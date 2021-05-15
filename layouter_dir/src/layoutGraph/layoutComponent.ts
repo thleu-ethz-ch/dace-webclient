@@ -3,6 +3,7 @@ import Component from "../graph/component";
 import LayoutNode from "./layoutNode";
 import LayoutEdge from "./layoutEdge";
 import LevelGraph from "../levelGraph/levelGraph";
+import LevelNode from "../levelGraph/levelNode";
 import Box from "../geometry/box";
 
 export default class LayoutComponent extends Component<LayoutNode, LayoutEdge>
@@ -23,25 +24,6 @@ export default class LayoutComponent extends Component<LayoutNode, LayoutEdge>
             maxRank = Math.max(maxRank, node.rank + node.rankSpan - 1);
         });
         return maxRank;
-    }
-
-    public levelGraph(): LevelGraph {
-        if (this._levelGraph === null) {
-            this._levelGraph = new LevelGraph();
-            _.forEach(this.nodes(), (node: LayoutNode) => {
-                this._levelGraph.addLayoutNode(node);
-            });
-            _.forEach(this.edges(), (edge: LayoutEdge) => {
-                if (!edge.isReplica) {
-                    this._levelGraph.addLayoutEdge(edge);
-                }
-            });
-        }
-        return this._levelGraph;
-    }
-
-    public invalidateLevelGraph(): void {
-        this._levelGraph = null;
     }
 
     public boundingBox(): Box {

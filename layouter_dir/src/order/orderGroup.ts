@@ -8,11 +8,13 @@ import * as _ from "lodash";
 export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
 {
     public readonly reference: any;
+    public shuffleHierarchy: Array<any> = null;
     public nodes: Array<OrderNode> = [];
 
     public order: Array<number> = [];
     public position: number = 0;
     public rank: OrderRank;
+    public index: number = 0; // the index within the rank, used as an id, other than position this does not change
 
     constructor(reference: any, label: string = null) {
         super(label);
@@ -24,6 +26,7 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
         this.nodes.push(node);
         node.group = this;
         node.index = nextIndex;
+        node.rank = this.rank.rank;
         return this.rank.orderGraph.addNode(node, id);
     }
 
@@ -35,12 +38,16 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
         _.pull(this.nodes, node);
     }
 
+    orderNodes(): void {
+        this.order = _.map(_.sortBy(_.map(this.nodes, (node, n) => {
+            return {n: n, pos: node.position};
+        }), "pos"), "n");
+    }
+
     orderedNodes(): Array<OrderNode> {
         const nodes = [];
-        if (this.order.length < this.nodes.length) {
-            this.order = _.map(_.sortBy(_.map(this.nodes, (node, n) => {
-                return {n: n, pos: node.position};
-            }), "pos"), "n");
+        if (this.order.length !== this.nodes.length) {
+            this.orderNodes();
         }
         _.forEach(this.order, pos => {
             nodes.push(this.nodes[pos]);

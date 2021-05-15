@@ -7,6 +7,7 @@ import Vector from "../geometry/vector";
 import LayoutGraph from "./layoutGraph";
 import * as _ from "lodash";
 import LayoutBundle from "./layoutBundle";
+import LevelNode from "../levelGraph/levelNode";
 
 export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public inConnectors: Array<LayoutConnector> = [];
@@ -16,18 +17,23 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public bottomInConnectorIndex = null;
     public topOutConnectorIndex = null;
 
-    public x: number = null;
-    public y: number = null;
-    public width: number = null;
-    public height: number = null;
+    public x: number = 0;
+    public y: number = 0;
+    public width: number = 0;
+    public height: number = 0;
 
     public selfLoop: LayoutEdge = null;
 
     public isAccessNode: boolean = false;
+    public isScopeNode: boolean = false;
     public hasScopedConnectors: boolean = false;
     public rank: number = null; // global rank (level) of the node
     public rankSpan: number = 1;
     public index: number = 0; // index of the node, when indexes is set, it should eventually be the max index
+
+    public levelNodes: Array<LevelNode> = [];
+
+    public readonly childGraphs: Array<LayoutGraph> = [];
 
     public readonly padding: number = 0;
     public readonly isVirtual: boolean = false;
@@ -55,8 +61,8 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         }
     }
 
-    addConnector(type: "IN" | "OUT", name: string, diameter: number) {
-        const connector = new LayoutConnector(this, type, name, diameter);
+    addConnector(type: "IN" | "OUT", name: string) {
+        const connector = new LayoutConnector(this, type, name);
         if (type === "IN") {
             this._inConnectors.set(name, connector);
             this.inConnectors.push(connector);
@@ -69,9 +75,9 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     translate(x: number, y: number) {
         this.x += x;
         this.y += y;
-        if (this.childGraph !== null) {
-            this.childGraph.translateElements(x, y);
-        }
+        _.forEach(this.childGraphs, (childGraph: LayoutGraph) => {
+            childGraph.translateElements(x, y);
+        });
         _.forEach(this.inConnectors, (connector: LayoutConnector) => {
             connector.translate(x, y);
         });
@@ -100,15 +106,20 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     }
 
     setPosition(position: Vector) {
-        const prevX = this.x || 0;
-        const prevY = this.y || 0;
+        this.x = position.x;
+        this.y = position.y;
+    }
+
+    updatePosition(position: Vector) {
+        const prevX = this.x;
+        const prevY = this.y;
         const offsetX = position.x - prevX;
         const offsetY = position.y - prevY;
         this.x = position.x;
         this.y = position.y;
-        if (this.childGraph !== null) {
-            this.childGraph.translateElements(offsetX, offsetY);
-        }
+        _.forEach(this.childGraphs, (childGraph: LayoutGraph) => {
+            childGraph.translateElements(offsetX, offsetY);
+        });
     }
 
     setSize(size: Size) {
@@ -142,17 +153,21 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
 
     offsetRank(offset: number) {
         this.rank += offset;
+        if (offset !== 0) {
+            _.forEach(this.childGraphs, (childGraph) => {
+                childGraph.offsetRank(offset);
+            });
+            _.forEach(this.levelNodes, (levelNode: LevelNode, r: number) => {
+                levelNode.rank = this.rank + r;
+            });
+        }
     }
 
     updateRank(newRank: number) {
-        if (this.rank !== null && this.childGraph !== null && this.rank !== newRank) {
-            this.childGraph.updateRank(newRank);
+        if (this.rank !== newRank) {
+            this.offsetRank(newRank - this.rank);
         }
-        this.rank = newRank;
-    }
-
-    isScope(): boolean {
-        return (this.childGraph !== null && this.childGraph.entryNode !== null);
     }
 
 }
+

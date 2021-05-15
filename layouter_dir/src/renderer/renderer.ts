@@ -1,6 +1,5 @@
 import * as _ from "lodash";
 import * as PIXI from "pixi.js";
-import {Container, Graphics} from "pixi.js";
 import {Viewport} from "pixi-viewport"
 import AccessNode from "../renderGraph/accessNode";
 import Box from "../geometry/box";
@@ -25,10 +24,14 @@ import RenderConnector from "../renderGraph/renderConnector";
 import Shape from "../shapes/shape";
 import Size from "../geometry/size";
 import Text from "../shapes/text";
+import Timer from "../util/timer";
 import UpwardTrapezoid from "../shapes/upwardTrapezoid";
 import Vector from "../geometry/vector";
+import {Container, Graphics} from "pixi.js";
+import MapEntry from "../renderGraph/mapEntry";
+import MapExit from "../renderGraph/mapExit";
 import Tasklet from "../renderGraph/tasklet";
-import Timer from "../util/timer";
+import Segment from "../geometry/segment";
 
 export default class Renderer {
     private readonly _app;
@@ -81,6 +84,10 @@ export default class Renderer {
     }
 
     show(layouter: Layouter, name: string) {
+        const segA = new Segment(new Vector(4212, 6049), new Vector(4212, 9860));
+        const segB = new Segment(new Vector(2726, 9850), new Vector(5136, 9910));
+        //console.log(segA.intersects(segB)));
+        //return;
         Loader.load(name).then((graph) => {
             /*graph = new RenderGraph();
             const a = new AccessNode("AccessNode", "a");
@@ -145,13 +152,13 @@ export default class Renderer {
 
             const layout = layouter.layout(graph);
 
-            /*const layoutAnalysis = new LayoutAnalysis(layout, layouter.getOptionsForAnalysis());
+            const layoutAnalysis = new LayoutAnalysis(layout);
             if (layoutAnalysis.validate()) {
                 console.log("Layout satisfies constraints.");
             } else {
                 console.log("Layout violates constraints.");
             }
-            console.log("Weighted cost: " + layoutAnalysis.cost(true).toFixed(1));*/
+            //console.log("Weighted cost: " + layoutAnalysis.cost(true).toFixed(0));
             /*const performanceAnalysis = new PerformanceAnalysis(layouter);
             performanceAnalysis.measure(name, 1).then(time => {
                 console.log(time + " ms");
@@ -160,7 +167,7 @@ export default class Renderer {
             // center and fit the graph in the viewport
             const box = graph.boundingBox();
             console.log("Total size: " + box.width.toFixed(0) +  "x" + box.height.toFixed(0));
-            //console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
+            console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
             Timer.printTimes();
 

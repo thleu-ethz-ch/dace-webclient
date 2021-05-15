@@ -18,22 +18,22 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
     }
 
     public addLayoutNode(layoutNode: LayoutNode): LevelNode {
-        let node = new LevelNode(layoutNode, layoutNode.rank, true);
-        let src = this.addNode(node);
-        this._firstNodeMap[layoutNode.id] = node.id;
+        let levelNode = new LevelNode(layoutNode, layoutNode.rank, true);
+        let src = this.addNode(levelNode);
+        this._firstNodeMap[layoutNode.id] = levelNode.id;
+        const levelNodes = [levelNode];
         for (let r = layoutNode.rank + 1; r < layoutNode.rank + layoutNode.rankSpan; ++r) {
             this._maxRank = Math.max(this._maxRank, r);
-            node = new LevelNode(layoutNode, r);
-            let dst = this.addNode(node);
+            levelNode = new LevelNode(layoutNode, r);
+            levelNodes.push(levelNode);
+            let dst = this.addNode(levelNode);
             this.addEdge(new Edge(src, dst, Number.POSITIVE_INFINITY));
             src = dst;
         }
-        this._lastNodeMap[layoutNode.id] = node.id;
-        return node;
-    }
-
-    public firstNode(layoutNodeId: number): LevelNode {
-        return this.node(this._firstNodeMap[layoutNodeId]);
+        levelNode.isLast = true;
+        this._lastNodeMap[layoutNode.id] = levelNode.id;
+        layoutNode.levelNodes = levelNodes;
+        return levelNode;
     }
 
     public addLayoutEdge(layoutEdge: LayoutEdge) {
@@ -48,34 +48,38 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
     }
 
     public ranks(): Array<Array<LevelNode>> {
-        if (this._ranks === null) {
-            this._minRank = Number.POSITIVE_INFINITY;
-            this._maxRank = Number.NEGATIVE_INFINITY;
-            _.forEach(this.nodes(), (node: LevelNode) => {
-                this._minRank = Math.min(this._minRank, node.rank);
-                this._maxRank = Math.max(this._maxRank, node.rank);
-            });
-            const minRank = this._minRank;
-            const maxRank = this._maxRank;
-            const numRanks = maxRank - minRank + 1;
-            this._ranks = new Array(numRanks);
-            const unsortedRanks = new Array(numRanks);
-            for (let r = 0; r < numRanks; ++r) {
-                unsortedRanks[r] = [];
-            }
-            _.forEach(this.nodes(), (node: LevelNode) => {
-                unsortedRanks[node.rank - minRank].push(node);
-            });
-            _.forEach(unsortedRanks, (rank, r) => {
-                this._ranks[r] = _.sortBy(rank, (node: LevelNode) => {
-                    return node.position;
-                });
-            });
+        this._minRank = Number.POSITIVE_INFINITY;
+        this._maxRank = Number.NEGATIVE_INFINITY;
+        _.forEach(this.nodes(), (node: LevelNode) => {
+            this._minRank = Math.min(this._minRank, node.rank);
+            this._maxRank = Math.max(this._maxRank, node.rank);
+        });
+        const minRank = this._minRank;
+        const maxRank = this._maxRank;
+        let numRanks = maxRank - minRank + 1;
+        if (maxRank === Number.NEGATIVE_INFINITY) {
+            numRanks = 0;
         }
+        this._ranks = new Array(numRanks);
+        const unsortedRanks = new Array(numRanks);
+        for (let r = 0; r < numRanks; ++r) {
+            unsortedRanks[r] = [];
+        }
+        _.forEach(this.nodes(), (node: LevelNode) => {
+            unsortedRanks[node.rank - minRank].push(node);
+        });
+        _.forEach(unsortedRanks, (rank, r) => {
+            this._ranks[r] = _.sortBy(rank, (node: LevelNode) => {
+                return node.position;
+            });
+            for (let pos = 0; pos < this._ranks[r].length; ++pos) {
+                this._ranks[r][pos].position = pos;
+            }
+        });
         return this._ranks;
     }
 
-    public invalidateRanks(): void {
+    public invalidateRankOrder(): void {
         this._ranks = null;
     }
 

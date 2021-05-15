@@ -1,6 +1,8 @@
 /**
  * Inspired by THREE.js: https://github.com/mrdoob/three.js/
  */
+import {EPSILON} from "../util/constants";
+
 export default class Vector {
     public x: number;
     public y: number;
@@ -8,6 +10,10 @@ export default class Vector {
     constructor(x: number = 0, y: number = 0) {
         this.x = x;
         this.y = y;
+    }
+
+    toString(precision: number = 0): string {
+        return "(" + this.x.toFixed(precision) + " / " + this.y.toFixed(precision) + ")";
     }
 
     clone(): Vector {
@@ -56,6 +62,10 @@ export default class Vector {
         return this;
     }
 
+    invert(): Vector {
+        return this.multiplyScalar(-1);
+    }
+
     rotateAround(center: Vector, angle: number): Vector {
         this.sub(center);
         const sin = Math.sin(angle);
@@ -77,5 +87,9 @@ export default class Vector {
         this.x -= otherVector.x;
         this.y -= otherVector.y;
         return this;
+    }
+
+    roughlyEqualTo(otherVector: Vector) {
+        return (Math.abs(this.x - otherVector.x) < EPSILON) && (Math.abs(this.y - otherVector.y) < EPSILON);
     }
 }

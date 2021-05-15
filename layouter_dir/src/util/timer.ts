@@ -2,55 +2,64 @@ import * as _ from "lodash";
 
 export default class Timer
 {
-    private static _timers: Map<string, [number, number]> = new Map();
+    private static _timers: Map<string, Array<number>> = new Map();
+    private static _measurements: Map<string, Array<number>> = new Map();
 
     public static start(path: Array<string>) {
         const id = path.join("|");
-        let sum = 0;
-        const timer =  Timer._timers.get(id);
-        if (timer !== undefined) {
-            if (timer[1] !== null) {
-                return;
-            }
-            sum = timer[0];
+        let timers = Timer._timers.get(id);
+        if (timers === undefined) {
+            timers = [];
+            Timer._timers.set(id, timers);
         }
-        Timer._timers.set(id, [sum, Date.now()])
+        timers.push(Date.now());
     }
 
     public static stop(path: Array<string>) {
+        const stopTime = Date.now();
         const id = path.join("|");
-        const time = Date.now();
-        const timer = Timer._timers.get(id);
-        timer[0] += time - timer[1];
-        timer[1] = null;
+        const timers = Timer._timers.get(id);
+        const startTime = timers[timers.length - 1];
+        timers.length = timers.length - 1;
+        let measurements = Timer._measurements.get(id);
+        if (measurements === undefined) {
+            measurements = [];
+            Timer._measurements.set(id, measurements);
+        }
+        if (timers.length === 0) {
+            measurements.push(stopTime - startTime); // for recursive calls, only add outermost
+        }
     }
 
     public static printTimes(): void {
         const timePerPath = {children: {}};
-        Timer._timers.forEach(([sum, start], id) => {
+        Timer._measurements.forEach((measurements, id) => {
             const path = id.split("|");
             let slot = timePerPath;
             _.forEach(path, part => {
                 if (slot.children[part] === undefined) {
                     slot.children[part] = {
-                        time: sum,
                         children: {},
                     }
-                } else {
-                    slot = slot.children[part];
                 }
+                slot = slot.children[part];
             });
+            slot["sum"] = _.sum(measurements);
+            slot["mean"] = _.mean(measurements);
+            slot["count"] = measurements.length;
         });
         const printTimes = (slot, name = "", level = 0, parentTime = 0) => {
             if (level > 0) {
-                let timeString = (slot.time > 1000 ? ((slot.time / 1000).toFixed(3) + " s") : (slot.time + " ms"));
+                let timeString = (slot.sum > 1000 ? ((slot.sum / 1000).toFixed(1) + " s") : (slot.sum + " ms"));
                 if (level > 1) {
-                    timeString += "; " + (100 * slot.time / parentTime).toFixed(0) + "% of parent";
+                    timeString += "; " + (100 * slot.sum / parentTime).toFixed(0) + "% of parent";
                 }
+                timeString += "; called " + slot.count + " times; average: ";
+                timeString += (slot.mean > 1000 ? ((slot.mean / 1000).toFixed(1) + " s") : (slot.mean.toFixed(1) + " ms"));
                 console.log(_.repeat("| ", level - 1) + name + ": " + timeString);
             }
             for (let name in slot.children) {
-                printTimes(slot.children[name], name, level + 1, slot.time);
+                printTimes(slot.children[name], name, level + 1, slot.sum);
             }
         };
         printTimes(timePerPath);

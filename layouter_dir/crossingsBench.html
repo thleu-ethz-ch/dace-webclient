@@ -1,0 +1,140 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Crossings</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+        }
+        html {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 12px;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        table {
+            border-collapse: collapse;
+        }
+        td {
+            padding: 5px;
+            border: 1px solid #ccc;
+            text-align: center;
+        }
+        td:first-child {
+            text-align: left;
+        }
+        td:last-child {
+            background-color: #eee;
+        }
+        .best {
+            font-weight: bold;
+        }
+    </style>
+    <script src="./dist/layoutLib.js"></script>
+    <script src="./dist/renderLib.js"></script>
+    <script>
+        window.addEventListener("load", function () {
+            let graphs = [];
+            for (let g = 0; g < layoutLib.Bench.GRAPHS_ALL.length; ++g) {
+                if (layoutLib.Bench.GRAPHS_ALL[g] !== "bert") {
+                    graphs.push(layoutLib.Bench.GRAPHS_ALL[g]);
+                }
+            }
+            Array.prototype.push.apply(graphs, layoutLib.Bench.GRAPHS_POLYBENCH);
+            for (let g = 0; g < layoutLib.Bench.GRAPHS_NPBENCH.length; ++g) {
+                if (layoutLib.Bench.GRAPHS_NPBENCH[g] !== "npbench/channel_flow") {
+                    graphs.push(layoutLib.Bench.GRAPHS_NPBENCH[g]);
+                }
+            }
+            const layouters = [
+                ["Dagre", layoutLib.layouter.DagreLayouter, {}],
+                ["Sugiyama", layoutLib.layouter.SugiyamaLayouter, {}],
+                ["Sugiyama-SL", layoutLib.layouter.SugiyamaLayouter, {shuffles: 16, shuffleGlobal: false}],
+                ["Sugiyama-SG", layoutLib.layouter.SugiyamaLayouter, {shuffles: 16, shuffleGlobal: true}],
+                ["Sugiyama-V1", layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "COUNT"}],
+                ["Sugiyama-V1-SL", layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "COUNT", shuffles: 16, shuffleGlobal: false}],
+                ["Sugiyama-V1-SG", layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "COUNT", shuffles: 16, shuffleGlobal: true}],
+                //["Sugiyama-V2", layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "NONE"}],
+                //["Sugiyama-V2-SL", layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "NONE", shuffles: 64, shuffleGlobal: false}],
+                //["Sugiyama-V2-SG", layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "NONE", shuffles: 64, shuffleGlobal: true}],
+            ];
+
+            const table = document.getElementById("table");
+            for (l = 0; l < layouters.length; ++l) {
+                table.innerHTML += "<tr><td><b>" + layouters[l][0] + "</b></td></tr>";
+            }
+            const tableRows = document.getElementsByTagName("tr");
+            for (let g = 0; g < graphs.length; ++g) {
+                let name = graphs[g];
+                let parts = name.split("/");
+                tableRows[0].innerHTML += "<td><b>" + parts[parts.length - 1] + "</b></td>";
+                for (let i = 1; i < tableRows.length; ++i) {
+                    tableRows[i].innerHTML += '<td><p class="crossings"></p></td>';
+                }
+                layoutLib.Loader.load(name).then((renderGraph) => {
+                    tableRows[0].childNodes[g + 1].innerHTML += "<br>n=" + renderGraph.numNodes() + "<br>m=" + renderGraph.numEdges() + "<br>c=" + renderGraph.numConnectors();
+                });
+            }
+            tableRows[0].innerHTML += "<td><b>mean</b></td>";
+            for (let i = 1; i < tableRows.length; ++i) {
+                tableRows[i].innerHTML += '<td><p class="crossings"></p></td>';
+            }
+            let bestScorePerGraph = [], bestLayoutersPerGraph = [];
+            let bestMean = Number.POSITIVE_INFINITY, bestMeanLayouters = new Set();
+            for (let g = 0; g < graphs.length; ++g) {
+                bestScorePerGraph[g] = Number.POSITIVE_INFINITY;
+            }
+            layoutLib.util.Serializer.repeatFunction((l) => {
+                const layouter = layouters[l];
+                layoutLib.Bench.crossings(layoutLib.Loader.load, new layouter[1](layouter[2]), graphs).then(result => {
+                    let sum = 0;
+                    for (let g = 0; g < graphs.length; ++g) {
+                        tableRows[l + 1].childNodes[g + 1].getElementsByClassName("crossings")[0].innerHTML = result[g].toFixed(0);
+                        if (result[g] < bestScorePerGraph[g]) {
+                            bestScorePerGraph[g] = result[g];
+                            bestLayoutersPerGraph[g] = new Set([l]);
+                        } else if (result[g] === bestScorePerGraph[g]) {
+                            bestLayoutersPerGraph[g].add(l);
+                        }
+                        sum += result[g];
+                    }
+                    let mean = sum / graphs.length;
+                    tableRows[l + 1].childNodes[graphs.length + 1].getElementsByClassName("crossings")[0].innerHTML = mean.toFixed(2);
+                    if (mean < bestMean) {
+                        bestMean = mean;
+                        bestMeanLayouters = new Set([l]);
+                    } else if (mean === bestMean) {
+                        bestMeanLayouters.add(l);
+                    }
+                    if (l === layouters.length - 1) {
+                        for (let g = 0; g < graphs.length; ++g) {
+                            bestLayoutersPerGraph[g].forEach(l => {
+                                tableRows[l + 1].childNodes[g + 1].getElementsByClassName("crossings")[0].classList.add("best");
+                            });
+                        }
+                        bestMeanLayouters.forEach(l => {
+                            tableRows[l + 1].lastChild.getElementsByClassName("crossings")[0].classList.add("best");
+                        });
+                    }
+                });
+            }, layouters.length);
+        });
+    </script>
+</head>
+<body>
+<table id="table">
+    <tr><td></td></tr>
+</table>
+</body>
+</html>

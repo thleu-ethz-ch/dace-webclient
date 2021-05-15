@@ -5,6 +5,7 @@ import LayoutNode from "../layoutGraph/layoutNode";
 import LayoutConnector from "../layoutGraph/layoutConnector";
 import Segment from "../geometry/segment";
 import Timer from "../util/timer";
+import Assert from "../util/assert";
 
 export default class LayoutAnalysis {
     private readonly _layoutGraph: LayoutGraph;
@@ -289,6 +290,15 @@ export default class LayoutAnalysis {
                 }
             });
         }
+        /*_.map(_.sortBy(_.map(intersections, ([segI, segJ]) => {
+            const point = segI.intersection(segJ);
+            return {
+                pointx: point.x,
+                pointy: point.y,
+                segi: segI,
+                segj: segJ,
+            };
+        }), ["pointy", "pointx"]), data => console.log("(" + data.pointx.toFixed(0) + " / " + data.pointy.toFixed(0) + ")", data.segi.toString(), data.segj.toString()));*/
         return intersections;
     }
 }

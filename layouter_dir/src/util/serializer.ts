@@ -1,6 +1,6 @@
 export default class Serializer
 {
-    static repeatFunction(fun, times, wait: number, foldFun: (prev: any, current: typeof prev) => typeof prev, foldNeutral: any) {
+    static repeatFunction(fun, times, wait: number = 0, foldFun: (prev: any, current: typeof prev) => typeof prev = () => {}, foldNeutral: any = null) {
         const createRun = (run, prev, resolve) => {
             return new Promise(resolve => setTimeout(resolve, wait)).then(() => {
                 const current = fun(run);

@@ -51,13 +51,21 @@
                     graphs.push(layoutLib.Bench.GRAPHS_ALL[g]);
                 }
             }
-            graphs = layoutLib.Bench.GRAPHS_ALL;
+            //graphs = layoutLib.Bench.GRAPHS_ALL;
+            graphs = ["unreadable"];
             const layouters = {
-                "Dagre": [layoutLib.layouter.DagreLayouter, {}],
+                //"Dagre": [layoutLib.layouter.DagreLayouter, {}],
                 "Sugiyama": [layoutLib.layouter.SugiyamaLayouter, {}],
-                "Sugiyama-S": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64}],
-                "Sugiyama-SO": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, optimizeAngles: true}],
-                "Sugiyama-SOB": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, optimizeAngles: true, bundle: true}],
+                "Sugiyama-PRECOUNT": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "COUNT"}],
+                "Sugiyama-PRENOCOUNT": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "NOCOUNT"}],
+                "Sugiyama-PRENONE": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "NONE"}],
+                "Sugiyama-N": [layoutLib.layouter.SugiyamaLayouter, {orderAfterResolution: false}],
+                "Sugiyama-PRECOUNT-N": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "COUNT", orderAfterResolution: false}],
+                "Sugiyama-PRENOCOUNT-N": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "NOCOUNT", orderAfterResolution: false}],
+                "Sugiyama-PRENONE-N": [layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, orderNodes: "NONE", orderAfterResolution: false}],
+                //"Sugiyama-S": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64}],
+                //"Sugiyama-SO": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, optimizeAngles: true}],
+                //"Sugiyama-SOB": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, optimizeAngles: true, bundle: true}],
             };
 
             const table = document.getElementById("table");
