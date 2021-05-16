@@ -1,8 +1,8 @@
 import DagreLayouter from "../layouter/dagreLayouter";
 import LayoutAnalysis from "./layoutAnalysis";
 import Layouter from "../layouter/layouter";
-import RenderGraph from "../renderGraph/renderGraph";
 import PerformanceAnalysis from "./performanceAnalysis";
+import RenderGraph from "../renderGraph/renderGraph";
 import Serializer from "../util/serializer";
 
 export default class Bench {

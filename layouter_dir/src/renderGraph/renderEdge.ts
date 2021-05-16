@@ -128,5 +128,4 @@ export default abstract class RenderEdge extends Edge<RenderGraph, RenderNode> {
     boundingBox(): Box {
         return new Box(this.x, this.y, this.width, this.height);
     }
-
 };

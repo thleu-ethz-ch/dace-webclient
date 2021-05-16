@@ -3,9 +3,9 @@ export default class Color {
     public static BLACK = new Color(0, 0, 0);
     public static TRANSPARENT = new Color(0, 0, 0, 0);
 
-    public red: number = 0;
-    public green: number = 0;
-    public blue: number = 0;
+    public red: number;
+    public green: number;
+    public blue: number;
     public alpha: number = 1;
 
     constructor(red: number, green: number, blue: number, alpha: number = 1) {
@@ -15,11 +15,11 @@ export default class Color {
         this.alpha = alpha;
     }
 
-    hex() {
+    hex(): number {
         return 65536 * this.red + 256 * this.green + this.blue;
     }
 
-    fade(alpha: number) {
+    fade(alpha: number): Color {
         return new Color(this.red, this.green, this.blue, alpha);
     }
 }

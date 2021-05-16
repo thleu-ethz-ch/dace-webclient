@@ -67,7 +67,7 @@ export default class DagreLayouter extends RecursiveLayouter {
         });
     }
 
-    graphOptions() {
+    graphOptions(): object {
         const options = {
             ranksep: this._options.targetEdgeLength,
             nodesep: this._options.targetEdgeLength,

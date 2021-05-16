@@ -1,3 +1,4 @@
+import {DEBUG} from "../util/constants";
 import * as _ from "lodash";
 import Assert from "../util/assert";
 import Component from "../graph/component";
@@ -5,11 +6,12 @@ import Edge from "../graph/edge";
 import Graph from "../graph/graph";
 import RankNode from "./rankNode";
 
-export default class RankGraph extends Graph<RankNode, Edge<any, any>>
-{
+export default class RankGraph extends Graph<RankNode, Edge<any, any>> {
     rank(): void {
-        //Assert.assert(this.components().length === 1, "rank graph has more than one component");
-        //Assert.assert(!this.hasCycle(), "rank graph has cycle");
+        if (DEBUG) {
+            Assert.assert(this.components().length === 1, "rank graph has more than one component");
+            Assert.assert(!this.hasCycle(), "rank graph has cycle");
+        }
 
         // do toposort and allocate each node with one of its ancestor sources
         const rankPerNode: Array<Map<number, number>> = new Array(this.maxId() + 1);
@@ -47,7 +49,9 @@ export default class RankGraph extends Graph<RankNode, Edge<any, any>>
                 }
             }
 
-            //Assert.assertImplies(s > 0, _.some(sourceComponent.nodes(), node => node.rank !== null), "no common sink");
+            if (DEBUG) {
+                Assert.assertImplies(s > 0, _.some(sourceComponent.nodes(), node => node.rank !== null), "no common sink");
+            }
 
             sourceComponent.induceEdges();
 
@@ -67,7 +71,9 @@ export default class RankGraph extends Graph<RankNode, Edge<any, any>>
                 }
             });
 
-            //Assert.assert(minDiff !== Number.POSITIVE_INFINITY, "minDiff is infinity", sourceComponent);
+            if (DEBUG) {
+                Assert.assert(minDiff !== Number.POSITIVE_INFINITY, "minDiff is infinity", sourceComponent);
+            }
 
             _.forEach(sourceComponent.nodes(), (node: RankNode) => {
                 if (!wasRankedBefore[node.id]) {
@@ -110,7 +116,9 @@ export default class RankGraph extends Graph<RankNode, Edge<any, any>>
                     }
                 }
             }
-            //Assert.assertImplies(s < sources.length, source.rank === null, "no new source found");
+            if (DEBUG) {
+                Assert.assertImplies(s < sources.length, source.rank === null, "no new source found");
+            }
         }
 
         let minRank = Number.POSITIVE_INFINITY;
@@ -118,7 +126,9 @@ export default class RankGraph extends Graph<RankNode, Edge<any, any>>
             if (node.rank === Number.POSITIVE_INFINITY) {
                 throw new Error("I AM DUMB");
             }
-            //Assert.assertNumber(node.rank, "rank is not a valid number");
+            if (DEBUG) {
+                Assert.assertNumber(node.rank, "rank is not a valid number");
+            }
             minRank = Math.min(minRank, node.rank);
         });
         const difference = 0 - minRank;

@@ -1,10 +1,9 @@
+import {CONNECTOR_SIZE} from "../util/constants";
 import * as _ from "lodash";
 import Box from "../geometry/box";
 import Graph from "../graph/graph";
-import LayoutComponent from "./layoutComponent";
 import LayoutEdge from "./layoutEdge";
 import LayoutNode from "./layoutNode";
-import {CONNECTOR_SIZE} from "../util/constants";
 import LevelGraph from "../levelGraph/levelGraph";
 import LevelNode from "../levelGraph/levelNode";
 
@@ -14,11 +13,11 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
     public entryNode: LayoutNode = null;
     public exitNode: LayoutNode = null;
 
-    public minRank = 0;
-    public numRanks = 1;
+    public minRank: number = 0;
+    public numRanks: number = 1;
 
     private _levelGraph: LevelGraph = null;
-    private _maxNodesPerRank = null;
+    private _maxNodesPerRank: number = null;
 
     constructor(mayHaveCycles: boolean = false) {
         super();
@@ -141,9 +140,5 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
 
     public setLevelGraph(levelGraph: LevelGraph) {
         this._levelGraph = levelGraph;
-    }
-
-    protected _createComponent(): LayoutComponent {
-        return new LayoutComponent(this);
     }
 }

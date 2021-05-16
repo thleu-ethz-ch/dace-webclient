@@ -1,14 +1,17 @@
+import {CONNECTOR_SIZE, CONNECTOR_SPACING, DEBUG} from "../util/constants";
 import * as _ from "lodash";
 import Assert from "../util/assert";
 import Box from "../geometry/box";
 import Edge from "../graph/edge";
 import Graph from "../graph/graph";
 import Layouter from "./layouter";
+import LayoutBundle from "../layoutGraph/layoutBundle";
 import LayoutConnector from "../layoutGraph/layoutConnector";
-import LayoutComponent from "../layoutGraph/layoutComponent";
 import LayoutEdge from "../layoutGraph/layoutEdge";
 import LayoutGraph from "../layoutGraph/layoutGraph";
 import LayoutNode from "../layoutGraph/layoutNode";
+import LevelGraph from "../levelGraph/levelGraph";
+import LevelNode from "../levelGraph/levelNode";
 import Node from "../graph/node";
 import OrderGraph from "../order/orderGraph";
 import OrderGroup from "../order/orderGroup";
@@ -16,18 +19,12 @@ import OrderNode from "../order/orderNode";
 import OrderRank from "../order/orderRank";
 import RankGraph from "../rank/rankGraph";
 import RankNode from "../rank/rankNode";
+import Segment from "../geometry/segment";
+import Shuffle from "../util/shuffle";
 import Timer from "../util/timer";
 import Vector from "../geometry/vector";
-import LayoutBundle from "../layoutGraph/layoutBundle";
-import LevelNode from "../levelGraph/levelNode";
-import LevelGraph from "../levelGraph/levelGraph";
-import Segment from "../geometry/segment";
-import {CONNECTOR_SIZE, CONNECTOR_SPACING} from "../util/constants";
-import Component from "../graph/component";
-import Shuffle from "../util/shuffle";
 
-export default class SugiyamaLayouter extends Layouter
-{
+export default class SugiyamaLayouter extends Layouter {
     protected doLayout(graph: LayoutGraph): void {
         if (graph.numNodes() === 0) {
             return;
@@ -87,8 +84,6 @@ export default class SugiyamaLayouter extends Layouter
 
                 // remove normal cycles
                 subgraph.removeCycles();
-
-                //Assert.assert(!subgraph.hasCycle(), "subgraph has cycle");
             }
         });
     }
@@ -140,7 +135,7 @@ export default class SugiyamaLayouter extends Layouter
         makeRanksAbsolute(graph, 0);
     }
 
-    private _addVirtualNodes(graph: LayoutGraph, addToLevelGraph: boolean = false) {
+    private _addVirtualNodes(graph: LayoutGraph, addToLevelGraph: boolean = false): void {
         // place intermediate nodes between long edges
         _.forEach(graph.allEdges(), (edge: LayoutEdge) => {
             if (edge.isReplica) {
@@ -226,16 +221,15 @@ export default class SugiyamaLayouter extends Layouter
         });
     }
 
-    private _countCrossings(graph: LayoutGraph): number
-    {
-        const orderGraph = this._createConnectorGraph(graph, false);
+    private _countCrossings(graph: LayoutGraph): number {
+        const orderGraph = this._createConnectorGraph(graph, true);
         return orderGraph.order({
             resolveConflicts: false,
             doNothing: true
         });
     }
 
-    private _createConnectorGraph(graph: LayoutGraph, keepGroups: boolean, shuffleNodes: boolean = false, shuffleConnectors: boolean = false) {
+    private _createConnectorGraph(graph: LayoutGraph, isPreorder: boolean, shuffleNodes: boolean = false, shuffleConnectors: boolean = false): OrderGraph {
         const orderGraph = new OrderGraph;
         const orderRank = [];
         for (let r = 0; r < graph.numRanks; ++r) {
@@ -251,7 +245,6 @@ export default class SugiyamaLayouter extends Layouter
 
         // add nodes
         const addConnectorsForSubgraph = (subgraph: LayoutGraph, indizes: Array<number> = null) => {
-            //console.log("subgraph", subgraph.parentNode === null ? "" : subgraph.parentNode.label(), "indizes", _.cloneDeep(indizes));
             _.forEach(subgraph.levelGraph().ranks(), (rank: Array<LevelNode>, r) => {
                 let index = (indizes === null ? 0 : indizes[r]);
                 if (shuffleNodes) {
@@ -259,7 +252,6 @@ export default class SugiyamaLayouter extends Layouter
                 }
                 _.forEach(rank, (levelNode: LevelNode) => {
                     levelNode.position = index;
-                    //console.log("r", r, "node", levelNode.label(), "index", index);
                     const node = levelNode.layoutNode;
                     if (levelNode.isLast) {
                         let childIndizes = null;
@@ -279,7 +271,7 @@ export default class SugiyamaLayouter extends Layouter
                     _.forEachRight(node.parents(), parent => {
                         shuffleHierarchy.push(parent);
                     });
-                    if (!keepGroups || levelNode.isFirst) {
+                    if (isPreorder || levelNode.isFirst) {
                         connectorGroup = new OrderGroup(levelNode, node.label());
                         connectorGroup.shuffleHierarchy = shuffleHierarchy;
                         orderRank[levelNode.rank].addGroup(connectorGroup);
@@ -300,9 +292,8 @@ export default class SugiyamaLayouter extends Layouter
                             });
                         }
                         if (!levelNode.isFirst || node.inConnectors.length === 0) {
-                            let orderNodes = [];
                             const inNode = new OrderNode(null, false, "generalInConnector")
-                            orderNodes = [inNode];
+                            let orderNodes = [inNode];
                             // add invisible out-connector at top of state-node (if necessary)
                             if (!node.isVirtual && subgraph.mayHaveCycles && _.some(subgraph.inEdges(node.id), "isInverted")) {
                                 const topOutNode = new OrderNode("topOut", false, "generalTopOutConnector");
@@ -325,8 +316,8 @@ export default class SugiyamaLayouter extends Layouter
                             });
                         }
                     }
-                    if (!keepGroups || levelNode.isLast) {
-                        if (keepGroups && !node.hasScopedConnectors) {
+                    if (isPreorder || levelNode.isLast) {
+                        if (!isPreorder && !node.hasScopedConnectors) {
                             connectorGroup = new OrderGroup(levelNode, node.label());
                             connectorGroup.shuffleHierarchy = shuffleHierarchy;
                             orderRank[levelNode.rank].addGroup(connectorGroup);
@@ -389,7 +380,9 @@ export default class SugiyamaLayouter extends Layouter
             if (dstNode.isScopeNode) {
                 dstNode = dstNode.childGraphs[0].entryNode;
             }
-            //Assert.assert(dstNode.rank > srcNode.rank, "bad edge", edge, srcNode, dstNode);
+            if (DEBUG) {
+                Assert.assert(dstNode.rank > srcNode.rank, "edge not between neighboring ranks", edge, srcNode, dstNode);
+            }
             let srcOrderNodeId;
             if (edge.srcConnector !== null) {
                 srcOrderNodeId = connectorMap.get(srcNode.connector("OUT", edge.srcConnector));
@@ -406,16 +399,12 @@ export default class SugiyamaLayouter extends Layouter
                 dstOrderNodeId = generalTopOutMap.get(dstNode.levelNodes[0]);
                 if (!edge.isInverted || dstOrderNodeId === undefined) {
                     dstOrderNodeId = generalInMap.get(dstNode.levelNodes[0]);
-                    if (dstOrderNodeId === undefined) {
-                        console.log("keepGroups", keepGroups, "dstNode", dstNode, "lastlevelnode", dstNode.levelNodes[0])
-                        console.log(_.filter(dstNode.graph.levelGraph().nodes(), levelNode => levelNode.layoutNode.label() === dstNode.label()));
-                    }
                 }
             }
             orderGraph.addEdge(new Edge(srcOrderNodeId, dstOrderNodeId, 1));
         });
 
-        if (!keepGroups) {
+        if (isPreorder) {
             // add intranode edges
             _.forEach(graph.allNodes(), (node: LayoutNode) => {
                 if (!node.isScopeNode && node.rankSpan > 1) {
@@ -433,7 +422,7 @@ export default class SugiyamaLayouter extends Layouter
         return orderGraph;
     }
 
-    private _orderRanks(graph: LayoutGraph) {
+    private _orderRanks(graph: LayoutGraph): void {
 
         const doOrder = (graph: LayoutGraph, shuffle: boolean = false): void => {
             Timer.start(["doLayout", "orderRanks", "doOrder"]);
@@ -444,8 +433,12 @@ export default class SugiyamaLayouter extends Layouter
              */
             if (this._options["preorderConnectors"]) {
                 // order
-                const connectorOrderGraph = this._createConnectorGraph(graph, false, shuffle);
-                connectorOrderGraph.order({keepGroups: false, resolveConflicts: false, shuffles: this._options["shuffleGlobal"] ? 0 : this._options["shuffles"]});
+                const connectorOrderGraph = this._createConnectorGraph(graph, true, shuffle);
+                connectorOrderGraph.order({
+                    orderGroups: true,
+                    resolveConflicts: false,
+                    shuffles: this._options["shuffleGlobal"] ? 0 : this._options["shuffles"]
+                });
 
                 // copy order information from order graph to layout graph
                 _.forEach(connectorOrderGraph.groups(), (orderGroup: OrderGroup) => {
@@ -500,9 +493,6 @@ export default class SugiyamaLayouter extends Layouter
                 // add edges
                 // for each pair of nodes, sum up the weights of edges in-between
                 _.forEach(levelGraph.edges(), (edge: Edge<any, any>) => {
-                    if (levelGraph.node(edge.dst) === undefined) {
-                        console.log(edge, edge.src, edge.dst, levelGraph.node(edge.src), levelGraph.node(edge.dst));
-                    }
                     const existingEdge = orderGraph.edgeBetween(edge.src, edge.dst);
                     if (existingEdge === undefined) {
                         orderGraph.addEdge(new Edge(edge.src, edge.dst, edge.weight));
@@ -511,25 +501,18 @@ export default class SugiyamaLayouter extends Layouter
                     }
                 });
 
-                /*Assert.assertAll(orderGraph.edges(), edge => {
-                    const srcNode = edge.graph.node(edge.src);
-                    const dstNode = edge.graph.node(edge.dst);
-                    return (srcNode.group.rank.rank + 1 === dstNode.group.rank.rank);
-                }, "edge not between neighboring ranks");*/
+                if (DEBUG) {
+                    Assert.assertAll(orderGraph.edges(), edge => {
+                        const srcNode = edge.graph.node(edge.src);
+                        const dstNode = edge.graph.node(edge.dst);
+                        return (srcNode.group.rank.rank + 1 === dstNode.group.rank.rank);
+                    }, "order graph edge not between neighboring ranks");
+                }
 
                 // do order
-                let debug = false;
-                //debug one subgraph
-                if (subgraph.parentNode !== null && subgraph.parentNode.label() === "s70_8") {
-                    // debug = true;
-                }
                 orderGraph.order({
-                    keepGroups: true,
-                    resolveConflicts: true,
                     resolveY: this._options["resolveY"],
-                    orderNodes: this._options["orderNodes"],
-                    orderAfterResolution: this._options["orderAfterResolution"],
-                    debug: debug,
+                    countInitial: this._options["preorderConnectors"],
                     shuffles: this._options["shuffleGlobal"] ? 0 : (this._options["preorderConnectors"] ? 0 : this._options["shuffles"]),
                 });
 
@@ -540,7 +523,6 @@ export default class SugiyamaLayouter extends Layouter
                     unfoundLevelNodes.add(node);
                 });
 
-                //console.log("rankOffset", rankOffset);
                 _.forEach(orderGraph.nodes(), (orderNode: OrderNode) => {
                     let levelNode: LevelNode = orderNode.reference;
                     if (levelNode === null) {
@@ -605,7 +587,6 @@ export default class SugiyamaLayouter extends Layouter
 
                         _.forEach(parent.graph.bfs(parent.id), (node: LayoutNode) => {
                             if (node !== parent) {
-                                //console.log("offset dominated node", node.label(), "from", node.rank, "to", node.rank + diff);
                                 node.offsetRank(diff);
                             }
                             node.graph.numRanks = Math.max(node.graph.numRanks, node.rank + node.rankSpan - node.graph.minRank);
@@ -728,9 +709,12 @@ export default class SugiyamaLayouter extends Layouter
              * STEP 3: ORDER CONNECTORS
              */
 
-            // order connectors
-            const connectorOrderGraph = this._createConnectorGraph(graph, true, false, shuffle && !this._options["preorderConnectors"]);
-            connectorOrderGraph.order({resolveConflicts: false, shuffles: this._options["shuffleGlobal"] ? 0 : this._options["shuffles"]});
+                // order connectors
+            const connectorOrderGraph = this._createConnectorGraph(graph, false, false, shuffle && !this._options["preorderConnectors"]);
+            connectorOrderGraph.order({
+                resolveConflicts: false,
+                shuffles: this._options["shuffleGlobal"] ? 0 : this._options["shuffles"]
+            });
 
             // copy order information from order graph to layout graph
             _.forEach(connectorOrderGraph.groups(), (orderGroup: OrderGroup) => {
@@ -772,7 +756,6 @@ export default class SugiyamaLayouter extends Layouter
             Timer.stop(["doLayout", "orderRanks", "doOrder"]);
         };
 
-        let connectorOrderGraph, numCrossings;
         if (!this._options["shuffleGlobal"]) {
             doOrder(graph);
         } else {
@@ -780,9 +763,7 @@ export default class SugiyamaLayouter extends Layouter
             const graphCopy = _.cloneDeep(graph);
             Timer.stop(["doLayout", "orderRanks", "cloneGraph"]);
             doOrder(graphCopy);
-            let numCrossings = this._countCrossings(graphCopy)
-            //console.log("numCrossings", numCrossings);
-            let minCrossings = numCrossings;
+            let minCrossings = this._countCrossings(graphCopy);
             let bestGraphCopy = graphCopy;
             for (let i = 0; i < this._options["shuffles"]; ++i) {
                 if (minCrossings === 0) {
@@ -793,7 +774,6 @@ export default class SugiyamaLayouter extends Layouter
                 Timer.stop(["doLayout", "orderRanks", "cloneGraph"]);
                 doOrder(graphCopy, true);
                 let numCrossings = this._countCrossings(graphCopy);
-                //console.log("numCrossings", numCrossings);
                 if (numCrossings < minCrossings) {
                     minCrossings = numCrossings;
                     bestGraphCopy = graphCopy;
@@ -845,7 +825,7 @@ export default class SugiyamaLayouter extends Layouter
                     const toEdge = to.edge(fromEdge.id);
                     if (toEdge === undefined) {
                         to.addEdge(fromEdge, fromEdge.id);
-                    } else  {
+                    } else {
                         remainingEdges.delete(toEdge);
                         to.redirectEdge(toEdge.id, fromEdge.src, fromEdge.dst);
                         toEdge.srcConnector = fromEdge.srcConnector;
@@ -865,7 +845,7 @@ export default class SugiyamaLayouter extends Layouter
         }
     }
 
-    private _bundleConnectors(connectors: Array<LayoutConnector>, counterPartConnectors: Array<LayoutConnector>, bundles: Array<LayoutBundle>) {
+    private _bundleConnectors(connectors: Array<LayoutConnector>, counterPartConnectors: Array<LayoutConnector>, bundles: Array<LayoutBundle>): void {
         // order bundles by the mean of their connectors positions
         // within a bundle, the connectors do not change their relative position
         let connectorByName = new Map();
@@ -926,13 +906,11 @@ export default class SugiyamaLayouter extends Layouter
     /**
      * Assigns coordinates to the nodes, the connectors and the edges.
      * @param graph
-     * @param offsetX
-     * @param offsetY
+     * @param segmentsPerRank
+     * @param crossingsPerRank
      * @private
      */
-    private _assignCoordinates(graph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>, crossingsPerRank: Array<Array<[Segment, Segment]>>) {
-        const layouter = this;
-
+    private _assignCoordinates(graph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>, crossingsPerRank: Array<Array<[Segment, Segment]>>): void {
         // assign y
         const rankTops = _.fill(new Array(graph.numRanks + 1), Number.POSITIVE_INFINITY);
         const rankBottoms = _.fill(new Array(graph.numRanks), Number.NEGATIVE_INFINITY);
@@ -974,7 +952,7 @@ export default class SugiyamaLayouter extends Layouter
         }
 
         // assign x and set size; assign edge and connector coordinates
-        function placeSubgraph(subgraph: LayoutGraph, offset: number) {
+        const placeSubgraph = (subgraph: LayoutGraph, offset: number): void => {
             Timer.start(["doLayout", "assignCoordinates", "placeSubgraph"]);
 
             // place all subgraphs in order to know their size
@@ -983,22 +961,22 @@ export default class SugiyamaLayouter extends Layouter
                 _.forEach(node.childGraphs, (childGraph: LayoutGraph) => {
                     if (childGraph.numNodes() > 0) {
                         placeSubgraph(childGraph, childOffset);
-                        childOffset += childGraph.boundingBox().width + layouter._options["targetEdgeLength"];
+                        childOffset += childGraph.boundingBox().width + this._options["targetEdgeLength"];
                     }
                 });
             });
 
             // assign x
-            layouter._assignX(subgraph, offset + (subgraph.parentNode !== null ? subgraph.parentNode.padding : 0));
+            this._assignX(subgraph, offset + (subgraph.parentNode !== null ? subgraph.parentNode.padding : 0));
 
             // place self-loops
             _.forEach(subgraph.nodes(), (node: LayoutNode) => {
                 if (node.selfLoop !== null) {
                     node.selfLoop.points = [
-                        new Vector(node.x + node.width + node.padding - layouter._options["targetEdgeLength"], node.y + node.height - 10),
-                        new Vector(node.x + node.width + node.padding , node.y + node.height - 10),
-                        new Vector(node.x + node.width + node.padding , node.y + 10),
-                        new Vector(node.x + node.width + node.padding - layouter._options["targetEdgeLength"], node.y + 10),
+                        new Vector(node.x + node.width + node.padding - this._options["targetEdgeLength"], node.y + node.height - 10),
+                        new Vector(node.x + node.width + node.padding, node.y + node.height - 10),
+                        new Vector(node.x + node.width + node.padding, node.y + 10),
+                        new Vector(node.x + node.width + node.padding - this._options["targetEdgeLength"], node.y + 10),
                     ];
                 }
             });
@@ -1014,12 +992,12 @@ export default class SugiyamaLayouter extends Layouter
                     if (parent.outConnectors.length > 0) {
                         boundingBox.height -= CONNECTOR_SIZE / 2;
                     }
-                    width += boundingBox.width + layouter._options["targetEdgeLength"];
+                    width += boundingBox.width + this._options["targetEdgeLength"];
                     height = Math.max(height, boundingBox.height);
                 });
-                width += 2 * parent.padding - layouter._options["targetEdgeLength"];
+                width += 2 * parent.padding - this._options["targetEdgeLength"];
                 if (parent.selfLoop !== null) {
-                    width += layouter._options["targetEdgeLength"];
+                    width += this._options["targetEdgeLength"];
                 }
                 height += 2 * subgraph.parentNode.padding;
                 parent.updateSize({width: width, height: height});
@@ -1035,7 +1013,7 @@ export default class SugiyamaLayouter extends Layouter
             Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "placeConnectors"]);
             // place connectors
             _.forEach(subgraph.nodes(), (node: LayoutNode) => {
-                layouter._placeConnectors(node, rankTops, rankBottoms);
+                this._placeConnectors(node, rankTops, rankBottoms);
             });
             Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "placeConnectors"]);
 
@@ -1044,7 +1022,7 @@ export default class SugiyamaLayouter extends Layouter
              * (self-loops handled above)
              */
 
-            function getInPoint(node: LayoutNode, edge: LayoutEdge): Vector {
+            const getInPoint = (node: LayoutNode, edge: LayoutEdge): Vector => {
                 let inPoint = node.boundingBox().topCenter();
                 if (edge.dstConnector !== null) {
                     let dstConnector = node.connector("IN", edge.dstConnector);
@@ -1053,22 +1031,22 @@ export default class SugiyamaLayouter extends Layouter
                     }
                 } else if (node.topOutConnectorIndex !== null) {
                     if (edge.isInverted) {
-                        inPoint.x += (node.topOutConnectorIndex - 0.5) * 2 * layouter._options["connectorSpacing"];
+                        inPoint.x += (node.topOutConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
                     } else {
-                        inPoint.x += (0.5 - node.topOutConnectorIndex) * 2 * layouter._options["connectorSpacing"];
+                        inPoint.x += (0.5 - node.topOutConnectorIndex) * 2 * this._options["connectorSpacing"];
                     }
                 }
                 inPoint.y = rankTops[node.rank];
                 return inPoint;
-            }
+            };
 
-            function getInProxyPoint(node: LayoutNode, inPoint: Vector): Vector {
+            const getInProxyPoint = (node: LayoutNode, inPoint: Vector): Vector => {
                 const proxyPoint = inPoint.clone();
                 proxyPoint.y = rankTops[node.rank];
                 return proxyPoint;
             };
 
-            function getOutPoint(node: LayoutNode, edge: LayoutEdge): Vector {
+            const getOutPoint = (node: LayoutNode, edge: LayoutEdge): Vector => {
                 let outPoint = node.boundingBox().bottomCenter();
                 if (edge.srcConnector !== null) {
                     let srcConnector = node.connector("OUT", edge.srcConnector);
@@ -1077,27 +1055,27 @@ export default class SugiyamaLayouter extends Layouter
                     }
                 } else if (node.bottomInConnectorIndex !== null) {
                     if (edge.isInverted) {
-                        outPoint.x += (node.bottomInConnectorIndex - 0.5) * 2 * layouter._options["connectorSpacing"];
+                        outPoint.x += (node.bottomInConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
                     } else {
-                        outPoint.x += (0.5 - node.bottomInConnectorIndex) * 2 * layouter._options["connectorSpacing"];
+                        outPoint.x += (0.5 - node.bottomInConnectorIndex) * 2 * this._options["connectorSpacing"];
                     }
                 }
                 return outPoint;
-            }
+            };
 
-            function getOutProxyPoint (node: LayoutNode, outPoint: Vector): Vector {
+            const getOutProxyPoint = (node: LayoutNode, outPoint: Vector): Vector => {
                 const proxyPoint = outPoint.clone();
                 proxyPoint.y = rankBottoms[node.rank + node.rankSpan - 1];
                 return proxyPoint;
-            }
+            };
 
             Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges"]);
             // mark nodes that do not need proxies
             Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges", "markNoProxies"]);
             const noInProxyNodes = new Set();
             const noOutProxyNodes = new Set();
-            _.forEach(subgraph.levelGraph().ranks(), (rank: Array<LevelNode>, r: number) => {
-                _.forEach(rank, (levelNode: LevelNode, pos) => {
+            _.forEach(subgraph.levelGraph().ranks(), (rank: Array<LevelNode>) => {
+                _.forEach(rank, (levelNode: LevelNode, pos: number) => {
                     const node = levelNode.layoutNode;
 
                     let leftBoundary = Number.NEGATIVE_INFINITY;
@@ -1240,14 +1218,14 @@ export default class SugiyamaLayouter extends Layouter
 
                 // place self-loops visually outside their state
                 if (node.selfLoop !== null) {
-                    node.setWidth(node.width - layouter._options["targetEdgeLength"]);
+                    node.setWidth(node.width - this._options["targetEdgeLength"]);
                 }
             });
             Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges"]);
 
             // mark crossings for later angle optimization
-            if (layouter._options["optimizeAngles"]) {
-                layouter._markCrossings(subgraph, segmentsPerRank, crossingsPerRank, rankTops, rankBottoms);
+            if (this._options["optimizeAngles"]) {
+                this._markCrossings(subgraph, segmentsPerRank, crossingsPerRank, rankTops, rankBottoms);
             }
 
             Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph"]);
@@ -1259,11 +1237,11 @@ export default class SugiyamaLayouter extends Layouter
     private _assignX(subgraph: LayoutGraph, offset = 0) {
         Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX"]);
         Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "cloneGraphs"]);
-        const alignGraphs = [
-            subgraph.levelGraph().clone(),
-            subgraph.levelGraph().clone(),
-            subgraph.levelGraph().clone(),
-            subgraph.levelGraph().clone(),
+        const alignGraphs: Array<LevelGraph> = [
+            <LevelGraph>subgraph.levelGraph().clone(),
+            <LevelGraph>subgraph.levelGraph().clone(),
+            <LevelGraph>subgraph.levelGraph().clone(),
+            <LevelGraph>subgraph.levelGraph().clone(),
         ];
         Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "cloneGraphs"]);
 
@@ -1294,7 +1272,7 @@ export default class SugiyamaLayouter extends Layouter
         _.forEach(subgraph.levelGraph().nodes(), (node: LevelNode) => {
             let xs = _.sortBy(_.map(alignGraphs, alignGraph => alignGraph.node(node.id).x));
             let x = (xs[1] + xs[2]) / 2;
-            //x = alignGraphs[0].node(node.id).x;
+            //x = alignGraphs[0].node(node.id).x; // uncomment to see 1 of the 4 merged layouts
             x -= node.layoutNode.width / 2;
             minX = Math.min(minX, x);
             node.layoutNode.updatePosition(new Vector(offset + x, node.layoutNode.y));
@@ -1308,7 +1286,7 @@ export default class SugiyamaLayouter extends Layouter
         Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX"]);
     }
 
-    private _alignMedian(levelGraph: LevelGraph, neighbors: "UP" | "DOWN", preference: "LEFT" | "RIGHT") {
+    private _alignMedian(levelGraph: LevelGraph, neighbors: "UP" | "DOWN", preference: "LEFT" | "RIGHT"): void {
         Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian"]);
         const ranks = levelGraph.ranks();
         const firstRank = (neighbors === "UP" ? 1 : (ranks.length - 2));
@@ -1372,30 +1350,6 @@ export default class SugiyamaLayouter extends Layouter
                     heavyLeft = heavyRight;
                 }
             }
-
-            // the following is all for assertion
-            /*Assert.assertAll(neighbors, (nodeNeighbors, n) => neighborsUsable[n].length === nodeNeighbors.length, "neighborsUsable[n] has not the same length as neighbors[n]");
-            const segments = [];
-            for (let n = 0; n < ranks[r].length; ++n) {
-                _.forEach(levelGraph[neighborInMethod](ranks[r][n].id), edge => {
-                    const segment: [number, number, boolean] = [
-                        levelGraph.node(edge[neighborEdgeOutAttr]).position,
-                        n,
-                        edge.weight === Number.POSITIVE_INFINITY
-                    ];
-                    segments.push(segment);
-                    //Assert.assertImplies(segment[2], neighborsUsable[segment[1]][_.indexOf(neighbors[segment[1]], segment[0])], "heavy segment is not usable");
-                });
-            }
-            for (let i = 0; i < segments.length; ++i) {
-                for (let j = i + 1; j < segments.length; ++j) {
-                    if ((segments[i][0] < segments[j][0]) !== (segments[i][1] < segments[j][1])) {
-                        Assert.assert(!segments[i][2] || !segments[j][2], "heavy-heavy crossing");
-                        Assert.assertImplies(segments[i][2], !neighborsUsable[segments[j][1]][_.indexOf(neighbors[segments[j][1]], segments[j][0])], "heavy-light crossing", segments[i], segments[j]);
-                        Assert.assertImplies(segments[j][2], !neighborsUsable[segments[i][1]][_.indexOf(neighbors[segments[i][1]], segments[i][0])], "heavy-light crossing", segments[i], segments[j], neighbors[segments[i][1]], neighborsUsable[segments[i][1]]);
-                    }
-                }
-            }*/
 
             let maxNeighborTaken = (preference === "LEFT" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
             const compare = (preference === "LEFT" ? ((a, b) => a < b) : ((a, b) => a > b));
@@ -1482,7 +1436,7 @@ export default class SugiyamaLayouter extends Layouter
         Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian"]);
     }
 
-    private _restoreCycles(graph: LayoutGraph) {
+    private _restoreCycles(graph: LayoutGraph): void {
         _.forEach(graph.allEdges(), (edge: LayoutEdge) => {
             if (edge.isInverted) {
                 edge.graph.invertEdge(edge.id);
@@ -1492,7 +1446,7 @@ export default class SugiyamaLayouter extends Layouter
         });
     }
 
-    private _placeConnectors(node: LayoutNode, rankTops: Array<number>, rankBottoms: Array<number>) {
+    private _placeConnectors(node: LayoutNode, rankTops: Array<number>, rankBottoms: Array<number>): void {
         if (node.inConnectors.length === 0 && node.outConnectors.length === 0) {
             return; // no connectors
         }
@@ -1534,7 +1488,7 @@ export default class SugiyamaLayouter extends Layouter
         while (inPointer < node.inConnectors.length || outPointer < node.outConnectors.length) {
             if (inPointer === node.inConnectors.length) {
                 tmpOutConnectors.push(node.outConnectors[outPointer++]);
-            } else if(outPointer === node.outConnectors.length) {
+            } else if (outPointer === node.outConnectors.length) {
                 tmpInConnectors.push(node.inConnectors[inPointer++]);
             } else {
                 let scoped = false;
@@ -1593,7 +1547,9 @@ export default class SugiyamaLayouter extends Layouter
         });
     }
 
-    private _markCrossings(subgraph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>, crossingsPerRank: Array<Array<[Segment, Segment]>>, rankTops: Array<number>, rankBottoms: Array<number>) {
+    private _markCrossings(subgraph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>,
+                           crossingsPerRank: Array<Array<[Segment, Segment]>>, rankTops: Array<number>,
+                           rankBottoms: Array<number>): void {
         const endpointsPerRank = new Array(rankTops.length);
         for (let r = 1; r < rankTops.length; ++r) {
             endpointsPerRank[r] = [];
@@ -1637,7 +1593,8 @@ export default class SugiyamaLayouter extends Layouter
         }
     }
 
-    private _optimizeAngles(layoutGraph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>, crossingsPerRank: Array<Array<[Segment, Segment]>>) {
+    private _optimizeAngles(layoutGraph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>,
+                            crossingsPerRank: Array<Array<[Segment, Segment]>>): void {
         const forces = [];
         _.forEach(crossingsPerRank, (crossings, r) => {
             let maxForce = Number.NEGATIVE_INFINITY;
@@ -1698,7 +1655,9 @@ export default class SugiyamaLayouter extends Layouter
         });
 
         const sortedForces = _.sortBy(forces, ([intersectionY, force]) => intersectionY);
-        Assert.assertEqual(sortedForces, forces, "forces are not sorted");
+        if (DEBUG) {
+            Assert.assertEqual(sortedForces, forces, "forces are not sorted");
+        }
 
         const points = [];
         const oldTops = new Map();
@@ -1726,7 +1685,8 @@ export default class SugiyamaLayouter extends Layouter
                     object.translateWithoutChildren(0, totalForce);
                 } else { // "BOTTOM"
                     const oldHeight = object.height;
-                    object.height += totalForce + oldTops.get(object) - object.y; // new_height = old_height + totalForce + old_top - new_top
+                    // new_height = old_height + totalForce + old_top - new_top
+                    object.height += totalForce + oldTops.get(object) - object.y;
                     const heightDiff = object.height - oldHeight;
                     _.forEach(object.outConnectors, (connector: LayoutConnector) => {
                         connector.y += heightDiff;

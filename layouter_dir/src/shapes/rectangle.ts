@@ -1,6 +1,6 @@
 import {Container, Graphics} from "pixi.js";
-import SimpleShape from "./simpleShape";
 import Color from "../renderer/color";
+import SimpleShape from "./simpleShape";
 
 export default class Rectangle extends SimpleShape {
     zIndex = null;
@@ -14,7 +14,7 @@ export default class Rectangle extends SimpleShape {
         this._borderColor = borderColor;
     }
 
-    render(container: Container) {
+    render(container: Container): void {
         const rectangle = new Graphics();
         rectangle.lineStyle(1, this._borderColor.hex(), this._borderColor.alpha);
         rectangle.beginFill(this._backgroundColor.hex(), this._backgroundColor.alpha);

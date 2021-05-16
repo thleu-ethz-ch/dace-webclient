@@ -1,9 +1,9 @@
 import * as _ from "lodash";
 import {Graphics} from "pixi.js";
 import Box from "../geometry/box";
+import Color from "../renderer/color";
 import Vector from "../geometry/vector";
 import Shape from "./shape";
-import Color from "../renderer/color";
 
 export default class EdgeShape extends Shape {
     private _points: Array<Vector>;
@@ -29,7 +29,7 @@ export default class EdgeShape extends Shape {
         return new Box(minX, minY, maxX - minX, maxY - minY);
     }
 
-    render(container: PIXI.Container) {
+    render(container: PIXI.Container): void {
         let line = new Graphics();
         line.lineStyle(1, this._color.hex(), this._color.alpha);
         line.moveTo(_.head(this._points).x, _.head(this._points).y);
@@ -49,20 +49,6 @@ export default class EdgeShape extends Shape {
         container.addChild(line);
     }
 
-    /*intersects(otherShape: Shape): any {
-        let intersect = false;
-        _.forEach(this.segments(), (segmentA) => {
-            if (otherShape instanceof Edge) {
-                _.forEach(otherShape.segments(), (segmentB) => {
-                    intersect = intersect || segmentA.intersects(segmentB);
-                });
-            } else {
-                intersect = intersect || segmentA.intersectsBox(otherShape.boundingBox());
-            }
-        });
-        return intersect;
-    }*/
-
     clone(): Shape {
         const clone = <EdgeShape>super.clone();
         clone.clear();
@@ -72,19 +58,19 @@ export default class EdgeShape extends Shape {
         return clone;
     }
 
-    clear() {
+    clear(): void {
         this._points = [];
     }
 
-    addPoint(point: Vector) {
+    addPoint(point: Vector): void {
         this._points.push(_.clone(point));
     }
 
-    points() {
+    points(): Array<Vector> {
         return _.cloneDeep(this._points);
     }
 
-    offset(x: number, y: number) {
+    offset(x: number, y: number): void {
         _.forEach(this._points, (point: Vector) => {
             point.x += x;
             point.y += y;

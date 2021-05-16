@@ -1,12 +1,9 @@
 import * as _ from "lodash";
-import Edge from "../graph/edge";
-import Graph from "../graph/graph";
 import Node from "../graph/node";
 import OrderGraph from "./orderGraph";
 import OrderGroup from "./orderGroup";
-import Assert from "../util/assert";
 
-export default class OrderRank extends Node<Graph<any, any>, Edge<any, any>>
+export default class OrderRank extends Node<any, any>
 {
     public readonly groups: Array<OrderGroup> = [];
 
@@ -20,7 +17,7 @@ export default class OrderRank extends Node<Graph<any, any>, Edge<any, any>>
     }
 
     orderGroups(): void {
-        this.order = _.map(_.sortBy(_.map(this.groups, (group, n) => {
+        this.order = _.map(_.sortBy(_.map(this.groups, (group: OrderGroup, n: number) => {
             return {n: n, pos: group.position};
         }), "pos"), "n");
     }

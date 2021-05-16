@@ -9,6 +9,7 @@ import NestedSdfg from "../renderGraph/nestedSdfg";
 import RenderGraph from "../renderGraph/renderGraph"
 import SdfgState from "../renderGraph/sdfgState";
 import Tasklet from "../renderGraph/tasklet";
+import RenderNode from "../renderGraph/renderNode";
 
 export default class Parser {
     static parse(json): RenderGraph {
@@ -23,7 +24,7 @@ export default class Parser {
         return graph;
     }
 
-    static addNode(graph: RenderGraph, jsonNode) {
+    static addNode(graph: RenderGraph, jsonNode): void {
         const node = new (this.classForType(jsonNode.type))(jsonNode.type, jsonNode.label);
 
         // set child graph
@@ -61,7 +62,7 @@ export default class Parser {
         graph.addNode(node, jsonNode.id);
     }
 
-    static classForType(type) {
+    static classForType(type: string): any {
         const types = {
             "AccessNode": AccessNode,
             "LibraryNode": LibraryNode,

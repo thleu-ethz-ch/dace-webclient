@@ -1,9 +1,7 @@
-import Graph from "../graph/graph";
 import Node from "../graph/node";
-import OrderEdge from "./orderEdge";
 import OrderGroup from "./orderGroup";
 
-export default class OrderNode extends Node<Graph<any, any>, OrderEdge>
+export default class OrderNode extends Node<any, any>
 {
     public reference: any;
     public group: OrderGroup;
@@ -17,5 +15,4 @@ export default class OrderNode extends Node<Graph<any, any>, OrderEdge>
         this.reference = reference;
         this.isVirtual = isVirtual;
     }
-
 }

@@ -1,5 +1,5 @@
-import SimpleShape from "./simpleShape";
 import * as PIXI from "pixi.js";
+import SimpleShape from "./simpleShape";
 
 export default class FoldedCornerRectangle extends SimpleShape {
     private readonly _backgroundColor: number;

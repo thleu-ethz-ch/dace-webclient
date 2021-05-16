@@ -1,5 +1,5 @@
-import * as _ from "lodash";
 import {GPU} from "gpu.js";
+import * as _ from "lodash";
 
 export class CrossCount {
     static pipeline = null;
@@ -45,7 +45,7 @@ export class CrossCount {
         return count;
     }
 
-    static initGpu() {
+    static initGpu(): void {
         const gpu = new GPU();
 
         CrossCount.pipeline = [
@@ -120,7 +120,7 @@ export class CrossCount {
         ];
     }
 
-    static countGpu(numNorth: number, numSouth: number, edges: Array<[number, number]>) {
+    static countGpu(numNorth: number, numSouth: number, edges: Array<[number, number]>): number {
         if (CrossCount.pipeline === null) {
             throw new Error("Must call initGpu() before calling countGpu().");
         }

@@ -1,6 +1,6 @@
 import Box from "../geometry/box";
-import Shape from "./shape";
 import EdgeShape from "./edgeShape";
+import Shape from "./shape";
 
 export default abstract class SimpleShape extends Shape {
     protected _width: number;

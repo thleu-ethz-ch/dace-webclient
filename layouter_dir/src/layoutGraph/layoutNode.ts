@@ -1,21 +1,21 @@
+import * as _ from "lodash";
 import Box from "../geometry/box";
-import Node from "../graph/node";
-import Size from "../geometry/size";
+import LayoutBundle from "./layoutBundle";
 import LayoutConnector from "./layoutConnector";
 import LayoutEdge from "./layoutEdge";
-import Vector from "../geometry/vector";
 import LayoutGraph from "./layoutGraph";
-import * as _ from "lodash";
-import LayoutBundle from "./layoutBundle";
 import LevelNode from "../levelGraph/levelNode";
+import Node from "../graph/node";
+import Size from "../geometry/size";
+import Vector from "../geometry/vector";
 
 export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public inConnectors: Array<LayoutConnector> = [];
     public outConnectors: Array<LayoutConnector> = [];
     public inConnectorBundles: Array<LayoutBundle> = [];
     public outConnectorBundles: Array<LayoutBundle> = [];
-    public bottomInConnectorIndex = null;
-    public topOutConnectorIndex = null;
+    public bottomInConnectorIndex: number = null;
+    public topOutConnectorIndex: number = null;
 
     public x: number = 0;
     public y: number = 0;
@@ -35,9 +35,9 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
 
     public readonly childGraphs: Array<LayoutGraph> = [];
 
-    public readonly padding: number = 0;
-    public readonly isVirtual: boolean = false;
-    public readonly isBundle: boolean = false;
+    public readonly padding: number;
+    public readonly isVirtual: boolean;
+    public readonly isBundle: boolean;
 
     private readonly _inConnectors: Map<string, LayoutConnector> = new Map();
     private readonly _outConnectors: Map<string, LayoutConnector> = new Map();
@@ -61,7 +61,7 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         }
     }
 
-    addConnector(type: "IN" | "OUT", name: string) {
+    addConnector(type: "IN" | "OUT", name: string): void {
         const connector = new LayoutConnector(this, type, name);
         if (type === "IN") {
             this._inConnectors.set(name, connector);
@@ -72,7 +72,7 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         }
     }
 
-    translate(x: number, y: number) {
+    translate(x: number, y: number): void {
         this.x += x;
         this.y += y;
         _.forEach(this.childGraphs, (childGraph: LayoutGraph) => {
@@ -94,7 +94,7 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         });
     }
 
-    translateWithoutChildren(x: number, y: number) {
+    translateWithoutChildren(x: number, y: number): void {
         this.x += x;
         this.y += y;
         _.forEach(this.inConnectors, (connector: LayoutConnector) => {
@@ -105,12 +105,12 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         });
     }
 
-    setPosition(position: Vector) {
+    setPosition(position: Vector): void {
         this.x = position.x;
         this.y = position.y;
     }
 
-    updatePosition(position: Vector) {
+    updatePosition(position: Vector): void {
         const prevX = this.x;
         const prevY = this.y;
         const offsetX = position.x - prevX;
@@ -122,17 +122,17 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         });
     }
 
-    setSize(size: Size) {
+    setSize(size: Size): void {
         this.width = size.width;
         this.height = size.height;
     }
 
-    updateSize(size: Size) {
+    updateSize(size: Size): void {
         this.width = Math.max(this.width, size.width);
         this.height = Math.max(this.height, size.height);
     }
 
-    setWidth(width: number) {
+    setWidth(width: number): void {
         this.width = width;
     }
 
@@ -151,10 +151,10 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         return new Box(this.x, this.y, this.width, this.height);
     }
 
-    offsetRank(offset: number) {
+    offsetRank(offset: number): void {
         this.rank += offset;
         if (offset !== 0) {
-            _.forEach(this.childGraphs, (childGraph) => {
+            _.forEach(this.childGraphs, (childGraph: LayoutGraph) => {
                 childGraph.offsetRank(offset);
             });
             _.forEach(this.levelNodes, (levelNode: LevelNode, r: number) => {
@@ -163,11 +163,9 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         }
     }
 
-    updateRank(newRank: number) {
+    updateRank(newRank: number): void {
         if (this.rank !== newRank) {
             this.offsetRank(newRank - this.rank);
         }
     }
-
 }
-

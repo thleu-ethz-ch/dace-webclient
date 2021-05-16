@@ -1,12 +1,11 @@
-import Graph from "../graph/graph";
-import LevelNode from "./levelNode";
-import Edge from "../graph/edge";
-import LayoutNode from "../layoutGraph/layoutNode";
 import * as _ from "lodash";
+import Edge from "../graph/edge";
+import Graph from "../graph/graph";
 import LayoutEdge from "../layoutGraph/layoutEdge";
+import LayoutNode from "../layoutGraph/layoutNode";
+import LevelNode from "./levelNode";
 
-export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
-{
+export default class LevelGraph extends Graph<LevelNode, Edge<any, any>> {
     private _ranks: Array<Array<LevelNode>> = null;
     private _minRank: number = Number.POSITIVE_INFINITY;
     private _maxRank: number = Number.NEGATIVE_INFINITY;
@@ -36,7 +35,7 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
         return levelNode;
     }
 
-    public addLayoutEdge(layoutEdge: LayoutEdge) {
+    public addLayoutEdge(layoutEdge: LayoutEdge): void {
         const src = this._lastNodeMap[layoutEdge.src];
         const dst = this._firstNodeMap[layoutEdge.dst];
         let existingEdge = this.edgeBetween(src, dst);
@@ -68,7 +67,7 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
         _.forEach(this.nodes(), (node: LevelNode) => {
             unsortedRanks[node.rank - minRank].push(node);
         });
-        _.forEach(unsortedRanks, (rank, r) => {
+        _.forEach(unsortedRanks, (rank: Array<LevelNode>, r: number) => {
             this._ranks[r] = _.sortBy(rank, (node: LevelNode) => {
                 return node.position;
             });
@@ -90,5 +89,4 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>>
         });
         return maxX;
     }
-
 }

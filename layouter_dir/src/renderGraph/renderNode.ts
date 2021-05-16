@@ -1,3 +1,4 @@
+import {CONNECTOR_SIZE, CONNECTOR_SPACING} from "../util/constants";
 import * as _ from "lodash";
 import Box from "../geometry/box";
 import LayoutGraph from "../layoutGraph/layoutGraph";
@@ -7,7 +8,6 @@ import RenderConnector from "./renderConnector";
 import RenderEdge from "./renderEdge";
 import RenderGraph from "./renderGraph";
 import Size from "../geometry/size";
-import {CONNECTOR_SIZE, CONNECTOR_SPACING} from "../util/constants";
 
 export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
     public readonly childPadding: number = 0;
@@ -44,12 +44,12 @@ export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
         return this._type
     }
 
-    updateSize(minimumSize: Size) {
+    updateSize(minimumSize: Size): void {
         this.width = Math.max(this.width, minimumSize.width);
         this.height = Math.max(this.height, minimumSize.height);
     }
 
-    setConnectors(inConnectors: Array<string>, outConnectors: Array<string>) {
+    setConnectors(inConnectors: Array<string>, outConnectors: Array<string>): void {
         _.forEach(inConnectors, (name: string) => {
             this.inConnectors.push(new RenderConnector(name.toString(), this));
         });

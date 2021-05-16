@@ -1,5 +1,5 @@
-import RenderNode from "./renderNode";
 import {CONNECTOR_SIZE} from "../util/constants";
+import RenderNode from "./renderNode";
 
 export default class RenderConnector {
     public name: string;

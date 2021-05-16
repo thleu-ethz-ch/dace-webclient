@@ -36,5 +36,4 @@ export default abstract class Shape {
     abstract boundingBox(): Box;
 
     abstract render(container: any): void;
-
 }

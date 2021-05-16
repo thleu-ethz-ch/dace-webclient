@@ -1,11 +1,10 @@
 import * as _ from "lodash";
 
-export default class Timer
-{
+export default class Timer {
     private static _timers: Map<string, Array<number>> = new Map();
     private static _measurements: Map<string, Array<number>> = new Map();
 
-    public static start(path: Array<string>) {
+    public static start(path: Array<string>): void {
         const id = path.join("|");
         let timers = Timer._timers.get(id);
         if (timers === undefined) {
@@ -15,7 +14,7 @@ export default class Timer
         timers.push(Date.now());
     }
 
-    public static stop(path: Array<string>) {
+    public static stop(path: Array<string>): void {
         const stopTime = Date.now();
         const id = path.join("|");
         const timers = Timer._timers.get(id);

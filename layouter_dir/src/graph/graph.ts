@@ -1,9 +1,7 @@
 import * as _ from "lodash";
+import Component from "./component";
 import Edge from "./edge";
 import Node from "./node";
-import Component from "./component";
-import Assert from "../util/assert";
-import Timer from "../util/timer";
 
 export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any, any>> {
     public parentNode: NodeT = null;
@@ -24,7 +22,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         this._init();
     }
 
-    clone() {
+    clone(): Graph<NodeT, EdgeT> {
         const clone = this.cloneEmpty();
         _.forEach(this.nodes(), node => {
             clone.addNode(_.clone(node), node.id);
@@ -35,7 +33,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return clone;
     }
 
-    cloneEmpty() {
+    cloneEmpty(): Graph<NodeT, EdgeT> {
         const clone = _.clone(this);
         clone._init();
         return clone;
@@ -89,7 +87,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         edge.isInverted = true;
     }
 
-    redirectEdge(edgeId: number, newSrc: number, newDst: number) {
+    redirectEdge(edgeId: number, newSrc: number, newDst: number): void {
         const edge = this._edges[edgeId];
         if (newSrc !== edge.src) {
             _.pull(this._outEdges[edge.src], edgeId);
@@ -240,7 +238,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return _.uniq(_.concat(this.inNeighbors(id), this.outNeighbors(id)));
     }
 
-    clear() {
+    clear(): void {
         this._init();
     }
 
@@ -406,10 +404,10 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
             currentNumber++;
         });
 
-        const components = [];
+        const components: Array<Component<NodeT, EdgeT>> = [];
         // create components
         for (let i = 0; i < currentNumber; ++i) {
-            components.push(this._createComponent());
+            components.push(new Component(this));
         }
         // add nodes
         _.forEach(nodes, (node: NodeT) => {
@@ -423,14 +421,6 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
                 components[componentId].addEdge(edge.id);
             });
         });
-
-        /*const nodeSet = new Set();
-        _.forEach(components, component => {
-            _.forEach(component.nodes(), node => {
-                Assert.assert(!nodeSet.has(node), "node", node, "is in multiple components", components);
-                nodeSet.add(node);
-            });
-        });*/
 
         return components;
     }
@@ -455,17 +445,13 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return JSON.stringify(subgraphToObj(this));
     }
 
-    storeLocal() {
+    storeLocal(): void {
         if (typeof window !== "undefined") {
             window.localStorage.setItem("storedGraph", this.toString());
         }
     }
 
-    protected _createComponent(): Component<NodeT, EdgeT> {
-        return new Component(this);
-    }
-
-    private _init() {
+    private _init(): void {
         this._nodes = [];
         this._nodeIds = [];
         this._nodesDense = [];
@@ -478,14 +464,14 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         this._edgesDenseOutdated = false;
     }
 
-    private _updateNodesDense() {
+    private _updateNodesDense(): void {
         if (this._nodesDenseOutdated) {
             this._nodesDense = _.compact(this._nodes);
             this._nodesDenseOutdated = false;
         }
     }
 
-    private _updateEdgesDense() {
+    private _updateEdgesDense(): void {
         if (this._edgesDenseOutdated) {
             this._edgesDense = _.compact(this._edges);
             this._edgesDenseOutdated = false;

@@ -1,6 +1,9 @@
+import {CONNECTOR_SIZE, CONNECTOR_SPACING, DEBUG} from "../util/constants";
 import * as _ from "lodash";
 import * as seedrandom from "seedrandom";
 import Assert from "../util/assert";
+import Component from "../graph/component";
+import LayoutBundle from "../layoutGraph/layoutBundle";
 import LayoutConnector from "../layoutGraph/layoutConnector";
 import LayoutEdge from "../layoutGraph/layoutEdge";
 import LayoutGraph from "../layoutGraph/layoutGraph";
@@ -9,22 +12,16 @@ import RenderConnector from "../renderGraph/renderConnector";
 import RenderEdge from "../renderGraph/renderEdge";
 import RenderGraph from "../renderGraph/renderGraph";
 import RenderNode from "../renderGraph/renderNode";
-import LayoutBundle from "../layoutGraph/layoutBundle";
-import LayoutComponent from "../layoutGraph/layoutComponent";
-import Component from "../graph/component";
-import {CONNECTOR_SIZE, CONNECTOR_SPACING} from "../util/constants";
 
 export default abstract class Layouter {
     protected _options: any;
 
     constructor(options: object = {}) {
         this._options = _.defaults(options, {
-            connectorSize: 10,
-            connectorSpacing: 10,
             targetEdgeLength: 50,
             withLabels: false,
             bundle: false,
-            maximizeAngles: false,
+            optimizeAngles: false,
             shuffles: 0,
             shuffleGlobal: false,
             weightBends: 0.2,
@@ -32,8 +29,6 @@ export default abstract class Layouter {
             weightLengths: 0.1,
             resolveY: "normal",
             preorderConnectors: false,
-            orderNodes: "NOCOUNT",
-            orderAfterResolution: true,
         });
     }
 
@@ -61,7 +56,9 @@ export default abstract class Layouter {
         Math.random = tmpRandom;
 
         this._copyLayoutInfo(layoutGraph, renderGraph);
-        //Assert.assertAll(renderGraph.allEdges(), (edge: RenderEdge) => edge.points.length > 0, "edge has no points assigned");
+        if (DEBUG) {
+            Assert.assertAll(renderGraph.allEdges(), (edge: RenderEdge) => edge.points.length > 0, "edge has no points assigned");
+        }
 
         return layoutGraph;
     }
@@ -267,7 +264,9 @@ export default abstract class Layouter {
                         srcLayoutNode = srcNode.layoutGraph.parentNode;
                     }
                 }
-                //Assert.assert(srcLayoutNode.graph === dstLayoutNode.graph, "edge between different graphs", edge);
+                if (DEBUG) {
+                    Assert.assert(srcLayoutNode.graph === dstLayoutNode.graph, "edge between different graphs", edge);
+                }
                 edge.layoutEdge = new LayoutEdge(srcLayoutNode.id, dstLayoutNode.id, edge.srcConnector, edge.dstConnector, edge.labelSize);
                 srcLayoutNode.graph.addEdge(edge.layoutEdge);
             });
@@ -281,8 +280,7 @@ export default abstract class Layouter {
             renderGraph.layoutGraph = layoutGraph;
             return layoutGraph;
         }
-        const layoutGraph = transformSubgraph(renderGraph);
-        return layoutGraph;
+        return transformSubgraph(renderGraph);
     }
 
     private _createComponents(graph: LayoutGraph): void {

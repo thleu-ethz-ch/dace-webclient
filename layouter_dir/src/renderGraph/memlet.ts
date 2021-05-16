@@ -17,5 +17,4 @@ export default class Memlet extends RenderEdge {
         }
         return label;
     }
-
 }

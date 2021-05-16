@@ -1,9 +1,9 @@
-import * as _ from "lodash";
-import LayoutNode from "./layoutNode";
-import Box from "../geometry/box";
-import Vector from "../geometry/vector";
-import Size from "../geometry/size";
 import {CONNECTOR_SIZE} from "../util/constants";
+import * as _ from "lodash";
+import Box from "../geometry/box";
+import LayoutNode from "./layoutNode";
+import Size from "../geometry/size";
+import Vector from "../geometry/vector";
 
 export default class LayoutConnector {
     public readonly node: LayoutNode;
@@ -62,7 +62,7 @@ export default class LayoutConnector {
         return new Box(this.x, this.y, this.width, this.height);
     }
 
-    setPosition(x: number, y: number) {
+    setPosition(x: number, y: number): void {
         this.x = x;
         this.y = y;
     }

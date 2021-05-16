@@ -1,12 +1,11 @@
+import {DEBUG} from "../util/constants";
+import * as _ from "lodash";
+import Assert from "../util/assert";
 import Edge from "./edge";
 import Graph from "./graph";
 import Node from "./node";
-import * as _ from "lodash";
-import Assert from "../util/assert";
-import Timer from "../util/timer";
 
-export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<any, any>>
-{
+export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<any, any>> {
     protected _nodeIds: Array<number> = [];
     protected _nodes: Array<NodeT> = [];
     protected _edgeIds: Array<number> = [];
@@ -18,12 +17,12 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
         this._graph = graph;
     }
 
-    public addNode(id: number) {
+    public addNode(id: number): void {
         this._nodeIds.push(id);
         this._nodes.push(this._graph.node(id));
     }
 
-    public addEdge(id: number) {
+    public addEdge(id: number): void {
         this._edgeIds.push(id);
     }
 
@@ -32,8 +31,7 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
     }
 
     public nodes(): Array<NodeT> {
-        const nodes = _.clone(this._nodes);
-        return nodes;
+        return _.clone(this._nodes);
     }
 
     public edges(): Array<EdgeT> {
@@ -42,16 +40,6 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
             edges.push(this._graph.edge(id));
         });
         return edges;
-    }
-
-    public removeNode(id: number) {
-        let index = this._nodeIds.indexOf(id);
-        this._nodeIds.splice(index, 1);
-        this._nodes.splice(index, 1);
-    }
-
-    public removeEdge(id: number) {
-        _.pull(this._edgeIds, id);
     }
 
     public induceEdges(): void {
@@ -65,28 +53,11 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
         });
     }
 
-    public inEdges(id: number): Array<EdgeT> {
-        return this._graph.inEdges(id);
-    }
-
     public outEdges(id: number): Array<EdgeT> {
         return this._graph.outEdges(id);
     }
 
-    public sources(): Array<NodeT> {
-        return _.filter(this.nodes(), (node: NodeT) => {
-            return (this._graph.inEdges(node.id).length === 0);
-        });
-    }
-
-    public sinks(): Array<NodeT> {
-        return _.filter(this.nodes(), (node: NodeT) => {
-            return (this._graph.outEdges(node.id).length === 0);
-        });
-    }
-
-    public toposort(): Array<NodeT>
-    {
+    public toposort(): Array<NodeT> {
         const sortedNodes = [];
         const predecessors = _.fill(new Array(this.maxId() + 1), 0);
         _.forEach(this.edges(), edge => {
@@ -109,7 +80,9 @@ export default class Component<NodeT extends Node<any, any>, EdgeT extends Edge<
                 }
             });
         }
-        Assert.assert(this._nodeIds.length === sortedNodes.length, "toposort does not return all nodes");
+        if (DEBUG) {
+            Assert.assert(this._nodeIds.length === sortedNodes.length, "toposort does not return all nodes");
+        }
         return sortedNodes;
     }
 

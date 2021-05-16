@@ -14,15 +14,15 @@ export default class Node<GraphT extends Graph<any, any>, EdgeT extends Edge<any
         this.data = data;
     }
 
-    public label() {
+    public label(): string {
         return this._label;
     }
 
-    public setLabel(label: string = "") {
+    public setLabel(label: string = ""): void {
         this._label = label;
     }
 
-    setChildGraph(childGraph: GraphT) {
+    setChildGraph(childGraph: GraphT): void {
         childGraph.parentNode = this;
         this.childGraph = childGraph;
     }

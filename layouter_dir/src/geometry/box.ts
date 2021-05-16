@@ -1,6 +1,6 @@
-import Vector from "./vector";
-import Size from "./size";
 import {EPSILON} from "../util/constants";
+import Size from "./size";
+import Vector from "./vector";
 
 export default class Box {
     public x: number;
@@ -62,20 +62,20 @@ export default class Box {
         };
     }
 
-    centerIn(surroundingBox: Box) {
+    centerIn(surroundingBox: Box): Box {
         this.x += (surroundingBox.width - this.width) / 2;
         this.y += (surroundingBox.height - this.height) / 2;
         return this;
     }
 
-    intersects(otherBox: Box) {
+    intersects(otherBox: Box): boolean {
         return (this.x + EPSILON < otherBox.x + otherBox.width)
             && (this.x + this.width > otherBox.x + EPSILON)
             && (this.y + EPSILON < otherBox.y + otherBox.height)
             && (this.y + this.height > otherBox.y + EPSILON);
     }
 
-    containedIn(otherBox: Box) {
+    containedIn(otherBox: Box): boolean {
         return (this.x + EPSILON >= otherBox.x)
             && (this.y + EPSILON >= otherBox.y)
             && (this.x + this.width <= otherBox.x + otherBox.width + EPSILON)

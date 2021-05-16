@@ -8,7 +8,7 @@
  */
 
 export default class Shuffle {
-    public static shuffle(array) {
+    public static shuffle(array: Array<any>): Array<any> {
         const baseRandom = (lower, upper) => {
             return lower + Math.floor(Math.random() * (upper - lower + 1));
         }

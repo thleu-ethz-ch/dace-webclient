@@ -1,12 +1,11 @@
+import * as _ from "lodash";
+import Edge from "../graph/edge";
 import Graph from "../graph/graph";
 import Node from "../graph/node";
 import OrderNode from "./orderNode";
 import OrderRank from "./orderRank";
-import Edge from "../graph/edge";
-import * as _ from "lodash";
 
-export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
-{
+export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>> {
     public readonly reference: any;
     public shuffleHierarchy: Array<any> = null;
     public nodes: Array<OrderNode> = [];
@@ -30,7 +29,7 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
         return this.rank.orderGraph.addNode(node, id);
     }
 
-    removeNode(node: OrderNode) {
+    removeNode(node: OrderNode): void {
         this.rank.orderGraph.removeNode(node.id);
         for (let i = node.index + 1; i < this.nodes.length; ++i) {
             this.nodes[i].index--;
@@ -39,7 +38,7 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
     }
 
     orderNodes(): void {
-        this.order = _.map(_.sortBy(_.map(this.nodes, (node, n) => {
+        this.order = _.map(_.sortBy(_.map(this.nodes, (node: OrderNode, n: number) => {
             return {n: n, pos: node.position};
         }), "pos"), "n");
     }
@@ -49,7 +48,7 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>>
         if (this.order.length !== this.nodes.length) {
             this.orderNodes();
         }
-        _.forEach(this.order, pos => {
+        _.forEach(this.order, (pos: number) => {
             nodes.push(this.nodes[pos]);
         });
         return nodes;

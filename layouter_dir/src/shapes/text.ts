@@ -1,6 +1,6 @@
 import * as PIXI from "pixi.js";
-import SimpleShape from "./simpleShape";
 import Shape from "./shape";
+import SimpleShape from "./simpleShape";
 
 export default class Text extends SimpleShape {
     private readonly _text;
@@ -14,7 +14,7 @@ export default class Text extends SimpleShape {
         this._fontStyle = fontStyle;
     }
 
-    render(group) {
+    render(group): void {
         const pixiText = new PIXI.Text(this._text, this._fontStyle);
         pixiText.x = this._x;
         pixiText.y = this._y;

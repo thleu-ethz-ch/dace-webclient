@@ -1,7 +1,6 @@
 /**
  * Inspired by THREE.js: https://github.com/mrdoob/three.js/
  */
-import {EPSILON} from "../util/constants";
 
 export default class Vector {
     public x: number;
@@ -20,7 +19,7 @@ export default class Vector {
         return new Vector(this.x, this.y);
     }
 
-    length() {
+    length(): number {
         return Math.sqrt(this.x * this.x + this.y * this.y);
     }
 
@@ -43,15 +42,15 @@ export default class Vector {
         return this.multiplyScalar(y / this.y);
     }
 
-    angleTo(otherVector: Vector) {
+    angleTo(otherVector: Vector): number {
         return otherVector.angle() - this.angle();
     }
 
-    absoluteAngleTo(otherVector: Vector) {
+    absoluteAngleTo(otherVector: Vector): number {
         return Math.abs(this.angleTo(otherVector));
     }
 
-    acuteAngleTo(otherVector: Vector) {
+    acuteAngleTo(otherVector: Vector): number {
         const absAngle = this.absoluteAngleTo(otherVector);
         return Math.min(absAngle, Math.PI - absAngle);
     }
@@ -87,9 +86,5 @@ export default class Vector {
         this.x -= otherVector.x;
         this.y -= otherVector.y;
         return this;
-    }
-
-    roughlyEqualTo(otherVector: Vector) {
-        return (Math.abs(this.x - otherVector.x) < EPSILON) && (Math.abs(this.y - otherVector.y) < EPSILON);
     }
 }

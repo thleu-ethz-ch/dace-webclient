@@ -1,13 +1,13 @@
+import {EPSILON} from "../util/constants";
 import * as _ from "lodash";
 import Box from "../geometry/box";
 import Edge from "../graph/edge";
+import LayoutBundle from "./layoutBundle";
 import LayoutGraph from "./layoutGraph";
 import LayoutNode from "./layoutNode";
 import Segment from "../geometry/segment";
 import Size from "../geometry/size";
 import Vector from "../geometry/vector";
-import LayoutBundle from "./layoutBundle";
-import {EPSILON} from "../util/constants";
 
 export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
     public readonly labelSize: Size = null;
@@ -81,5 +81,4 @@ export default class LayoutEdge extends Edge<LayoutGraph, LayoutNode> {
         segments.push(new Segment(start, end));
         return segments;
     }
-
 }

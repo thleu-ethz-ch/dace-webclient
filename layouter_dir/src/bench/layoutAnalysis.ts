@@ -1,11 +1,9 @@
 import * as _ from "lodash";
-import LayoutGraph from "../layoutGraph/layoutGraph";
-import LayoutEdge from "../layoutGraph/layoutEdge";
-import LayoutNode from "../layoutGraph/layoutNode";
 import LayoutConnector from "../layoutGraph/layoutConnector";
+import LayoutEdge from "../layoutGraph/layoutEdge";
+import LayoutGraph from "../layoutGraph/layoutGraph";
+import LayoutNode from "../layoutGraph/layoutNode";
 import Segment from "../geometry/segment";
-import Timer from "../util/timer";
-import Assert from "../util/assert";
 
 export default class LayoutAnalysis {
     private readonly _layoutGraph: LayoutGraph;
@@ -53,7 +51,7 @@ export default class LayoutAnalysis {
     /**
      * Returns the total number of pairwise segment crossings in the graph.
      */
-    segmentCrossings() {
+    segmentCrossings(): number {
         return this._getAllCrossingSegments().length;
     }
 
@@ -62,7 +60,7 @@ export default class LayoutAnalysis {
      * For every pairwise crossing, the cost is between 1 and 2 depending on the crossing angle.
      * Orthogonal crossings have a cost of 1, almost parallel segments a cost very close to 2.
      */
-    segmentCrossingsWithAngles() {
+    segmentCrossingsWithAngles(): number {
         let cost = 0;
         _.forEach(this._getAllCrossingSegments(), ([segI, segJ]) => {
             const angle = segI.vector().acuteAngleTo(segJ.vector());
@@ -72,7 +70,7 @@ export default class LayoutAnalysis {
         return cost;
     }
 
-    edgeLengths() {
+    edgeLengths(): number {
         let cost = 0;
         _.forEach(this._edges, (edge: LayoutEdge) => {
             const edgeLength = _.sum(_.map(edge.segments(), segment => segment.length()));
@@ -115,9 +113,6 @@ export default class LayoutAnalysis {
             const edge = this._edges[i];
             for (let j = 0; j < this._nodes.length; ++j) {
                 const node = this._nodes[j];
-                /*if (node.childGraph !== null && node.childGraph.entryNode !== null) {
-                    continue;
-                }*/
                 if (this._edgeIntersectsNode(edge, node) && !this._edgeParents.get(edge).has(node)) {
                     console.log("node overlaps edge", node, edge);
                     return false;
@@ -219,11 +214,11 @@ export default class LayoutAnalysis {
         );
     }
 
-    bends() {
+    bends(): number {
         return this._segments.length - this._edges.length;
     }
 
-    cost(breakdown: boolean = false) {
+    cost(breakdown: boolean = false): number {
         const crossings = this.segmentCrossingsWithAngles();
         const bends = this.bends();
         const lengths = this.edgeLengths();
@@ -238,7 +233,7 @@ export default class LayoutAnalysis {
         return weightedCrossings + weightedBends + weightedLengths;
     }
 
-    private _edgeIntersectsNode(edge: LayoutEdge, node: LayoutNode) {
+    private _edgeIntersectsNode(edge: LayoutEdge, node: LayoutNode): boolean {
         const nodeBox = node.boundingBox();
         if (!edge.boundingBox().intersects(nodeBox)) {
             return false;
@@ -250,11 +245,23 @@ export default class LayoutAnalysis {
         return intersects;
     }
 
-    private _nodesRelated(nodeA: LayoutNode, nodeB: LayoutNode) {
+    private _nodesRelated(nodeA: LayoutNode, nodeB: LayoutNode): boolean {
         return this._nodeParents.get(nodeA).has(nodeB) || this._nodeParents.get(nodeB).has(nodeA);
     }
 
-    private _getAllCrossingSegments() {
+    private _printCrossings(): void {
+        _.map(_.sortBy(_.map(this._getAllCrossingSegments(), ([segI, segJ]: [Segment, Segment]) => {
+            const point = segI.intersection(segJ);
+            return {
+                pointx: point.x,
+                pointy: point.y,
+                segi: segI,
+                segj: segJ,
+            };
+        }), ["pointy", "pointx"]), data => console.log("(" + data.pointx.toFixed(0) + " / " + data.pointy.toFixed(0) + ")", data.segi.toString(), data.segj.toString()));
+    }
+
+    private _getAllCrossingSegments(): Array<[Segment, Segment]> {
         const overlaps = {};
         _.forEach(["x", "y"], axis => {
             overlaps[axis] = new Array(this._segments.length);
@@ -290,15 +297,6 @@ export default class LayoutAnalysis {
                 }
             });
         }
-        /*_.map(_.sortBy(_.map(intersections, ([segI, segJ]) => {
-            const point = segI.intersection(segJ);
-            return {
-                pointx: point.x,
-                pointy: point.y,
-                segi: segI,
-                segj: segJ,
-            };
-        }), ["pointy", "pointx"]), data => console.log("(" + data.pointx.toFixed(0) + " / " + data.pointy.toFixed(0) + ")", data.segi.toString(), data.segj.toString()));*/
         return intersections;
     }
 }

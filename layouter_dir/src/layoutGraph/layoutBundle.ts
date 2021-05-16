@@ -1,14 +1,13 @@
 import LayoutEdge from "./layoutEdge";
 import Vector from "../geometry/vector";
 
-export default class LayoutBundle
-{
+export default class LayoutBundle {
     public connectors: Array<string> = [];
     public edges: Array<LayoutEdge> = [];
     public x;
     public y;
 
-    addConnector(name: string) {
+    addConnector(name: string): void {
         this.connectors.push(name);
     }
 
