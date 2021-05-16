@@ -27,7 +27,6 @@ export default abstract class Layouter {
             weightBends: 0.2,
             weightCrossings: 1,
             weightLengths: 0.1,
-            resolveY: "normal",
             preorderConnectors: false,
         });
     }

@@ -511,17 +511,12 @@ export default class SugiyamaLayouter extends Layouter {
 
                 // do order
                 orderGraph.order({
-                    resolveY: this._options["resolveY"],
                     countInitial: this._options["preorderConnectors"],
                     shuffles: this._options["shuffleGlobal"] ? 0 : (this._options["preorderConnectors"] ? 0 : this._options["shuffles"]),
                 });
 
                 // copy node order into layout graph
                 const newOrderNodes: Set<OrderNode> = new Set();
-                const unfoundLevelNodes: Set<LevelNode> = new Set();
-                _.forEach(levelGraph.nodes(), (node: LevelNode) => {
-                    unfoundLevelNodes.add(node);
-                });
 
                 _.forEach(orderGraph.nodes(), (orderNode: OrderNode) => {
                     let levelNode: LevelNode = orderNode.reference;
@@ -535,7 +530,6 @@ export default class SugiyamaLayouter extends Layouter {
                         levelNode = levelGraph.addLayoutNode(newLayoutNode);
                         orderNode.reference = levelNode;
                     } else {
-                        unfoundLevelNodes.delete(levelNode);
                         if (levelNode.isFirst) {
                             levelNode.layoutNode.updateRank(orderNode.rank);//levelNode.layoutNode.rank + orderNode.rank - orderNode.initialRank;
                         }
@@ -594,27 +588,6 @@ export default class SugiyamaLayouter extends Layouter {
                     }
                     tmpSubgraph = parent.graph;
                 }
-
-                // remove from layout graph nodes that were removed in order graph
-                unfoundLevelNodes.forEach((levelNode: LevelNode) => {
-                    _.forEach(levelGraph.inEdges(levelNode.id), inEdge => {
-                        levelGraph.removeEdge(inEdge.id);
-                    });
-                    _.forEach(levelGraph.outEdges(levelNode.id), outEdge => {
-                        levelGraph.removeEdge(outEdge.id);
-                    });
-                    // reroute layout edge directly from parent to child
-                    const inEdge = subgraph.inEdges(levelNode.layoutNode.id)[0];
-                    const outEdge = subgraph.outEdges(levelNode.layoutNode.id)[0];
-                    subgraph.removeEdge(inEdge.id);
-                    subgraph.removeEdge(outEdge.id);
-                    inEdge.dstConnector = outEdge.dstConnector;
-                    inEdge.dst = outEdge.dst;
-                    subgraph.addEdge(inEdge, inEdge.id);
-                    levelGraph.addLayoutEdge(inEdge);
-                    subgraph.removeNode(levelNode.layoutNode.id);
-                    levelGraph.removeNode(levelNode.id);
-                });
 
                 // find for all new nodes the dominating and dominated non-new node
                 const visited = _.fill(new Array(orderGraph.maxId() + 1), false);

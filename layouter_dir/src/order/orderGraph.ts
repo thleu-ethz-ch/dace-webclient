@@ -822,225 +822,102 @@ export default class OrderGraph {
                             }
                         };
 
-                        if (options["resolveY"] === "compact") {
-                            // mark nodes that must be moved
-                            const movingNodesPerRank: Array<Set<OrderNode>> = new Array(ranks.length);
-                            _.forEach(ranks, (rank, tmpR: number) => {
-                                movingNodesPerRank[tmpR] = new Set();
-                            });
-                            const queue = [crossingNorthNode];
-                            if (crossingNorthNode.isVirtual || graph.inEdges(crossingNorthNode.id).length !== 1 || graph.inEdges(crossingNorthNode.id)[0].weight < Number.POSITIVE_INFINITY) {
-                                movingNodesPerRank[r - 1].add(crossingNorthNode);
-                            }
-                            let queuePointer = 0;
-                            while (queuePointer < queue.length) {
-                                const node = queue[queuePointer++];
-                                _.forEach(graph.outNeighbors(node.id), neighbor => {
-                                    if (!neighbor.isVirtual && !movingNodesPerRank[neighbor.rank].has(neighbor)) {
-                                        movingNodesPerRank[neighbor.rank].add(neighbor);
-                                        queue.push(neighbor);
-                                    }
-                                });
-                            }
-
-                            // create new rank if necessary
-                            if (movingNodesPerRank[ranks.length - 1].size > 0) {
-                                const newR = ranks.length;
-                                const newRank = new OrderRank(ranks[ranks.length - 1].rank + 1);
-                                this.addRank(newRank);
-                                const newGroup = new OrderGroup(null);
-                                newRank.addGroup(newGroup);
-                                const newRankComponent = new OrderRank(ranks[ranks.length - 1].rank + 1);
-                                graph.addRank(newRankComponent);
-                                ranks.push(newRankComponent);
-                                newRankComponent.addGroup(newGroup);
-                                this._groupGraph.addEdge(new Edge(ranks[newR - 1].groups[0].id, ranks[newR].groups[0].id));
-                                this._rankGraph.addEdge(new Edge(ranks[newR - 1].id, ranks[newR].id));
-                                newRankComponent.order = [0];
-                                groupOrder[newR] = [0];
-                                groupPositions[newR] = [0];
-                                groupOffsetsPos[newR] = [0];
-                                groupOffsetsN[newR] = [0];
-                                order[newR] = [];
-                                positions[newR] = [];
-                                crossings[newR] = 0;
-                            }
-
-                            // move nodes down and create virtual nodes
-                            for (let tmpR = ranks.length - 1; tmpR >= r; --tmpR) {
-                                const movingNodes = _.sortBy(Array.from(movingNodesPerRank[tmpR - 1]), node => positions[tmpR - 1][node.index]);
-                                _.forEach(movingNodes, node => {
-                                    if (node !== crossingNorthNode && graph.outNeighbors(node.id).length === 1 && graph.outNeighbors(node.id)[0].isVirtual) {
-                                        // contract virtual node
-                                        const virtual = graph.outNeighbors(node.id)[0];
-                                        const virtualPos = positions[tmpR][virtual.index];
-                                        const outNeighbor = graph.outNeighbors(virtual.id)[0];
-                                        const outEdge = graph.edgeBetween(node.id, virtual.id);
-                                        removeEdge(virtual, outNeighbor);
-                                        removeEdge(node, virtual);
-                                        addEdge(node, outNeighbor, outEdge.weight);
-                                        removeNode(virtual, true);
-                                        removeNode(node);
-                                        addNode(tmpR, virtualPos, node);
-                                        if (node === crossingSouthNode) {
-                                            // add virtual node
-                                            const newNode = new OrderNode(null, true, node.label() + "'");
-                                            this.addNode(newNode);
-                                            const pos = positions[tmpR - 1][crossedSouthN] + (crossingNorthPos > crossedNorthPos ? 1 : 0);
-                                            addNode(tmpR - 1, pos, newNode);
-                                            removeEdge(crossingNorthNode, node);
-                                            addEdge(crossingNorthNode, newNode, crossingEdge.weight);
-                                            addEdge(newNode, node, crossingEdge.weight);
-                                        }
-                                    } else {
-                                        let newPos = 0;
-                                        const nodePos = positions[tmpR - 1][node.index];
-                                        let northPos = 0;
-                                        while (northPos < nodePos) {
-                                            const northNode = ranks[tmpR - 1].groups[0].nodes[order[tmpR - 1][northPos++]];
-                                            _.forEach(graph.outNeighbors(northNode.id), (outNeighbor: OrderNode) => {
-                                                newPos = Math.max(newPos, positions[tmpR][outNeighbor.index] + 1);
-                                            });
-                                        }
-                                        newPos = Math.min(Math.max(newPos, nodePos), order[tmpR].length);
-                                        if (node === crossingNorthNode && crossingNorthPos < crossedNorthPos) {
-                                            // make sure we keep crossingNorthNode on the same side of the crossed edge
-                                            newPos = Math.min(newPos, positions[tmpR][crossedSouthN]);
-                                        }
-                                        // move node down
-                                        removeNode(node);
-                                        addNode(tmpR, newPos, node);
-                                        const sortedInNeighbors = _.sortBy(graph.inNeighbors(node.id), node => positions[tmpR - 2][node.index]);
-                                        _.forEachRight(sortedInNeighbors, (inNeighbor: OrderNode) => {
-                                            if (!movingNodesPerRank[tmpR - 2].has(inNeighbor)) {
-                                                // create new virtual node and route edge through it
-                                                const newNode = new OrderNode(null, true, node.label() + "'");
-                                                this.addNode(newNode);
-                                                addNode(tmpR - 1, nodePos, newNode);
-                                                const inEdge = graph.edgeBetween(inNeighbor.id, node.id);
-                                                removeEdge(inNeighbor, node);
-                                                addEdge(inNeighbor, newNode, inEdge.weight);
-                                                addEdge(newNode, node, inEdge.weight);
-                                            }
-                                        });
-                                        _.forEach(graph.outNeighbors(node.id), (outNeighbor: OrderNode) => {
-                                            if (outNeighbor.isVirtual) {
-                                                // contract virtual node
-                                                const outNeighborNeighbor = graph.outNeighbors(outNeighbor.id)[0];
-                                                const outEdge = graph.edgeBetween(node.id, outNeighbor.id);
-                                                removeEdge(node, outNeighbor);
-                                                removeEdge(outNeighbor, outNeighborNeighbor);
-                                                addEdge(node, outNeighborNeighbor, outEdge.weight);
-                                                removeNode(outNeighbor, true);
-                                            }
-                                        });
-                                    }
-                                });
-                            }
-                            // special case: crossingNorthNode is bottom of intranode path and crossingSouthNode is virtual node
-                            if (!movingNodesPerRank[r - 1].has(crossingNorthNode) && crossingSouthNode.isVirtual) {
-                                const newPos = positions[r][crossedSouthN];
-                                removeNode(crossingSouthNode);
-                                addNode(r, newPos, crossingSouthNode);
-                            }
-                        } else {
-                            // mark nodes that must not be moved
-                            const nonMoving = new Set();
-                            const intranodePathEnds = new Set();
-                            const sinks = new Set();
-                            _.forEach(ranks[r - 1].groups[0].nodes, (node: OrderNode) => {
-                                let isOnIntranodePath = !node.isVirtual && _.some(graph.incidentEdges(node.id), edge => edge.weight === Number.POSITIVE_INFINITY);
-                                _.forEach(graph.incidentEdges(node.id), edge => {
-                                    if (edge.weight === Number.POSITIVE_INFINITY) {
-                                        isOnIntranodePath = !node.isVirtual;
-                                    }
-                                });
-                                if (isOnIntranodePath) {
-                                    nonMoving.add(node);
-                                    let tmpNode = node;
-                                    while (graph.outEdges(tmpNode.id).length > 0 && graph.outEdges(tmpNode.id)[0].weight === Number.POSITIVE_INFINITY) {
-                                        tmpNode = graph.node(graph.outEdges(tmpNode.id)[0].dst);
-                                        nonMoving.add(tmpNode);
-                                    }
-                                    intranodePathEnds.add(tmpNode);
-                                } else if (graph.outEdges(node.id).length === 0) {
-                                    // sink on rank r - 1
-                                    nonMoving.add(node);
-                                    sinks.add(node);
+                        // mark nodes that must not be moved
+                        const nonMoving = new Set();
+                        const intranodePathEnds = new Set();
+                        const sinks = new Set();
+                        _.forEach(ranks[r - 1].groups[0].nodes, (node: OrderNode) => {
+                            let isOnIntranodePath = !node.isVirtual && _.some(graph.incidentEdges(node.id), edge => edge.weight === Number.POSITIVE_INFINITY);
+                            _.forEach(graph.incidentEdges(node.id), edge => {
+                                if (edge.weight === Number.POSITIVE_INFINITY) {
+                                    isOnIntranodePath = !node.isVirtual;
                                 }
                             });
-
-                            // create new rank if necessary
-                            if (_.filter(_.last(ranks).groups[0].nodes, node => !nonMoving.has(node)).length > 0) {
-                                const newR = ranks.length;
-                                const newRank = new OrderRank(ranks[ranks.length - 1].rank + 1);
-                                this.addRank(newRank);
-                                const newGroup = new OrderGroup(null);
-                                newRank.addGroup(newGroup);
-                                const newRankComponent = new OrderRank(ranks[ranks.length - 1].rank + 1);
-                                graph.addRank(newRankComponent);
-                                ranks.push(newRankComponent);
-                                newRankComponent.addGroup(newGroup);
-                                this._groupGraph.addEdge(new Edge(ranks[newR - 1].groups[0].id, ranks[newR].groups[0].id));
-                                this._rankGraph.addEdge(new Edge(ranks[newR - 1].id, ranks[newR].id));
-                                newRankComponent.order = [0];
-                                groupOrder[newR] = [0];
-                                groupPositions[newR] = [0];
-                                groupOffsetsPos[newR] = [0];
-                                groupOffsetsN[newR] = [0];
-                                order[newR] = [];
-                                positions[newR] = [];
-                                crossings[newR] = 0;
+                            if (isOnIntranodePath) {
+                                nonMoving.add(node);
+                                let tmpNode = node;
+                                while (graph.outEdges(tmpNode.id).length > 0 && graph.outEdges(tmpNode.id)[0].weight === Number.POSITIVE_INFINITY) {
+                                    tmpNode = graph.node(graph.outEdges(tmpNode.id)[0].dst);
+                                    nonMoving.add(tmpNode);
+                                }
+                                intranodePathEnds.add(tmpNode);
+                            } else if (graph.outEdges(node.id).length === 0) {
+                                // sink on rank r - 1
+                                nonMoving.add(node);
+                                sinks.add(node);
                             }
+                        });
 
-                            // move nodes down and create virtual nodes
-                            for (let tmpR = ranks.length - 1; tmpR >= r; --tmpR) {
-                                const northNodes = _.map(order[tmpR - 1], n => ranks[tmpR - 1].groups[0].nodes[n]);
-                                _.forEach(northNodes, (node: OrderNode) => {
-                                    if (!nonMoving.has(node)) {
-                                        const pos = positions[tmpR - 1][node.index];
-                                        removeNode(node);
-                                        addNode(tmpR, order[tmpR].length, node);
-                                        if (tmpR === r) {
-                                            // create a virtual node for each in edge and route edge through new node
-                                            const sortedEdges = _.sortBy(graph.inEdges(node.id), edge => positions[r - 2][graph.node(edge.src).index]);
-                                            _.forEachRight(sortedEdges, inEdge => {
-                                                const newNode = new OrderNode(null, true, node.label() + "'");
-                                                this.addNode(newNode);
-                                                addNode(r - 1, pos, newNode);
-                                                const srcNode = graph.node(inEdge.src);
-                                                removeEdge(srcNode, node);
-                                                addEdge(srcNode, newNode, inEdge.weight);
-                                                addEdge(newNode, node, inEdge.weight);
-                                            });
-                                        }
-                                    } else {
-                                        if (intranodePathEnds.has(node)) {
-                                            if (DEBUG) {
-                                                Assert.assertAll(graph.outEdges(node.id), edge => graph.node(edge.dst).rank === tmpR + 1, "edge below intranode path end not spanning two ranks");
-                                            }
-                                            // create a virtual node for each out edge and route edge through new node
-                                            // sort edges to prevent crossings between them
-                                            const sortedEdges = _.sortBy(graph.outEdges(node.id), edge => positions[tmpR + 1][graph.node(edge.dst).index]);
-                                            _.forEach(sortedEdges, outEdge => {
-                                                const newNode = new OrderNode(null, true, node.label() + "'");
-                                                this.addNode(newNode);
-                                                addNode(tmpR, order[tmpR].length, newNode);
-                                                const dstNode = graph.node(outEdge.dst);
-                                                removeEdge(node, dstNode);
-                                                addEdge(node, newNode, outEdge.weight);
-                                                addEdge(newNode, dstNode, outEdge.weight);
-                                            });
-                                        } else if (!sinks.has(node)) {
-                                            // there is a an internode segment between upper and this rank
-                                            // => change order within this rank
-                                            const lowerNode = graph.outNeighbors(node.id)[0];
-                                            removeNode(lowerNode);
-                                            addNode(tmpR, order[tmpR].length, lowerNode);
-                                        }
+                        // create new rank if necessary
+                        if (_.filter(_.last(ranks).groups[0].nodes, node => !nonMoving.has(node)).length > 0) {
+                            const newR = ranks.length;
+                            const newRank = new OrderRank(ranks[ranks.length - 1].rank + 1);
+                            this.addRank(newRank);
+                            const newGroup = new OrderGroup(null);
+                            newRank.addGroup(newGroup);
+                            const newRankComponent = new OrderRank(ranks[ranks.length - 1].rank + 1);
+                            graph.addRank(newRankComponent);
+                            ranks.push(newRankComponent);
+                            newRankComponent.addGroup(newGroup);
+                            this._groupGraph.addEdge(new Edge(ranks[newR - 1].groups[0].id, ranks[newR].groups[0].id));
+                            this._rankGraph.addEdge(new Edge(ranks[newR - 1].id, ranks[newR].id));
+                            newRankComponent.order = [0];
+                            groupOrder[newR] = [0];
+                            groupPositions[newR] = [0];
+                            groupOffsetsPos[newR] = [0];
+                            groupOffsetsN[newR] = [0];
+                            order[newR] = [];
+                            positions[newR] = [];
+                            crossings[newR] = 0;
+                        }
+
+                        // move nodes down and create virtual nodes
+                        for (let tmpR = ranks.length - 1; tmpR >= r; --tmpR) {
+                            const northNodes = _.map(order[tmpR - 1], n => ranks[tmpR - 1].groups[0].nodes[n]);
+                            _.forEach(northNodes, (node: OrderNode) => {
+                                if (!nonMoving.has(node)) {
+                                    const pos = positions[tmpR - 1][node.index];
+                                    removeNode(node);
+                                    addNode(tmpR, order[tmpR].length, node);
+                                    if (tmpR === r) {
+                                        // create a virtual node for each in edge and route edge through new node
+                                        const sortedEdges = _.sortBy(graph.inEdges(node.id), edge => positions[r - 2][graph.node(edge.src).index]);
+                                        _.forEachRight(sortedEdges, inEdge => {
+                                            const newNode = new OrderNode(null, true, node.label() + "'");
+                                            this.addNode(newNode);
+                                            addNode(r - 1, pos, newNode);
+                                            const srcNode = graph.node(inEdge.src);
+                                            removeEdge(srcNode, node);
+                                            addEdge(srcNode, newNode, inEdge.weight);
+                                            addEdge(newNode, node, inEdge.weight);
+                                        });
                                     }
-                                });
-                            }
+                                } else {
+                                    if (intranodePathEnds.has(node)) {
+                                        if (DEBUG) {
+                                            Assert.assertAll(graph.outEdges(node.id), edge => graph.node(edge.dst).rank === tmpR + 1, "edge below intranode path end not spanning two ranks");
+                                        }
+                                        // create a virtual node for each out edge and route edge through new node
+                                        // sort edges to prevent crossings between them
+                                        const sortedEdges = _.sortBy(graph.outEdges(node.id), edge => positions[tmpR + 1][graph.node(edge.dst).index]);
+                                        _.forEach(sortedEdges, outEdge => {
+                                            const newNode = new OrderNode(null, true, node.label() + "'");
+                                            this.addNode(newNode);
+                                            addNode(tmpR, order[tmpR].length, newNode);
+                                            const dstNode = graph.node(outEdge.dst);
+                                            removeEdge(node, dstNode);
+                                            addEdge(node, newNode, outEdge.weight);
+                                            addEdge(newNode, dstNode, outEdge.weight);
+                                        });
+                                    } else if (!sinks.has(node)) {
+                                        // there is a an internode segment between upper and this rank
+                                        // => change order within this rank
+                                        const lowerNode = graph.outNeighbors(node.id)[0];
+                                        removeNode(lowerNode);
+                                        addNode(tmpR, order[tmpR].length, lowerNode);
+                                    }
+                                }
+                            });
                         }
 
                         if (options["debug"]) {
@@ -1069,15 +946,6 @@ export default class OrderGraph {
                             weightsUp[dstNode.rank][dstNode.index].push(edge.weight);
                         });
 
-                        if (options["resolveY"] === "compact") {
-                            while (getConflict("HEAVYHEAVY", r, true) !== null) {
-                                resolveConflict(getConflict("HEAVYHEAVY", r));
-                            }
-                            for (let tmpR = r - 1; tmpR < ranks.length; ++tmpR) {
-                                crossings[tmpR] = countCrossings(order[tmpR], tmpR, "UP");
-                            }
-                            reorder(false, false, r + 1);
-                        }
                         for (let tmpR = 1; tmpR < ranks.length; ++tmpR) {
                             crossings[tmpR] = countCrossings(order[tmpR], tmpR, "UP");
                         }
