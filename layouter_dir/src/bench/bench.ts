@@ -57,5 +57,4 @@ export default class Bench {
         });
         return Serializer.serializePromises(promises);
     }
-
 }

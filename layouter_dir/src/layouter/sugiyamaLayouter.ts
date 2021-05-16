@@ -1031,9 +1031,9 @@ export default class SugiyamaLayouter extends Layouter {
                     }
                 } else if (node.topOutConnectorIndex !== null) {
                     if (edge.isInverted) {
-                        inPoint.x += (node.topOutConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
+                        inPoint.x += (node.topOutConnectorIndex - 0.5) * 2 * CONNECTOR_SPACING;
                     } else {
-                        inPoint.x += (0.5 - node.topOutConnectorIndex) * 2 * this._options["connectorSpacing"];
+                        inPoint.x += (0.5 - node.topOutConnectorIndex) * 2 * CONNECTOR_SPACING;
                     }
                 }
                 inPoint.y = rankTops[node.rank];
@@ -1055,9 +1055,9 @@ export default class SugiyamaLayouter extends Layouter {
                     }
                 } else if (node.bottomInConnectorIndex !== null) {
                     if (edge.isInverted) {
-                        outPoint.x += (node.bottomInConnectorIndex - 0.5) * 2 * this._options["connectorSpacing"];
+                        outPoint.x += (node.bottomInConnectorIndex - 0.5) * 2 * CONNECTOR_SPACING;
                     } else {
-                        outPoint.x += (0.5 - node.bottomInConnectorIndex) * 2 * this._options["connectorSpacing"];
+                        outPoint.x += (0.5 - node.bottomInConnectorIndex) * 2 * CONNECTOR_SPACING;
                     }
                 }
                 return outPoint;

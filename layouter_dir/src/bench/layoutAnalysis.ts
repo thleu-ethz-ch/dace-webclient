@@ -74,7 +74,7 @@ export default class LayoutAnalysis {
         let cost = 0;
         _.forEach(this._edges, (edge: LayoutEdge) => {
             const edgeLength = _.sum(_.map(edge.segments(), segment => segment.length()));
-            let factor = edgeLength / this._options.targetEdgeLength;
+            let factor = edgeLength / this._options["targetEdgeLength"];
             cost += Math.max(factor, 1 / factor);
         });
         return cost;
