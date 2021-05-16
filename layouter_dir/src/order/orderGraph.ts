@@ -455,7 +455,6 @@ export default class OrderGraph {
                             hasChanged = false;
                             const newNodeOrder = new Array(order[r].length);
                             let groupMeans = [];
-                            const sameMeanNodes = [];
                             _.forEach(ranks[r].groups, (group: OrderGroup, g: number) => {
                                 // calculate mean position of neighbors
                                 let nodeMeans = [];
@@ -485,7 +484,6 @@ export default class OrderGraph {
 
                                 // sort by the means
                                 nodeMeans = _.sortBy(nodeMeans, pair => pair[1]);
-                                Array.prototype.push.apply(sameMeanNodes, this._getSameMeanSequences(nodeMeans, positions[r]));
 
                                 for (let posInGroup = 0; posInGroup < group.nodes.length; ++posInGroup) {
                                     newNodeOrder[groupOffsetsPos[r][g] + posInGroup] = nodeMeans[posInGroup][0];
@@ -521,39 +519,6 @@ export default class OrderGraph {
                                         improveCounter = 2;
                                     }
                                 });
-                                /*if (!hasChanged) {
-                                    _.forEach(this._getSameMeanSequences(groupMeans, groupPositions[r]), sequence => {
-                                        hasChanged = true;
-                                        while (hasChanged) {
-                                            hasChanged = false;
-                                            for (let i = 0; i < sequence.length - 1; ++i) {
-                                                const tmpGroupOrder = _.cloneDeep(groupOrder[r]);
-                                                const tmp = tmpGroupOrder[sequence[i]];
-                                                tmpGroupOrder[sequence[i]] = tmpGroupOrder[sequence[i + 1]];
-                                                tmpGroupOrder[sequence[i + 1]] = tmp;
-
-                                                // transform new group order to node order
-                                                const tmpOrder = [];
-                                                _.forEach(tmpGroupOrder, g => {
-                                                    for (let posInGroup = 0; posInGroup < ranks[r].groups[g].nodes.length; ++posInGroup) {
-                                                        tmpOrder.push(order[r][groupOffsets[r][g] + posInGroup]);
-                                                    }
-                                                });
-
-                                                const result = tryNewOrder(tmpOrder);
-                                                if (result > 0) {
-                                                    hasChanged = true;
-                                                    // store new group order
-                                                    groupOrder[r] = tmpGroupOrder;
-                                                    this._setGroupPositionAndOffset(groupOrder[r], groupPositions[r], groupOffsets[r], ranks[r]);
-                                                }
-                                                if (result === 2) {
-                                                    improveCounter = 2;
-                                                }
-                                            }
-                                        }
-                                    });
-                                }*/
                             }
 
                             if (!hasChanged) {
@@ -568,27 +533,6 @@ export default class OrderGraph {
                                     }
                                 });
                             }
-                            /*if (!hasChanged) {
-                                _.forEach(sameMeanNodes, group => {
-                                    let hasChanged = true;
-                                    while (hasChanged) {
-                                        hasChanged = false;
-                                        for (let i = 0; i < group.length - 1; ++i) {
-                                            const tmpOrder = _.cloneDeep(order[r]);
-                                            const tmp = tmpOrder[group[i]];
-                                            tmpOrder[group[i]] = tmpOrder[group[i + 1]];
-                                            tmpOrder[group[i + 1]] = tmp;
-                                            const result = tryNewOrder(tmpOrder);
-                                            if (result > 0) {
-                                                hasChanged = true;
-                                            }
-                                            if (result === 2) {
-                                                improveCounter = 2;
-                                            }
-                                        }
-                                    }
-                                });
-                            }*/
                         }
                         if (DEBUG) {
                             assertOrderAndPositionCoherence(r);
@@ -1549,28 +1493,6 @@ export default class OrderGraph {
             crossWeight += weights[i] * weightSum;
         });
         return crossWeight;
-    }
-
-    private _getSameMeanSequences(orderedSequence: Array<[number, number]>, positions: Array<number>): Array<Array<number>> {
-        // find groups with same mean
-        const sameMeanSequences = [];
-        let prevMean = -1;
-        let sameMeanSequence = [];
-        _.forEach(orderedSequence, ([index, mean]) => {
-            if (mean === prevMean) {
-                sameMeanSequence.push(positions[index]);
-            } else {
-                if (sameMeanSequence.length >= 2) {
-                    sameMeanSequences.push(_.clone(sameMeanSequence));
-                }
-                sameMeanSequence = [positions[index]];
-            }
-            prevMean = mean;
-        });
-        if (sameMeanSequence.length >= 2) {
-            sameMeanSequences.push(_.clone(sameMeanSequence));
-        }
-        return sameMeanSequences;
     }
 
     private _getPartialOrders(newOrder: Array<number>, order: Array<number>, positions: Array<number>, debug: boolean = false): Array<Array<number>> {

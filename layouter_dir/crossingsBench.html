@@ -57,9 +57,9 @@
                     graphs.push(layoutLib.Bench.GRAPHS_NPBENCH[g]);
                 }
             }
-            graphs = layoutLib.Bench.GRAPHS_POLYBENCH;
+            //graphs = layoutLib.Bench.GRAPHS_POLYBENCH;
             const layouters = [
-                ["Dagre", layoutLib.layouter.DagreLayouter, {}],
+                //["Dagre", layoutLib.layouter.DagreLayouter, {}],
                 ["Sugiyama", layoutLib.layouter.SugiyamaLayouter, {}],
                 ["Sugiyama-SL", layoutLib.layouter.SugiyamaLayouter, {shuffles: 16, shuffleGlobal: false}],
                 ["Sugiyama-SG", layoutLib.layouter.SugiyamaLayouter, {shuffles: 16, shuffleGlobal: true}],
