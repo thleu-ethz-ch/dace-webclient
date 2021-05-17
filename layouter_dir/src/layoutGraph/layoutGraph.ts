@@ -62,10 +62,10 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
         let maxY = Number.NEGATIVE_INFINITY;
         _.forEach(nodes, (node: LayoutNode) => {
             const box = node.boundingBox();
-            if (node.inConnectors.length > 0) {
+            if (_.some(node.inConnectors, connector => !connector.isTemporary)) {
                 box.y -= CONNECTOR_SIZE / 2;
             }
-            if (node.outConnectors.length > 0) {
+            if (_.some(node.outConnectors, connector => !connector.isTemporary)) {
                 box.height += CONNECTOR_SIZE / 2;
             }
             minX = Math.min(minX, box.x);

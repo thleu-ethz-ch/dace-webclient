@@ -99,7 +99,7 @@ export default class Renderer {
             } else {
                 console.log("Layout violates constraints.");
             }
-            //console.log("Weighted cost: " + layoutAnalysis.cost(true).toFixed(0));
+            console.log("Weighted cost: " + layoutAnalysis.cost(true).toFixed(0));
             /*const performanceAnalysis = new PerformanceAnalysis(layouter);
             performanceAnalysis.measure(name, 1).then(time => {
                 console.log(time + " ms");
@@ -107,10 +107,10 @@ export default class Renderer {
 
             // center and fit the graph in the viewport
             const box = graph.boundingBox();
-            console.log("Total size: " + box.width.toFixed(0) + "x" + box.height.toFixed(0));
-            console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
+            //console.log("Total size: " + box.width.toFixed(0) + "x" + box.height.toFixed(0));
+            //console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
-            Timer.printTimes();
+            //Timer.printTimes();
 
             this.render(graph);
         });

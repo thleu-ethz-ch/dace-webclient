@@ -266,6 +266,15 @@ export default abstract class Layouter {
                 if (DEBUG) {
                     Assert.assert(srcLayoutNode.graph === dstLayoutNode.graph, "edge between different graphs", edge);
                 }
+                // add implicit connectors (with name null)
+                if (edge.src !== edge.dst) {
+                    if (srcNode.layoutNode.connector("OUT", edge.srcConnector) === undefined) {
+                        srcNode.layoutNode.addConnector("OUT", edge.srcConnector, true);
+                    }
+                    if (dstNode.layoutNode.connector("IN", edge.dstConnector) === undefined) {
+                        dstNode.layoutNode.addConnector("IN", edge.dstConnector, true);
+                    }
+                }
                 edge.layoutEdge = new LayoutEdge(srcLayoutNode.id, dstLayoutNode.id, edge.srcConnector, edge.dstConnector, edge.labelSize);
                 srcLayoutNode.graph.addEdge(edge.layoutEdge);
             });

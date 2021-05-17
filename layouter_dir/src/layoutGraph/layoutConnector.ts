@@ -14,32 +14,30 @@ export default class LayoutConnector {
     public counterpart: LayoutConnector = null;
 
     // position is relative to node
-    public x = null;
-    public y = null;
-    public readonly width;
-    public readonly height;
+    public x: number = null;
+    public y: number = null;
+    public readonly width: number = 0;
+    public readonly height: number = 0;
+    public readonly isTemporary: boolean;
 
-    constructor(node: LayoutNode, type: "IN" | "OUT", name: string) {
+    constructor(node: LayoutNode, type: "IN" | "OUT", name: string, temporary: boolean) {
         this.node = node;
         this.type = type;
         this.name = name;
-        this.width = CONNECTOR_SIZE;
-        this.height = CONNECTOR_SIZE;
-        if (name.startsWith("IN_")) {
-            const matchingConnectorIndex = _.map(node.outConnectors, "name").indexOf("OUT_" + name.substr(3));
-            if (matchingConnectorIndex > -1) {
-                this.isScoped = true;
-                this.counterpart = node.outConnectors[matchingConnectorIndex];
-                this.counterpart.isScoped = true;
-                this.counterpart.counterpart = this;
-                this.node.hasScopedConnectors = true;
-            }
+        if (!temporary) {
+            this.width = CONNECTOR_SIZE;
+            this.height = CONNECTOR_SIZE;
         }
-        if (name.startsWith("OUT_")) {
-            const matchingConnectorIndex = _.map(node.inConnectors, "name").indexOf("IN_" + name.substr(4));
+        this.isTemporary = temporary;
+        if (name === null) {
+            return;
+        }
+        const counterpartType = (type === "IN" ? "OUT" : "IN");
+        if (name.startsWith(type + "_")) {
+            const matchingConnectorIndex = _.map(node[counterpartType.toLowerCase() + "Connectors"], "name").indexOf(counterpartType + "_" + name.substr(type.length + 1));
             if (matchingConnectorIndex > -1) {
                 this.isScoped = true;
-                this.counterpart = node.inConnectors[matchingConnectorIndex];
+                this.counterpart = node[counterpartType.toLowerCase() + "Connectors"][matchingConnectorIndex];
                 this.counterpart.isScoped = true;
                 this.counterpart.counterpart = this;
                 this.node.hasScopedConnectors = true;

@@ -46,11 +46,12 @@ export default class SugiyamaLayouter extends Layouter {
         this._addVirtualNodes(graph);
         Timer.stop(["doLayout", "addVirtualNodes"]);
 
+        // STEP 4: ASSIGN COORDINATES
         Timer.start(["doLayout", "orderRanks"]);
         this._orderRanks(graph);
         Timer.stop(["doLayout", "orderRanks"]);
 
-        // STEP 4: ASSIGN COORDINATES
+        // STEP 5: ASSIGN COORDINATES
         const segmentsPerRank = [];
         const crossingsPerRank = [];
 
@@ -58,12 +59,12 @@ export default class SugiyamaLayouter extends Layouter {
         this._assignCoordinates(graph, segmentsPerRank, crossingsPerRank);
         Timer.stop(["doLayout", "assignCoordinates"]);
 
-        // STEP 4b (OPTIONAL): OPTIMIZE ANGLES
+        // STEP 6 (OPTIONAL): OPTIMIZE ANGLES
         if (this._options["optimizeAngles"]) {
             this._optimizeAngles(graph, segmentsPerRank, crossingsPerRank);
         }
 
-        // STEP 5: RESTORE CYCLES
+        // STEP 7: RESTORE CYCLES
         Timer.start(["doLayout", "restoreCycles"]);
         this._restoreCycles(graph);
         Timer.stop(["doLayout", "restoreCycles"]);
@@ -83,7 +84,21 @@ export default class SugiyamaLayouter extends Layouter {
                 });
 
                 // remove normal cycles
-                subgraph.removeCycles();
+                const invertedEdges = subgraph.removeCycles();
+                _.forEach(invertedEdges, (edge: LayoutEdge) => {
+                    const newSrc = subgraph.node(edge.src);
+                    const newDst = subgraph.node(edge.dst);
+                    newSrc.addConnector("OUT", "bottomIn", true);
+                    newDst.addConnector("IN", "topOut", true);
+                    edge.srcConnector = "bottomIn";
+                    edge.dstConnector = "topOut";
+                    if (!_.some(subgraph.outEdges(newDst.id), edge => edge.srcConnector === null)) {
+                         newDst.removeConnector("OUT", null);
+                    }
+                    if (!_.some(subgraph.inEdges(newSrc.id), edge => edge.dstConnector === null)) {
+                        newSrc.removeConnector("IN", null);
+                    }
+                });
             }
         });
     }
@@ -238,10 +253,7 @@ export default class SugiyamaLayouter extends Layouter {
         }
 
         const connectorMap = new Map();
-        const generalInMap = new Map(); // invisible in-connectors
-        const generalOutMap = new Map(); // invisible out-connectors
-        const generalBottomInMap = new Map(); // invisible in-connectors at the bottom of states
-        const generalTopOutMap = new Map(); // invisible in-connectors at the bottom of states
+        const levelNodeMap = new Map();
 
         // add nodes
         const addConnectorsForSubgraph = (subgraph: LayoutGraph, indizes: Array<number> = null) => {
@@ -291,30 +303,6 @@ export default class SugiyamaLayouter extends Layouter {
                                 }
                             });
                         }
-                        if (!levelNode.isFirst || node.inConnectors.length === 0) {
-                            const inNode = new OrderNode(null, false, "generalInConnector")
-                            let orderNodes = [inNode];
-                            // add invisible out-connector at top of state-node (if necessary)
-                            if (!node.isVirtual && subgraph.mayHaveCycles && _.some(subgraph.inEdges(node.id), "isInverted")) {
-                                const topOutNode = new OrderNode("topOut", false, "generalTopOutConnector");
-                                if (node.topOutConnectorIndex === 0) {
-                                    orderNodes = [topOutNode, inNode];
-                                } else {
-                                    orderNodes = [inNode, topOutNode];
-                                }
-                            }
-                            if (shuffleConnectors) {
-                                orderNodes = Shuffle.shuffle(orderNodes);
-                            }
-                            _.forEach(orderNodes, orderNode => {
-                                connectorGroup.addNode(orderNode);
-                                if (orderNode.reference === "topOut") {
-                                    generalTopOutMap.set(levelNode, orderNode.id);
-                                } else {
-                                    generalInMap.set(levelNode, orderNode.id);
-                                }
-                            });
-                        }
                     }
                     if (isPreorder || levelNode.isLast) {
                         if (!isPreorder && !node.hasScopedConnectors) {
@@ -323,7 +311,6 @@ export default class SugiyamaLayouter extends Layouter {
                             orderRank[levelNode.rank].addGroup(connectorGroup);
                             connectorGroup.position = index;
                         }
-
                         if (levelNode.isLast) {
                             // add output connectors
                             let connectors = node.outConnectors;
@@ -338,30 +325,11 @@ export default class SugiyamaLayouter extends Layouter {
                                 }
                             });
                         }
-                        if (!levelNode.isLast || node.outConnectors.length === 0) {
-                            const outNode = new OrderNode(null, false, "generalOutConnector");
-                            let orderNodes = [outNode];
-                            // add invisible in-connector at bottom of state-node (if necessary)
-                            if (!node.isVirtual && subgraph.mayHaveCycles && _.some(subgraph.outEdges(node.id), "isInverted")) {
-                                const bottomInNode = new OrderNode("bottomIn", false, "generalBottomInConnector");
-                                if (node.bottomInConnectorIndex === 0) {
-                                    orderNodes = [bottomInNode, outNode];
-                                } else {
-                                    orderNodes = [outNode, bottomInNode];
-                                }
-                            }
-                            if (shuffleConnectors) {
-                                orderNodes = Shuffle.shuffle(orderNodes);
-                            }
-                            _.forEach(orderNodes, orderNode => {
-                                connectorGroup.addNode(orderNode);
-                                if (orderNode.reference === "bottomIn") {
-                                    generalBottomInMap.set(levelNode, orderNode.id);
-                                } else {
-                                    generalOutMap.set(levelNode, orderNode.id);
-                                }
-                            });
-                        }
+                    }
+                    if (isPreorder && node.rankSpan > 1) {
+                        const orderNode = new OrderNode(null, true, node.label());
+                        connectorGroup.addNode(orderNode);
+                        levelNodeMap.set(levelNode, orderNode);
                     }
                     index++;
                 });
@@ -383,23 +351,13 @@ export default class SugiyamaLayouter extends Layouter {
             if (DEBUG) {
                 Assert.assert(dstNode.rank > srcNode.rank, "edge not between neighboring ranks", edge, srcNode, dstNode);
             }
-            let srcOrderNodeId;
-            if (edge.srcConnector !== null) {
-                srcOrderNodeId = connectorMap.get(srcNode.connector("OUT", edge.srcConnector));
-            } else {
-                srcOrderNodeId = generalBottomInMap.get(_.last(srcNode.levelNodes));
-                if (!edge.isInverted || srcOrderNodeId === undefined) {
-                    srcOrderNodeId = generalOutMap.get(_.last(srcNode.levelNodes));
-                }
+            let srcOrderNodeId = connectorMap.get(srcNode.connector("OUT", edge.srcConnector));
+            if (srcOrderNodeId === undefined) {
+                srcOrderNodeId = connectorMap.get(srcNode.connector("OUT", "bottomIn"));
             }
-            let dstOrderNodeId;
-            if (edge.dstConnector !== null) {
-                dstOrderNodeId = connectorMap.get(dstNode.connector("IN", edge.dstConnector));
-            } else {
-                dstOrderNodeId = generalTopOutMap.get(dstNode.levelNodes[0]);
-                if (!edge.isInverted || dstOrderNodeId === undefined) {
-                    dstOrderNodeId = generalInMap.get(dstNode.levelNodes[0]);
-                }
+            let dstOrderNodeId = connectorMap.get(dstNode.connector("IN", edge.dstConnector));
+            if (dstOrderNodeId === undefined) {
+                dstOrderNodeId = connectorMap.get(srcNode.connector("IN", "topOut"));
             }
             orderGraph.addEdge(new Edge(srcOrderNodeId, dstOrderNodeId, 1));
         });
@@ -411,9 +369,9 @@ export default class SugiyamaLayouter extends Layouter {
                     for (let r = 0; r < node.levelNodes.length - 1; ++r) {
                         const srcNode = node.levelNodes[r];
                         const dstNode = node.levelNodes[r + 1];
-                        let srcOrderNode = generalOutMap.get(srcNode);
-                        let dstOrderNode = generalInMap.get(dstNode);
-                        orderGraph.addEdge(new Edge(srcOrderNode, dstOrderNode, 1));
+                        let srcOrderNode = levelNodeMap.get(srcNode);
+                        let dstOrderNode = levelNodeMap.get(dstNode);
+                        orderGraph.addEdge(new Edge(srcOrderNode.id, dstOrderNode.id, 1));
                     }
                 }
             });
@@ -697,16 +655,10 @@ export default class SugiyamaLayouter extends Layouter {
                     const connectors = {"IN": [], "OUT": []};
                     _.forEach(orderGroup.orderedNodes(), (orderNode: OrderNode) => {
                         if (orderNode.reference !== null) {
-                            if (orderNode.reference === "bottomIn") {
-                                layoutNode.bottomInConnectorIndex = orderNode.position;
-                            } else if (orderNode.reference === "topOut") {
-                                layoutNode.topOutConnectorIndex = orderNode.position;
-                            } else {
-                                const connector = orderNode.reference;
-                                connectors[connector.type].push(connector);
-                                if (connector.isScoped) {
-                                    connectors["OUT"].push(connector.counterpart);
-                                }
+                            const connector = orderNode.reference;
+                            connectors[connector.type].push(connector);
+                            if (connector.isScoped) {
+                                connectors["OUT"].push(connector.counterpart);
                             }
                         }
                     });
@@ -788,8 +740,6 @@ export default class SugiyamaLayouter extends Layouter {
                         _.forEach(fromNode.outConnectors, (outConnector: LayoutConnector) => {
                             toNode.outConnectors.push(toNode.connector("OUT", outConnector.name));
                         });
-                        toNode.bottomInConnectorIndex = fromNode.bottomInConnectorIndex;
-                        toNode.topOutConnectorIndex = fromNode.topOutConnectorIndex;
                         toNode.rank = fromNode.rank;
                         toNode.levelNodes = fromNode.levelNodes;
                     }
@@ -904,16 +854,16 @@ export default class SugiyamaLayouter extends Layouter {
                 });
                 node.updateSize({width: 2 * node.padding, height: 2 * node.padding});
                 let height = node.height;
-                if (node.inConnectors.length > 0) {
+                if (_.some(node.inConnectors, connector => !connector.isTemporary)) {
                     node.y += CONNECTOR_SIZE / 2;
                 }
-                if (node.outConnectors.length > 0) {
+                if (_.some(node.outConnectors, connector => !connector.isTemporary)) {
                     height += CONNECTOR_SIZE / 2;
                 }
                 _.forEach(node.parents(), (parent: LayoutNode) => {
                     if (parent.rank + parent.rankSpan - 1 === node.rank) {
                         height += parent.padding;
-                        if (parent.outConnectors.length > 0) {
+                        if (_.some(parent.outConnectors, connector => !connector.isTemporary)) {
                             height += CONNECTOR_SIZE / 2;
                         }
                     }
@@ -962,7 +912,7 @@ export default class SugiyamaLayouter extends Layouter {
                 let boundingBox;
                 _.forEach(parent.childGraphs, (childGraph: LayoutGraph) => {
                     boundingBox = childGraph.boundingBox(false);
-                    if (parent.outConnectors.length > 0) {
+                    if (_.some(parent.outConnectors, connector => !connector.isTemporary)) {
                         boundingBox.height -= CONNECTOR_SIZE / 2;
                     }
                     width += boundingBox.width + this._options["targetEdgeLength"];
@@ -996,21 +946,9 @@ export default class SugiyamaLayouter extends Layouter {
              */
 
             const getInPoint = (node: LayoutNode, edge: LayoutEdge): Vector => {
-                let inPoint = node.boundingBox().topCenter();
-                if (edge.dstConnector !== null) {
-                    let dstConnector = node.connector("IN", edge.dstConnector);
-                    if (dstConnector !== undefined) {
-                        inPoint = dstConnector.boundingBox().topCenter();
-                    }
-                } else if (node.topOutConnectorIndex !== null) {
-                    if (edge.isInverted) {
-                        inPoint.x += (node.topOutConnectorIndex - 0.5) * 2 * CONNECTOR_SPACING;
-                    } else {
-                        inPoint.x += (0.5 - node.topOutConnectorIndex) * 2 * CONNECTOR_SPACING;
-                    }
-                }
-                inPoint.y = rankTops[node.rank];
-                return inPoint;
+                node = (node.isScopeNode ? node.childGraphs[0].entryNode : node);
+                const dstConnector = node.connector("IN", edge.dstConnector);
+                return dstConnector.boundingBox().topCenter();
             };
 
             const getInProxyPoint = (node: LayoutNode, inPoint: Vector): Vector => {
@@ -1020,20 +958,9 @@ export default class SugiyamaLayouter extends Layouter {
             };
 
             const getOutPoint = (node: LayoutNode, edge: LayoutEdge): Vector => {
-                let outPoint = node.boundingBox().bottomCenter();
-                if (edge.srcConnector !== null) {
-                    let srcConnector = node.connector("OUT", edge.srcConnector);
-                    if (srcConnector !== undefined) {
-                        outPoint = srcConnector.boundingBox().bottomCenter();
-                    }
-                } else if (node.bottomInConnectorIndex !== null) {
-                    if (edge.isInverted) {
-                        outPoint.x += (node.bottomInConnectorIndex - 0.5) * 2 * CONNECTOR_SPACING;
-                    } else {
-                        outPoint.x += (0.5 - node.bottomInConnectorIndex) * 2 * CONNECTOR_SPACING;
-                    }
-                }
-                return outPoint;
+                node = (node.isScopeNode ? node.childGraphs[0].exitNode : node);
+                const srcConnector = node.connector("OUT", edge.srcConnector);
+                return srcConnector.boundingBox().bottomCenter();
             };
 
             const getOutProxyPoint = (node: LayoutNode, outPoint: Vector): Vector => {
@@ -1144,7 +1071,7 @@ export default class SugiyamaLayouter extends Layouter {
                 }
                 const endPoint = getInPoint(endNode, edge);
                 const endProxyPoint = (edge.dstBundle !== null ? edge.dstBundle.position() : getInProxyPoint(endNode, endPoint));
-                if (!_.isEqual(endProxyPoint, endPoint) && !noInProxyNodes.has(endPoint)) {
+                if (!_.isEqual(endProxyPoint, endPoint) && !noInProxyNodes.has(endNode)) {
                     edge.points.push(endProxyPoint);
                 }
                 edge.points.push(endPoint);
@@ -1500,11 +1427,8 @@ export default class SugiyamaLayouter extends Layouter {
             Math.max(node.inConnectors.length, node.outConnectors.length) * (SPACE + SIZE) - SPACE,
             SIZE
         ).centerIn(node.boundingBox());
-        _.forEach(node.inConnectors, (connector: LayoutConnector) => {
-            connector.translate(auxBox.x - node.x, 0);
-        });
-        _.forEach(node.outConnectors, (connector: LayoutConnector) => {
-            connector.translate(auxBox.x - node.x, 0);
+        _.forEach(node.connectors(), (connector: LayoutConnector) => {
+            connector.translate(auxBox.x - node.x + (connector.isTemporary ? SPACE / 2 : 0), connector.isTemporary ? SPACE / 2 : 0);
         });
 
         // place bundles

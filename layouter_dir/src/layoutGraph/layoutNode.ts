@@ -14,8 +14,6 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public outConnectors: Array<LayoutConnector> = [];
     public inConnectorBundles: Array<LayoutBundle> = [];
     public outConnectorBundles: Array<LayoutBundle> = [];
-    public bottomInConnectorIndex: number = null;
-    public topOutConnectorIndex: number = null;
 
     public x: number = 0;
     public y: number = 0;
@@ -51,6 +49,14 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         this.padding = padding;
         this.isVirtual = isVirtual;
         this.isBundle = isBundle;
+        if (isVirtual || isBundle) {
+            this.addConnector("IN", null);
+            this.addConnector("OUT", null);
+        }
+    }
+
+    connectors() {
+        return _.concat(this.inConnectors, this.outConnectors);
     }
 
     connector(type: "IN" | "OUT", name: string): LayoutConnector {
@@ -61,14 +67,26 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         }
     }
 
-    addConnector(type: "IN" | "OUT", name: string): void {
-        const connector = new LayoutConnector(this, type, name);
+    addConnector(type: "IN" | "OUT", name: string, temporary: boolean = false): void {
+        const connector = new LayoutConnector(this, type, name, temporary);
         if (type === "IN") {
             this._inConnectors.set(name, connector);
             this.inConnectors.push(connector);
         } else {
             this._outConnectors.set(name, connector);
             this.outConnectors.push(connector);
+        }
+    }
+
+    removeConnector(type: "IN" | "OUT", name: string): void {
+        if (type === "IN") {
+            const connector = this._inConnectors.get(name);
+            this._inConnectors.delete(name);
+            _.pull(this.inConnectors, connector);
+        } else {
+            const connector = this._outConnectors.get(name);
+            this._outConnectors.delete(name);
+            _.pull(this.outConnectors, connector);
         }
     }
 

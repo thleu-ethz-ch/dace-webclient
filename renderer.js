@@ -825,7 +825,7 @@ function get_sdfg_graph(ctx, sdfg, sdfg_list, state_parent_list, omit_access_nod
 function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list, omit_access_nodes) {
     const g = get_sdfg_graph(ctx, sdfg,  sdfg_list, state_parent_list, omit_access_nodes);
 
-    const layouter = new layoutLib.layouter.DagreLayouter();
+    const layouter = new layoutLib.layouter.SugiyamaLayouter();
     layouter.layout(g);
 
     function postlayout_sdfg(g, sdfg) {
