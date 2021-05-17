@@ -436,6 +436,13 @@ export default abstract class Layouter {
         });
         _.forEach(renderGraph.allEdges(), (edge: RenderEdge) => {
             _.assign(edge, _.pick(edge.layoutEdge, ['points']));
+            // duplicate bundle points to make curved edges go through them
+            if (edge.layoutEdge.srcBundle !== null) {
+                edge.points.splice(1, 0, edge.points[1].clone());
+            }
+            if (edge.layoutEdge.dstBundle !== null) {
+                edge.points.splice(edge.points.length - 2, 0, edge.points[edge.points.length - 2].clone());
+            }
             edge.updateBoundingBox();
             delete edge.layoutEdge;
         });
