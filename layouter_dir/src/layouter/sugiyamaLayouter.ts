@@ -181,9 +181,7 @@ export default class SugiyamaLayouter extends Layouter {
                         if (edge.srcBundle !== null && edge.srcBundle.edges.length > 1) {
                             _.forEach(edge.srcBundle.edges, (bundleEdge: LayoutEdge) => {
                                 if (bundleEdge.isReplica) {
-                                    bundleEdge.graph.removeEdge(bundleEdge.id);
-                                    bundleEdge.dst = tmpDstId;
-                                    bundleEdge.graph.addEdge(bundleEdge, bundleEdge.id);
+                                    bundleEdge.graph.redirectEdge(bundleEdge.id, bundleEdge.src, tmpDstId);
                                 }
                             });
                         }
@@ -218,9 +216,7 @@ export default class SugiyamaLayouter extends Layouter {
                 if ((edge.dstBundle !== null) && (edge.dstBundle.edges.length > 1)) {
                     _.forEach(edge.dstBundle.edges, (bundleEdge: LayoutEdge) => {
                         if (bundleEdge.isReplica) {
-                            bundleEdge.graph.removeEdge(bundleEdge.id);
-                            bundleEdge.src = tmpSrcId;
-                            bundleEdge.graph.addEdge(bundleEdge, bundleEdge.id);
+                            bundleEdge.graph.redirectEdge(bundleEdge.id, tmpSrcId, bundleEdge.dst);
                         }
                     });
                 }
@@ -327,7 +323,7 @@ export default class SugiyamaLayouter extends Layouter {
                         }
                     }
                     if (isPreorder && node.rankSpan > 1) {
-                        const orderNode = new OrderNode(null, true, node.label());
+                        const orderNode = new OrderNode(null, !levelNode.isFirst && !levelNode.isLast, node.label());
                         connectorGroup.addNode(orderNode);
                         levelNodeMap.set(levelNode, orderNode);
                     }
@@ -442,7 +438,7 @@ export default class SugiyamaLayouter extends Layouter {
                     Shuffle.shuffle(levelNodes);
                 }
                 _.forEach(levelNodes, (levelNode: LevelNode) => {
-                    const orderNode = new OrderNode(levelNode, levelNode.layoutNode.isVirtual, levelNode.label());
+                    const orderNode = new OrderNode(levelNode, levelNode.layoutNode.isVirtual || levelNode.layoutNode.isBundle, levelNode.label());
                     orderGroups[levelNode.rank].addNode(orderNode, levelNode.id);
                     nodeMap.set(levelNode.id, orderNode.id);
                     orderNode.position = levelNode.position; // has no effect when option preorderConnectors is false
@@ -591,6 +587,9 @@ export default class SugiyamaLayouter extends Layouter {
                         const dstLayoutNode = levelGraph.node(levelEdge.dst).layoutNode;
                         const key = orderSrcNodeId + "_" + orderDstNodeId;
                         _.forEach(subgraph.edgesBetween(srcLayoutNode.id, dstLayoutNode.id), (layoutEdge: LayoutEdge, e) => {
+                            if (layoutEdge.isReplica) {
+                                return;
+                            }
                             let newNodes = _.clone(newNodesPerEdge.get(key));
                             const dstConnector = layoutEdge.dstConnector;
                             if (e > 0) {
@@ -1074,6 +1073,7 @@ export default class SugiyamaLayouter extends Layouter {
                 if (!_.isEqual(endProxyPoint, endPoint) && !noInProxyNodes.has(endNode)) {
                     edge.points.push(endProxyPoint);
                 }
+
                 edge.points.push(endPoint);
 
                 // redirect edge from start to end
@@ -1571,7 +1571,6 @@ export default class SugiyamaLayouter extends Layouter {
         const pointsSorted = _.sortBy(points, "0"); // sort by y
         let forcePointer = 0;
         let totalForce = 0;
-        const movedSet = new Set();
         _.forEach(pointsSorted, ([pointY, type, object, position]) => {
             while (forcePointer < sortedForces.length && sortedForces[forcePointer][0] < pointY) {
                 totalForce += sortedForces[forcePointer][1];
@@ -1590,10 +1589,6 @@ export default class SugiyamaLayouter extends Layouter {
                     });
                 }
             } else { // "EDGE"
-                if (movedSet.has(object.points[position])) {
-                    throw new Error("MOVE TWICE");
-                }
-                movedSet.add(object.points[position]);
                 object.points[position].y += totalForce;
             }
         });

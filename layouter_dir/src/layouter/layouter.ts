@@ -341,14 +341,14 @@ export default abstract class Layouter {
                         bundles.set(key, bundle);
                         if (connectorName === edge.srcConnector) {
                             let srcNode = graph.node(edge.src);
-                            if (srcNode.childGraph !== null && srcNode.childGraph.exitNode !== null) {
-                                srcNode = srcNode.childGraph.exitNode;
+                            if (srcNode.isScopeNode) {
+                                srcNode = srcNode.childGraphs[0].exitNode;
                             }
                             srcNode.outConnectorBundles.push(bundle);
                         } else {
                             let dstNode = graph.node(edge.dst);
-                            if (dstNode.isScopeNode !== null) {
-                                dstNode = dstNode.childGraph.entryNode;
+                            if (dstNode.isScopeNode) {
+                                dstNode = dstNode.childGraphs[0].entryNode;
                             }
                             dstNode.inConnectorBundles.push(bundle);
                         }
