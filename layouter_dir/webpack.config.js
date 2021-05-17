@@ -5,7 +5,6 @@ module.exports = {
     entry: {
         layoutLib: './src/layoutLib.js',
         renderLib: './src/renderLib.js',
-        crossCount: './src/order/crossCount',
     },
     module: {
         rules: [
