@@ -85,4 +85,19 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>> {
         });
         return maxX;
     }
+
+    public cloneForXAssignment(): LevelGraph
+    {
+        const graphCopy = new LevelGraph();
+        _.forEach(this.nodes(), (node: LevelNode) => {
+            const nodeCopy = new LevelNode(node.layoutNode, node.rank, node.isFirst);
+            nodeCopy.isLast = node.isLast;
+            graphCopy.addNode(nodeCopy, node.id);
+        });
+        _.forEach(this.edges(), (edge: Edge<any, any>) => {
+            const edgeCopy = new Edge(edge.src, edge.dst, edge.weight);
+            graphCopy.addEdge(edgeCopy, edge.id);
+        });
+        return graphCopy;
+    }
 }

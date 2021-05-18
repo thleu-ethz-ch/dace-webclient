@@ -1041,25 +1041,26 @@ export default class SugiyamaLayouter extends Layouter {
                 }
             });
 
+            Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges", "removeVirtual"]);
             _.forEach(_.clone(subgraph.nodes()), (node: LayoutNode) => {
                 // remove virtual nodes and edges
-                Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges", "removeVirtual"]);
                 if (node.isVirtual) {
-                    _.forEach(subgraph.inEdges(node.id), (inEdge) => {
-                        subgraph.removeEdge(inEdge.id);
+                    _.forEach(subgraph.inEdgesIds(node.id), (inEdgeId: number) => {
+                        subgraph.removeEdge(inEdgeId);
                     });
-                    _.forEach(subgraph.outEdges(node.id), (outEdge) => {
-                        subgraph.removeEdge(outEdge.id);
+                    _.forEach(subgraph.outEdgesIds(node.id), (outEdgeId: number) => {
+                        subgraph.removeEdge(outEdgeId);
                     });
                     subgraph.removeNode(node.id);
                 }
-                Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges", "removeVirtual"]);
 
                 // place self-loops visually outside their state
                 if (node.selfLoop !== null) {
                     node.setWidth(node.width - this._options["targetEdgeLength"]);
                 }
             });
+            Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges", "removeVirtual"]);
+
             Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges"]);
 
             // mark crossings for later angle optimization
@@ -1077,10 +1078,10 @@ export default class SugiyamaLayouter extends Layouter {
         Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX"]);
         Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "cloneGraphs"]);
         const alignGraphs: Array<LevelGraph> = [
-            <LevelGraph>subgraph.levelGraph().clone(),
-            <LevelGraph>subgraph.levelGraph().clone(),
-            <LevelGraph>subgraph.levelGraph().clone(),
-            <LevelGraph>subgraph.levelGraph().clone(),
+            <LevelGraph>subgraph.levelGraph().cloneForXAssignment(),
+            <LevelGraph>subgraph.levelGraph().cloneForXAssignment(),
+            <LevelGraph>subgraph.levelGraph().cloneForXAssignment(),
+            <LevelGraph>subgraph.levelGraph().cloneForXAssignment(),
         ];
         Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "cloneGraphs"]);
 
@@ -1109,16 +1110,21 @@ export default class SugiyamaLayouter extends Layouter {
 
         let minX = Number.POSITIVE_INFINITY;
         _.forEach(subgraph.levelGraph().nodes(), (node: LevelNode) => {
-            let xs = _.sortBy(_.map(alignGraphs, alignGraph => alignGraph.node(node.id).x));
-            let x = (xs[1] + xs[2]) / 2;
-            //x = alignGraphs[0].node(node.id).x; // uncomment to see 1 of the 4 merged layouts
-            x -= node.layoutNode.width / 2;
-            minX = Math.min(minX, x);
-            node.layoutNode.updatePosition(new Vector(offset + x, node.layoutNode.y));
+            if (node.isFirst) {
+                let xs = _.sortBy(_.map(alignGraphs, alignGraph => alignGraph.node(node.id).x));
+                let x = (xs[1] + xs[2]) / 2;
+                //x = alignGraphs[0].node(node.id).x; // uncomment to see 1 of the 4 merged layouts
+                x -= node.layoutNode.width / 2;
+                node.x = x;
+                minX = Math.min(minX, x);
+            }
         });
         const diff = 0 - minX;
-        _.forEach(subgraph.nodes(), (node: LayoutNode) => {
-            node.translate(diff, 0);
+        _.forEach(subgraph.levelGraph().nodes(), (node: LevelNode) => {
+            if (node.isFirst) {
+                node.x += diff;
+                node.layoutNode.setPosition(new Vector(node.x, node.layoutNode.y));
+            }
         });
         Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "merge"]);
 

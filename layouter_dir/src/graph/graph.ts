@@ -2,6 +2,7 @@ import * as _ from "lodash";
 import Component from "./component";
 import Edge from "./edge";
 import Node from "./node";
+import Timer from "../util/timer";
 
 export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any, any>> {
     public parentNode: NodeT = null;
@@ -214,12 +215,20 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return _.map(this._inEdges[id], edgeId => this.edge(edgeId));
     }
 
+    inEdgesIds(id: number): Array<number> {
+        return this._inEdges[id];
+    }
+
     numOutEdges(id: number): number {
         return this._outEdges[id].length;
     }
 
     outEdges(id: number): Array<EdgeT> {
         return _.map(this._outEdges[id], edgeId => this.edge(edgeId));
+    }
+
+    outEdgesIds(id: number): Array<number> {
+        return this._outEdges[id];
     }
 
     incidentEdges(id: number): Array<EdgeT> {
