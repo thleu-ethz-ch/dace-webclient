@@ -9,6 +9,7 @@
   "author": "Thomas Leu",
   "license": "ISC",
   "devDependencies": {
+    "flush-cache": "^1.0.1",
     "ts-loader": "^8.0.17",
     "typescript": "^4.1.5",
     "webpack": "^5.21.2",

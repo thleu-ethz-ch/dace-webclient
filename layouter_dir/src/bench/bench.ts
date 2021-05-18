@@ -50,10 +50,12 @@ export default class Bench {
         return Serializer.serializePromises(promises);
     }
 
-    public static performance(loadFunction: (name: string) => Promise<RenderGraph>, layouter: Layouter, graphs: Array<string> = Bench.GRAPHS_ALL) {
+    public static runtime(loadFunction: (name: string) => Promise<RenderGraph>, layouter: Layouter, graphs: Array<string> = Bench.GRAPHS_ALL, runs: number = 10, breakdown: boolean = false) {
         const promises = graphs.map(name => {
-            const performanceAnalysis = new PerformanceAnalysis(layouter);
-            return performanceAnalysis.measure(name);
+            return loadFunction(name).then((renderGraph: RenderGraph) => {
+                const performanceAnalysis = new PerformanceAnalysis(layouter);
+                return performanceAnalysis.measure(renderGraph, runs, breakdown);
+            });
         });
         return Serializer.serializePromises(promises);
     }

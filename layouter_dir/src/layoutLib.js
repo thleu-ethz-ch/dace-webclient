@@ -9,6 +9,7 @@ module.exports = {
         SugiyamaLayouter: require('./layouter/sugiyamaLayouter').default,
     },
     util: {
-        Serializer: require('./util/serializer').default
+        Serializer: require('./util/serializer').default,
+        Timer: require('./util/timer').default,
     }
 };

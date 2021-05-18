@@ -4,6 +4,11 @@ export default class Timer {
     private static _timers: Map<string, Array<number>> = new Map();
     private static _measurements: Map<string, Array<number>> = new Map();
 
+    public static reset(): void {
+        Timer._timers = new Map();
+        Timer._measurements = new Map();
+    }
+
     public static start(path: Array<string>): void {
         const id = path.join("|");
         let timers = Timer._timers.get(id);
@@ -30,7 +35,7 @@ export default class Timer {
         }
     }
 
-    public static printTimes(): void {
+    public static getTimes(): object {
         const timePerPath = {children: {}};
         Timer._measurements.forEach((measurements, id) => {
             const path = id.split("|");
@@ -47,6 +52,10 @@ export default class Timer {
             slot["mean"] = _.mean(measurements);
             slot["count"] = measurements.length;
         });
+        return timePerPath;
+    }
+
+    public static printTimes(times: object = null): void {
         const printTimes = (slot, name = "", level = 0, parentTime = 0) => {
             if (level > 0) {
                 let timeString = (slot.sum > 1000 ? ((slot.sum / 1000).toFixed(1) + " s") : (slot.sum + " ms"));
@@ -61,6 +70,26 @@ export default class Timer {
                 printTimes(slot.children[name], name, level + 1, slot.sum);
             }
         };
-        printTimes(timePerPath);
+        if (times === null) {
+            times = Timer.getTimes()
+        }
+        printTimes(times);
+    }
+
+    public static combineTimes(times:Array<object>): object {
+        const summary = {children: {}};
+        const combineTimes = (summarySlot, timeSlots, level = 0) => {
+            if (level > 0) {
+                summarySlot["times"] = _.map(timeSlots, "sum");
+            }
+            for (let name in timeSlots[0].children) {
+                summarySlot.children[name] = {
+                    children: {},
+                };
+                combineTimes(summarySlot.children[name], _.map(timeSlots, slot => slot.children[name]), level + 1);
+            }
+        };
+        combineTimes(summary, times);
+        return summary;
     }
 }

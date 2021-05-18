@@ -282,9 +282,6 @@ export default class SugiyamaLayouter extends Layouter {
                     if (isPreorder || levelNode.isFirst) {
                         connectorGroup = new OrderGroup(levelNode, node.label());
                         connectorGroup.shuffleHierarchy = shuffleHierarchy;
-                        if (orderRank[levelNode.rank] === undefined) {
-                            console.log(levelNode.rank, orderRank.length, graph.numRanks);
-                        }
                         orderRank[levelNode.rank].addGroup(connectorGroup);
                         connectorGroup.position = index;
                         if (levelNode.isFirst) {
