@@ -52,20 +52,14 @@
                 }
             }
             //graphs = layoutLib.Bench.GRAPHS_ALL;
-            const layouters = {
-                //"Dagre": [layoutLib.layouter.DagreLayouter, {}],
-                "0 Shuffles": [layoutLib.layouter.SugiyamaLayouter, {}],
-                "4 Shuffles": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 4}],
-                "16 Shuffles": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 16}],
-                "64 Shuffles": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64}],
-                //"Sugiyama-S": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64}],
-                //"Sugiyama-SO": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, optimizeAngles: true}],
-                //"Sugiyama-SOB": [layoutLib.layouter.SugiyamaLayouter, {shuffles: 64, optimizeAngles: true, bundle: true}],
-            };
+            const layouters = [
+                ["Dagre", layoutLib.layouter.DagreLayouter, {}],
+                ["Sugiyama", layoutLib.layouter.SugiyamaLayouter, {}],
+            ];
 
             const table = document.getElementById("table");
-            for (let layouterName in layouters) {
-                table.innerHTML += "<tr><td><b>" + layouterName + "</b></td></tr>";
+            for (let l = 0; l < layouters.length; ++l) {
+                table.innerHTML += "<tr><td><b>" + layouters[l][0] + "</b></td></tr>";
             }
             const tableRows = document.getElementsByTagName("tr");
             for (let g = 0; g < graphs.length; ++g) {
@@ -75,15 +69,13 @@
                 }
             }
             let l = 0;
-            for (let layouterName in layouters) {
+            for (let l = 0; l < layouters.length; ++l) {
                 let tmpL = l;
-                layoutLib.Bench.performance(layoutLib.Loader.load, new layouters[layouterName][0](layouters[layouterName][1]), graphs).then((result) => {
-                    let sum = 0;
+                layoutLib.Bench.performance(layoutLib.Loader.load, new layouters[l][1](layouters[l][2]), graphs).then((result) => {
                     for (let g = 0; g < graphs.length; ++g) {
                         tableRows[tmpL + 1].childNodes[g + 1].getElementsByClassName("time")[0].innerHTML = result[g];
                     }
                 });
-                l++;
             }
         });
     </script>

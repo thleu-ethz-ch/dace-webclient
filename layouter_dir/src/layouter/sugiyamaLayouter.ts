@@ -282,6 +282,9 @@ export default class SugiyamaLayouter extends Layouter {
                     if (isPreorder || levelNode.isFirst) {
                         connectorGroup = new OrderGroup(levelNode, node.label());
                         connectorGroup.shuffleHierarchy = shuffleHierarchy;
+                        if (orderRank[levelNode.rank] === undefined) {
+                            console.log(levelNode.rank, orderRank.length, graph.numRanks);
+                        }
                         orderRank[levelNode.rank].addGroup(connectorGroup);
                         connectorGroup.position = index;
                         if (levelNode.isFirst) {
@@ -329,7 +332,6 @@ export default class SugiyamaLayouter extends Layouter {
                     }
                     index++;
                 });
-                subgraph.levelGraph().invalidateRankOrder();
             });
         };
         addConnectorsForSubgraph(graph);
@@ -574,7 +576,6 @@ export default class SugiyamaLayouter extends Layouter {
                     newNodesPerEdge.set(key, nodes);
                 });
 
-                levelGraph.invalidateRankOrder();
                 const ranks = levelGraph.ranks();
 
                 // remove from layout graph edges that were removed in order graph
@@ -629,8 +630,6 @@ export default class SugiyamaLayouter extends Layouter {
                         });
                     }
                 });
-
-                levelGraph.invalidateRankOrder();
             });
 
             this._updateLevelNodeRanks(graph);
@@ -639,7 +638,7 @@ export default class SugiyamaLayouter extends Layouter {
              * STEP 3: ORDER CONNECTORS
              */
 
-                // order connectors
+            // order connectors
             const connectorOrderGraph = this._createConnectorGraph(graph, false, false, shuffle && !this._options["preorderConnectors"]);
             connectorOrderGraph.order({
                 resolveConflicts: false,
@@ -684,7 +683,7 @@ export default class SugiyamaLayouter extends Layouter {
             doOrder(graph);
         } else {
             Timer.start(["doLayout", "orderRanks", "cloneGraph"]);
-            const graphCopy = _.cloneDeep(graph);
+            const graphCopy = graph.cloneForOrdering();
             Timer.stop(["doLayout", "orderRanks", "cloneGraph"]);
             doOrder(graphCopy);
             let minCrossings = this._countCrossings(graphCopy);
@@ -694,7 +693,7 @@ export default class SugiyamaLayouter extends Layouter {
                     break;
                 }
                 Timer.start(["doLayout", "orderRanks", "cloneGraph"]);
-                const graphCopy = _.cloneDeep(graph);
+                const graphCopy = graph.cloneForOrdering();
                 Timer.stop(["doLayout", "orderRanks", "cloneGraph"]);
                 doOrder(graphCopy, true);
                 let numCrossings = this._countCrossings(graphCopy);
@@ -704,65 +703,8 @@ export default class SugiyamaLayouter extends Layouter {
                 }
             }
 
-            const copySubgraph = (from: LayoutGraph, to: LayoutGraph) => {
-                to.minRank = from.minRank;
-                to.numRanks = from.numRanks;
-                _.forEach(from.levelGraph().nodes(), (levelNode: LevelNode) => {
-                    const toNode = to.node(levelNode.layoutNode.id);
-                    if (toNode !== undefined) {
-                        levelNode.layoutNode = toNode;
-                    }
-                });
-                to.setLevelGraph(from.levelGraph());
-                const remainingNodes = new Set();
-                const remainingEdges = new Set();
-                _.forEach(to.nodes(), node => {
-                    remainingNodes.add(node);
-                });
-                _.forEach(to.edges(), edge => {
-                    remainingEdges.add(edge);
-                });
-                _.forEach(from.nodes(), (fromNode: LayoutNode) => {
-                    const toNode = to.node(fromNode.id);
-                    if (toNode === undefined) {
-                        to.addNode(fromNode, fromNode.id);
-                    } else {
-                        remainingNodes.delete(toNode);
-                        _.forEach(fromNode.childGraphs, (childGraph: LayoutGraph, i) => {
-                            copySubgraph(childGraph, toNode.childGraphs[i]);
-                        });
-                        toNode.inConnectors = [];
-                        _.forEach(fromNode.inConnectors, (inConnector: LayoutConnector) => {
-                            toNode.inConnectors.push(toNode.connector("IN", inConnector.name));
-                        });
-                        toNode.outConnectors = [];
-                        _.forEach(fromNode.outConnectors, (outConnector: LayoutConnector) => {
-                            toNode.outConnectors.push(toNode.connector("OUT", outConnector.name));
-                        });
-                        toNode.rank = fromNode.rank;
-                        toNode.levelNodes = fromNode.levelNodes;
-                    }
-                });
-                _.forEach(from.edges(), (fromEdge: LayoutEdge) => {
-                    const toEdge = to.edge(fromEdge.id);
-                    if (toEdge === undefined) {
-                        to.addEdge(fromEdge, fromEdge.id);
-                    } else {
-                        remainingEdges.delete(toEdge);
-                        to.redirectEdge(toEdge.id, fromEdge.src, fromEdge.dst);
-                        toEdge.srcConnector = fromEdge.srcConnector;
-                        toEdge.dstConnector = fromEdge.dstConnector;
-                    }
-                });
-                remainingNodes.forEach((node: LayoutNode) => {
-                    to.removeNode(node.id);
-                });
-                remainingEdges.forEach((edge: LayoutEdge) => {
-                    to.removeEdge(edge.id);
-                });
-            };
             Timer.start(["doLayout", "orderRanks", "copyBack"]);
-            copySubgraph(bestGraphCopy, graph);
+            bestGraphCopy.copyInto(graph);
             Timer.stop(["doLayout", "orderRanks", "copyBack"]);
         }
     }

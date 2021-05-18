@@ -7,10 +7,8 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
     public parentNode: NodeT = null;
 
     protected _nodes: Array<NodeT>;
-    protected _nodeIds: Array<number>;
     protected _nodesDense: Array<NodeT>;
     protected _edges: Array<EdgeT>;
-    protected _edgeIds: Array<number>;
     protected _edgesDense: Array<EdgeT>;
     protected _outEdges: Array<Array<number>>;
     protected _inEdges: Array<Array<number>>;
@@ -23,14 +21,18 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
     }
 
     clone(): Graph<NodeT, EdgeT> {
-        const clone = this.cloneEmpty();
+        const graphCopy = this.cloneEmpty();
         _.forEach(this.nodes(), node => {
-            clone.addNode(_.clone(node), node.id);
+            const nodeCopy = _.clone(node);
+            graphCopy.addNode(nodeCopy, node.id);
+            if (node.childGraph !== null) {
+                node.childGraph = nodeCopy.childGraph.clone();
+            }
         });
         _.forEach(this.edges(), edge => {
-            clone.addEdge(_.clone(edge), edge.id);
+            graphCopy.addEdge(_.clone(edge), edge.id);
         });
-        return clone;
+        return graphCopy;
     }
 
     cloneEmpty(): Graph<NodeT, EdgeT> {
@@ -48,7 +50,6 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         node.graph = this;
 
         this._nodes[id] = node;
-        this._nodeIds.push(id);
         this._nodesDense.push(node);
         if (this._outEdges[id] === undefined) {
             this._outEdges[id] = [];
@@ -68,7 +69,6 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         edge.id = id;
         edge.graph = this;
         this._edges[id] = edge;
-        this._edgeIds.push(id);
         this._edgesDense.push(edge);
         this._outEdges[edge.src].push(id);
         this._inEdges[edge.dst].push(id);
@@ -453,10 +453,8 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
 
     private _init(): void {
         this._nodes = [];
-        this._nodeIds = [];
         this._nodesDense = [];
         this._edges = [];
-        this._edgeIds = [];
         this._edgesDense = [];
         this._outEdges = [];
         this._inEdges = [];

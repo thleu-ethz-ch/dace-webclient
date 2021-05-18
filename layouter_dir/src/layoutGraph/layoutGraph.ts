@@ -6,6 +6,8 @@ import LayoutEdge from "./layoutEdge";
 import LayoutNode from "./layoutNode";
 import LevelGraph from "../levelGraph/levelGraph";
 import LevelNode from "../levelGraph/levelNode";
+import Timer from "../util/timer";
+import LayoutConnector from "./layoutConnector";
 
 export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
     public readonly mayHaveCycles: boolean;
@@ -140,5 +142,109 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
 
     public setLevelGraph(levelGraph: LevelGraph) {
         this._levelGraph = levelGraph;
+    }
+
+    public copyInto(to: LayoutGraph): void {
+        const copySubgraph = (from: LayoutGraph, to: LayoutGraph) => {
+            to.minRank = from.minRank;
+            to.numRanks = from.numRanks;
+            _.forEach(from.levelGraph().nodes(), (levelNode: LevelNode) => {
+                const toNode = to.node(levelNode.layoutNode.id);
+                if (toNode !== undefined) {
+                    levelNode.layoutNode = toNode;
+                }
+            });
+            to.setLevelGraph(from.levelGraph());
+            _.forEach(from.nodes(), (fromNode: LayoutNode) => {
+                const toNode = to.node(fromNode.id);
+                if (toNode === undefined) {
+                    to.addNode(fromNode, fromNode.id);
+                } else {
+                    _.forEach(fromNode.childGraphs, (childGraph: LayoutGraph, i) => {
+                        copySubgraph(childGraph, toNode.childGraphs[i]);
+                    });
+                    toNode.inConnectors = [];
+                    _.forEach(fromNode.inConnectors, (inConnector: LayoutConnector) => {
+                        toNode.inConnectors.push(toNode.connector("IN", inConnector.name));
+                    });
+                    toNode.outConnectors = [];
+                    _.forEach(fromNode.outConnectors, (outConnector: LayoutConnector) => {
+                        toNode.outConnectors.push(toNode.connector("OUT", outConnector.name));
+                    });
+                    toNode.rank = fromNode.rank;
+                    toNode.levelNodes = fromNode.levelNodes;
+                }
+            });
+            _.forEach(from.edges(), (fromEdge: LayoutEdge) => {
+                const toEdge = to.edge(fromEdge.id);
+                if (toEdge === undefined) {
+                    to.addEdge(fromEdge, fromEdge.id);
+                } else {
+                    to.redirectEdge(toEdge.id, fromEdge.src, fromEdge.dst);
+                    toEdge.srcConnector = fromEdge.srcConnector;
+                    toEdge.dstConnector = fromEdge.dstConnector;
+                }
+            });
+        };
+        copySubgraph(this, to);
+    }
+
+    public cloneForOrdering(): LayoutGraph {
+        const cloneSubgraph = (subgraph: LayoutGraph) => {
+            const graphCopy = new LayoutGraph(subgraph.mayHaveCycles);
+            graphCopy.minRank = subgraph.minRank;
+            graphCopy.numRanks = subgraph.numRanks;
+            _.forEach(subgraph.nodes(), node => {
+                const nodeCopy = new LayoutNode(node.size(), node.padding, node.isVirtual, node.isBundle, false);
+                nodeCopy.rank = node.rank;
+                nodeCopy.rankSpan = node.rankSpan
+                nodeCopy.isScopeNode = node.isScopeNode;
+                nodeCopy.inConnectorBundles = node.inConnectorBundles;
+                nodeCopy.outConnectorBundles = node.outConnectorBundles;
+                _.forEach(node.connectors(), (connector: LayoutConnector) => {
+                    nodeCopy.addConnector(connector.type, connector.name, connector.isTemporary);
+                });
+                graphCopy.addNode(nodeCopy, node.id);
+                _.forEach(node.childGraphs, childGraph => {
+                    const childCopy = cloneSubgraph(childGraph);
+                    nodeCopy.childGraphs.push(childCopy);
+                    childCopy.parentNode = nodeCopy;
+                });
+                if (nodeCopy.isScopeNode) {
+                    nodeCopy.childGraphs[0].entryNode = nodeCopy.childGraphs[0].node(node.childGraphs[0].entryNode.id);
+                    nodeCopy.childGraphs[0].exitNode = nodeCopy.childGraphs[0].node(node.childGraphs[0].exitNode.id);
+                }
+            });
+            _.forEach(subgraph.edges(), edge => {
+                const edgeCopy = new LayoutEdge(edge.src, edge.dst, edge.srcConnector, edge.dstConnector, edge.labelSize);
+                edgeCopy.isInverted = edge.isInverted;
+                edgeCopy.isReplica = edge.isReplica;
+                edgeCopy.weight = edge.weight;
+                edgeCopy.srcBundle = edge.srcBundle;
+                edgeCopy.dstBundle = edge.dstBundle;
+                graphCopy.addEdge(edgeCopy, edge.id);
+            });
+            return graphCopy;
+        }
+        return cloneSubgraph(this);
+    }
+
+    public clone(): LayoutGraph {
+        const graphCopy = <LayoutGraph>this.cloneEmpty();
+        _.forEach(this.nodes(), node => {
+            const nodeCopy = _.clone(node);
+            graphCopy.addNode(nodeCopy, node.id);
+            const childGraphs = [];
+            _.forEach(node.childGraphs, (childGraph: LayoutGraph) => {
+                const childCopy = childGraph.clone();
+                childGraphs.push(childCopy);
+                childCopy.parentNode = nodeCopy;
+            });
+            nodeCopy.childGraphs = childGraphs;
+        });
+        _.forEach(this.edges(), edge => {
+            graphCopy.addEdge(_.clone(edge), edge.id);
+        });
+        return graphCopy;
     }
 }

@@ -22,16 +22,15 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
 
     public selfLoop: LayoutEdge = null;
 
-    public isAccessNode: boolean = false;
     public isScopeNode: boolean = false;
     public hasScopedConnectors: boolean = false;
     public rank: number = null; // global rank (level) of the node
     public rankSpan: number = 1;
-    public index: number = 0; // index of the node, when indexes is set, it should eventually be the max index
+    public index: number = 0;
 
     public levelNodes: Array<LevelNode> = [];
 
-    public readonly childGraphs: Array<LayoutGraph> = [];
+    public childGraphs: Array<LayoutGraph> = [];
 
     public readonly padding: number;
     public readonly isVirtual: boolean;
@@ -40,7 +39,7 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     private readonly _inConnectors: Map<string, LayoutConnector> = new Map();
     private readonly _outConnectors: Map<string, LayoutConnector> = new Map();
 
-    constructor(size: Size = null, padding: number = 0, isVirtual: boolean = false, isBundle: boolean = false) {
+    constructor(size: Size = null, padding: number = 0, isVirtual: boolean = false, isBundle: boolean = false, addConnectors: boolean = true) {
         super();
         if (size !== null) {
             this.width = size.width;
@@ -49,7 +48,7 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         this.padding = padding;
         this.isVirtual = isVirtual;
         this.isBundle = isBundle;
-        if (isVirtual || isBundle) {
+        if (addConnectors && (isVirtual || isBundle)) {
             this.addConnector("IN", null);
             this.addConnector("OUT", null);
         }

@@ -167,9 +167,6 @@ export default abstract class Layouter {
             // add nodes and create groups for scopes (maps etc.)
             const createLayoutNode = (node: RenderNode) => {
                 const layoutNode = new LayoutNode(node.size(), node.childPadding);
-                if (node.type() === "AccessNode") {
-                    layoutNode.isAccessNode = true;
-                }
                 _.forEach(node.inConnectors, (connector: RenderConnector) => {
                     layoutNode.addConnector("IN", connector.name);
                 });

@@ -78,10 +78,6 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>> {
         return this._ranks;
     }
 
-    public invalidateRankOrder(): void {
-        this._ranks = null;
-    }
-
     public maxX(): number {
         let maxX = Number.NEGATIVE_INFINITY;
         _.forEach(this.nodes(), (node: LevelNode) => {
