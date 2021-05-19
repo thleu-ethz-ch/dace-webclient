@@ -4,6 +4,7 @@ import Layouter from "../layouter/layouter";
 import PerformanceAnalysis from "./performanceAnalysis";
 import RenderGraph from "../renderGraph/renderGraph";
 import Serializer from "../util/serializer";
+import LayoutGraph from "../layoutGraph/layoutGraph";
 
 export default class Bench {
     public static GRAPHS_SMALL = ["gemm_opt", "jacobi", "placement", "symm", "syrk", "trisolv", "trmm", "wrong"];
@@ -17,23 +18,25 @@ export default class Bench {
 
     public static validate(loadFunction: (name: string) => Promise<RenderGraph>, layouter: Layouter, graphs: Array<string> = Bench.GRAPHS_ALL) {
         const promises = graphs.map(name => {
-            return loadFunction(name).then((renderGraph: RenderGraph) => {
-                const layoutGraph = layouter.layout(renderGraph);
-                const layoutAnalysis = new LayoutAnalysis(layoutGraph, layouter.getOptionsForAnalysis());
-                if (!layoutAnalysis.validate()) {
-                    throw new Error('Layouter returned invalid layout for graph "' + name + '".');
-                }
+            return loadFunction(name).then(async (renderGraph: RenderGraph) => {
+                await layouter.layout(renderGraph).then((layout: LayoutGraph) => {
+                    const layoutAnalysis = new LayoutAnalysis(layout, layouter.getOptionsForAnalysis());
+                    if (!layoutAnalysis.validate()) {
+                        throw new Error('Layouter returned invalid layout for graph "' + name + '".');
+                    }
+                });
             });
-        })
+        });
         return Promise.all(promises);
     }
 
     public static cost(loadFunction: (name: string) => Promise<RenderGraph>, layouter: Layouter, graphs: Array<string> = Bench.GRAPHS_ALL) {
         const promises = graphs.map(name => {
-            return loadFunction(name).then((renderGraph: RenderGraph) => {
-                const layoutGraph = layouter.layout(renderGraph);
-                const layoutAnalysis = new LayoutAnalysis(layoutGraph, layouter.getOptionsForAnalysis());
-                return layoutAnalysis.cost();
+            return loadFunction(name).then(async (renderGraph: RenderGraph) => {
+                return await layouter.layout(renderGraph).then((layout: LayoutGraph) => {
+                    const layoutAnalysis = new LayoutAnalysis(layout, layouter.getOptionsForAnalysis());
+                    return layoutAnalysis.cost();
+                });
             });
         });
         return Serializer.serializePromises(promises);
@@ -41,10 +44,11 @@ export default class Bench {
 
     public static crossings(loadFunction: (name: string) => Promise<RenderGraph>, layouter: Layouter, graphs: Array<string> = Bench.GRAPHS_ALL) {
         const promises = graphs.map(name => {
-            return loadFunction(name).then((renderGraph: RenderGraph) => {
-                const layoutGraph = layouter.layout(renderGraph);
-                const layoutAnalysis = new LayoutAnalysis(layoutGraph, layouter.getOptionsForAnalysis());
-                return layoutAnalysis.segmentCrossings();
+            return loadFunction(name).then(async (renderGraph: RenderGraph) => {
+                return await layouter.layout(renderGraph).then((layout: LayoutGraph) => {
+                    const layoutAnalysis = new LayoutAnalysis(layout, layouter.getOptionsForAnalysis());
+                    return layoutAnalysis.segmentCrossings();
+                });
             });
         });
         return Serializer.serializePromises(promises);

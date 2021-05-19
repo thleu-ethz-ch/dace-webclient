@@ -25,7 +25,7 @@ import Timer from "../util/timer";
 import Vector from "../geometry/vector";
 
 export default class SugiyamaLayouter extends Layouter {
-    protected doLayout(graph: LayoutGraph): void {
+    protected async doLayout(graph: LayoutGraph): Promise<void> {
         if (graph.numNodes() === 0) {
             return;
         }

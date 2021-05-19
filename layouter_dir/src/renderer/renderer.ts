@@ -29,6 +29,7 @@ import Text from "../shapes/text";
 import Timer from "../util/timer";
 import UpwardTrapezoid from "../shapes/upwardTrapezoid";
 import Vector from "../geometry/vector";
+import LayoutGraph from "../layoutGraph/layoutGraph";
 
 export default class Renderer {
     private readonly _app;
@@ -91,28 +92,28 @@ export default class Renderer {
                 edge.labelSize = this._edgeLabelSize(edge);
             });
 
-            const layout = layouter.layout(graph);
+            layouter.layout(graph).then((layout: LayoutGraph) => {
+                const layoutAnalysis = new LayoutAnalysis(layout);
+                if (layoutAnalysis.validate()) {
+                    console.log("Layout satisfies constraints.");
+                } else {
+                    console.log("Layout violates constraints.");
+                }
+                //console.log("Weighted cost: " + layoutAnalysis.cost(true).toFixed(0));
+                /*const performanceAnalysis = new PerformanceAnalysis(layouter);
+                performanceAnalysis.measure(name, 1).then(time => {
+                    console.log(time + " ms");
+                });*/
 
-            const layoutAnalysis = new LayoutAnalysis(layout);
-            if (layoutAnalysis.validate()) {
-                console.log("Layout satisfies constraints.");
-            } else {
-                console.log("Layout violates constraints.");
-            }
-            //console.log("Weighted cost: " + layoutAnalysis.cost(true).toFixed(0));
-            /*const performanceAnalysis = new PerformanceAnalysis(layouter);
-            performanceAnalysis.measure(name, 1).then(time => {
-                console.log(time + " ms");
-            });*/
+                // center and fit the graph in the viewport
+                //const box = graph.boundingBox();
+                //console.log("Total size: " + box.width.toFixed(0) + "x" + box.height.toFixed(0));
+                //console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
-            // center and fit the graph in the viewport
-            const box = graph.boundingBox();
-            //console.log("Total size: " + box.width.toFixed(0) + "x" + box.height.toFixed(0));
-            //console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
+                Timer.printTimes();
 
-            Timer.printTimes();
-
-            this.render(graph);
+                this.render(graph);
+            });
         });
     }
 

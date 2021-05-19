@@ -40,7 +40,7 @@ export default abstract class Layouter {
         ]);
     }
 
-    public layout(renderGraph: RenderGraph): LayoutGraph {
+    public async layout(renderGraph: RenderGraph): Promise<LayoutGraph> {
         const layoutGraph = this.createLayoutGraph(renderGraph);
 
         this._createComponents(layoutGraph);
@@ -51,7 +51,7 @@ export default abstract class Layouter {
 
         const tmpRandom = Math.random;
         seedrandom("I am the seed string.", {global: true});
-        this.doLayout(layoutGraph);
+        await this.doLayout(layoutGraph);
         Math.random = tmpRandom;
 
         this._copyLayoutInfo(layoutGraph, renderGraph);
