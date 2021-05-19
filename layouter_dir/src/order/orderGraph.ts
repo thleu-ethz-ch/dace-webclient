@@ -275,22 +275,21 @@ export default class OrderGraph {
                 const edges = [];
                 const neighbors = (direction === "UP" ? neighborsUp : neighborsDown);
                 const weights = (direction === "UP" ? weightsUp : weightsDown);
-                const neighborRank = (direction === "UP" ? (r - 1) : (r + 1));
+                const northR = (direction === "UP" ? (r - 1) : (r + 1));
 
-                for (let pos = 0; pos < testOrder.length; ++pos) {
-                    for (let neighbor = 0; neighbor < neighbors[r][testOrder[pos]].length; ++neighbor) {
-                        let weight = weights[r][testOrder[pos]][neighbor];
+                for (let southPos = 0; southPos < testOrder.length; ++southPos) {
+                    const southN = testOrder[southPos];
+                    for (let neighbor = 0; neighbor < neighbors[r][southN].length; ++neighbor) {
+                        let weight = weights[r][southN][neighbor];
                         if (weight === Number.POSITIVE_INFINITY) {
                             weight = 1;
                         }
-                        edges.push([
-                            pos,
-                            positions[neighborRank][neighbors[r][testOrder[pos]][neighbor]],
-                            weight,
-                        ]);
+                        edges.push([southPos, positions[northR][neighbors[r][southN][neighbor]], weight]);
                     }
                 }
-                return this._countCrossings(testOrder.length, order[neighborRank].length, edges);
+                // north and south are swapped compared to the _countCrossings signature
+                // result is the same, but this is faster in ordering the edges
+                return this._countCrossings(testOrder.length, order[northR].length, edges);
             };
 
             /**
@@ -1332,9 +1331,7 @@ export default class OrderGraph {
      */
     private _countCrossings(numNorth: number, numSouth: number, edges: Array<[number, number, number]>): number {
         // build south sequence
-        const sortedEdges = _.sortBy(edges, edge => edge[0] * numSouth + edge[1]);
-        const southSequence = _.map(sortedEdges, edge => edge[1]);
-        const weights = _.map(sortedEdges, edge => edge[2]);
+        edges = _.sortBy(edges, edge => edge[0] * numSouth + edge[1]);
 
         // build the accumulator tree
         let firstIndex = 1;
@@ -1347,19 +1344,19 @@ export default class OrderGraph {
 
         // compute the total weight of the crossings
         let crossWeight = 0;
-        _.forEach(southSequence, (south: number, i: number) => {
-            let index = south + firstIndex;
-            tree[index] += weights[i];
+        for (let i = 0; i < edges.length; ++i) {
+            let index = edges[i][1] + firstIndex;
+            tree[index] += edges[i][2];
             let weightSum = 0;
             while (index > 0) {
                 if (index % 2) {
                     weightSum += tree[index + 1];
                 }
                 index = Math.floor((index - 1) / 2);
-                tree[index] += weights[i];
+                tree[index] += edges[i][2];
             }
-            crossWeight += weights[i] * weightSum;
-        });
+            crossWeight += edges[i][2] * weightSum;
+        }
         return crossWeight;
     }
 

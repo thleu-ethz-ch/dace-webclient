@@ -1085,6 +1085,7 @@ export default class SugiyamaLayouter extends Layouter {
         ];
         Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "cloneGraphs"]);
 
+
         this._alignMedian(alignGraphs[0], "UP", "LEFT");
         this._alignMedian(alignGraphs[1], "UP", "RIGHT");
         this._alignMedian(alignGraphs[2], "DOWN", "LEFT");
@@ -1115,15 +1116,15 @@ export default class SugiyamaLayouter extends Layouter {
                 let x = (xs[1] + xs[2]) / 2;
                 //x = alignGraphs[0].node(node.id).x; // uncomment to see 1 of the 4 merged layouts
                 x -= node.layoutNode.width / 2;
-                node.x = x;
                 minX = Math.min(minX, x);
+                node.x = offset + x;
             }
         });
         const diff = 0 - minX;
         _.forEach(subgraph.levelGraph().nodes(), (node: LevelNode) => {
             if (node.isFirst) {
                 node.x += diff;
-                node.layoutNode.setPosition(new Vector(node.x, node.layoutNode.y));
+                node.layoutNode.updatePosition(new Vector(node.x, node.layoutNode.y));
             }
         });
         Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "merge"]);
@@ -1175,6 +1176,7 @@ export default class SugiyamaLayouter extends Layouter {
                     neighbors[node.position].push(n);
                 });
             });
+            Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "markConflicts"]);
 
             // mark segments that cross a heavy segment as non-usable
 
@@ -1195,6 +1197,9 @@ export default class SugiyamaLayouter extends Layouter {
                     heavyLeft = heavyRight;
                 }
             }
+            Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "markConflicts"]);
+
+            Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "findNeighbor"]);
 
             let maxNeighborTaken = (preference === "LEFT" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
             const compare = (preference === "LEFT" ? ((a, b) => a < b) : ((a, b) => a > b));
@@ -1235,15 +1240,21 @@ export default class SugiyamaLayouter extends Layouter {
                 const edgeLength = (ranks[r][n - 1].layoutNode.width + ranks[r][n].layoutNode.width) / 2 + this._options["targetEdgeLength"];
                 blockGraph.addEdge(new Edge(blockPerNode[ranks[r][n - 1].id], blockPerNode[ranks[r][n].id], edgeLength));
             }
+            Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "findNeighbor"]);
         }
 
+
         // compact
+        Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "rank"]);
         blockGraph.rank();
         _.forEach(levelGraph.nodes(), (node: LevelNode) => {
             node.x = blockGraph.node(blockPerNode[node.id]).rank;
         });
+        Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "rank"]);
 
         // move blocks that are only connected on the right side as far right as possible
+        Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "moveRight"]);
+
         _.forEach(levelGraph.edges(), edge => {
             if (blockPerNode[edge.src] !== blockPerNode[edge.dst]) {
                 auxBlockGraph.addEdge(new Edge(blockPerNode[edge.src], blockPerNode[edge.dst]));
@@ -1278,6 +1289,8 @@ export default class SugiyamaLayouter extends Layouter {
                 }
             }
         });
+        Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "moveRight"]);
+
         Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian"]);
     }
 
