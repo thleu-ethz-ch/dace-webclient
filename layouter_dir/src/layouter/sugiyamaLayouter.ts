@@ -56,7 +56,7 @@ export default class SugiyamaLayouter extends Layouter {
         const crossingsPerRank = [];
 
         Timer.start(["doLayout", "assignCoordinates"]);
-        this._assignCoordinates(graph, segmentsPerRank, crossingsPerRank);
+        await this._assignCoordinates(graph, segmentsPerRank, crossingsPerRank);
         Timer.stop(["doLayout", "assignCoordinates"]);
 
         // STEP 6 (OPTIONAL): OPTIMIZE ANGLES
@@ -771,7 +771,7 @@ export default class SugiyamaLayouter extends Layouter {
      * @param crossingsPerRank
      * @private
      */
-    private _assignCoordinates(graph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>, crossingsPerRank: Array<Array<[Segment, Segment]>>): void {
+    private async _assignCoordinates(graph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>, crossingsPerRank: Array<Array<[Segment, Segment]>>): Promise<void> {
         // assign y
         const rankTops = _.fill(new Array(graph.numRanks + 1), Number.POSITIVE_INFINITY);
         const rankBottoms = _.fill(new Array(graph.numRanks), Number.NEGATIVE_INFINITY);
@@ -813,22 +813,24 @@ export default class SugiyamaLayouter extends Layouter {
         }
 
         // assign x and set size; assign edge and connector coordinates
-        const placeSubgraph = (subgraph: LayoutGraph, offset: number): void => {
+        const placeSubgraph = async (subgraph: LayoutGraph, offset: number): Promise<void> => {
             Timer.start(["doLayout", "assignCoordinates", "placeSubgraph"]);
 
             // place all subgraphs in order to know their size
-            _.forEach(subgraph.nodes(), (node: LayoutNode) => {
+            const nodes = subgraph.nodes();
+            for (let n = 0; n < nodes.length; ++n) {
                 let childOffset = 0;
-                _.forEach(node.childGraphs, (childGraph: LayoutGraph) => {
+                for (let c = 0; c < nodes[n].childGraphs.length; ++c) {
+                    const childGraph = nodes[n].childGraphs[c];
                     if (childGraph.numNodes() > 0) {
-                        placeSubgraph(childGraph, childOffset);
+                        await placeSubgraph(childGraph, childOffset);
                         childOffset += childGraph.boundingBox().width + this._options["targetEdgeLength"];
                     }
-                });
-            });
+                }
+            }
 
             // assign x
-            this._assignX(subgraph, offset + (subgraph.parentNode !== null ? subgraph.parentNode.padding : 0));
+            await this._assignX(subgraph, offset + (subgraph.parentNode !== null ? subgraph.parentNode.padding : 0));
 
             // place self-loops
             _.forEach(subgraph.nodes(), (node: LayoutNode) => {
@@ -1071,48 +1073,43 @@ export default class SugiyamaLayouter extends Layouter {
             Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph"]);
         }
 
-        placeSubgraph(graph, 0);
+        await placeSubgraph(graph, 0);
     }
 
     private _assignX(subgraph: LayoutGraph, offset = 0) {
         Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX"]);
-        Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "cloneGraphs"]);
-        const alignGraphs: Array<LevelGraph> = [
-            <LevelGraph>subgraph.levelGraph().cloneForXAssignment(),
-            <LevelGraph>subgraph.levelGraph().cloneForXAssignment(),
-            <LevelGraph>subgraph.levelGraph().cloneForXAssignment(),
-            <LevelGraph>subgraph.levelGraph().cloneForXAssignment(),
+        Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian"]);
+        const levelGraph = subgraph.levelGraph();
+        const xAssignments: Array<Array<number>> = [
+            this._alignMedian(levelGraph, "UP", "LEFT"),
+            this._alignMedian(levelGraph, "UP", "RIGHT"),
+            this._alignMedian(levelGraph, "DOWN", "LEFT"),
+            this._alignMedian(levelGraph, "DOWN", "RIGHT"),
         ];
-        Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "cloneGraphs"]);
-
-
-        this._alignMedian(alignGraphs[0], "UP", "LEFT");
-        this._alignMedian(alignGraphs[1], "UP", "RIGHT");
-        this._alignMedian(alignGraphs[2], "DOWN", "LEFT");
-        this._alignMedian(alignGraphs[3], "DOWN", "RIGHT");
+        Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian"]);
 
         // align left-most and right-most nodes
         Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "merge"]);
         let minMaxX = Number.POSITIVE_INFINITY;
-        _.forEach(alignGraphs, (alignGraph: LevelGraph) => {
-            minMaxX = Math.min(minMaxX, alignGraph.maxX());
+        _.forEach(xAssignments, (xAssignment: Array<number>) => {
+            minMaxX = Math.min(minMaxX, _.max(xAssignment));
         });
         _.forEach([1, 3], (i: number) => {
-            const alignGraph = alignGraphs[i];
-            const maxX = alignGraph.maxX();
+            const xAssignment = xAssignments[i];
+            const maxX = _.max(xAssignment);
             if (maxX === minMaxX) {
                 return; // no need to adjust this graph
             }
             const diff = minMaxX - maxX;
-            _.forEach(alignGraph.nodes(), (node: LevelNode) => {
-                node.x += diff;
-            });
+            for (let i = 0; i < xAssignment.length; ++i) {
+                xAssignment[i] += diff;
+            }
         });
 
         let minX = Number.POSITIVE_INFINITY;
-        _.forEach(subgraph.levelGraph().nodes(), (node: LevelNode) => {
+        _.forEach(levelGraph.nodes(), (node: LevelNode) => {
             if (node.isFirst) {
-                let xs = _.sortBy(_.map(alignGraphs, alignGraph => alignGraph.node(node.id).x));
+                let xs = _.sortBy(_.map(xAssignments, xAssignment => xAssignment[node.id]));
                 let x = (xs[1] + xs[2]) / 2;
                 //x = alignGraphs[0].node(node.id).x; // uncomment to see 1 of the 4 merged layouts
                 x -= node.layoutNode.width / 2;
@@ -1121,7 +1118,7 @@ export default class SugiyamaLayouter extends Layouter {
             }
         });
         const diff = 0 - minX;
-        _.forEach(subgraph.levelGraph().nodes(), (node: LevelNode) => {
+        _.forEach(levelGraph.nodes(), (node: LevelNode) => {
             if (node.isFirst) {
                 node.x += diff;
                 node.layoutNode.updatePosition(new Vector(node.x, node.layoutNode.y));
@@ -1132,8 +1129,7 @@ export default class SugiyamaLayouter extends Layouter {
         Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX"]);
     }
 
-    private _alignMedian(levelGraph: LevelGraph, neighbors: "UP" | "DOWN", preference: "LEFT" | "RIGHT"): void {
-        Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian"]);
+    private _alignMedian(levelGraph: LevelGraph, neighbors: "UP" | "DOWN", preference: "LEFT" | "RIGHT"): Array<number> {
         const ranks = levelGraph.ranks();
         const firstRank = (neighbors === "UP" ? 1 : (ranks.length - 2));
         const lastRank = (neighbors === "UP" ? (ranks.length - 1) : 0);
@@ -1243,12 +1239,13 @@ export default class SugiyamaLayouter extends Layouter {
             Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "findNeighbor"]);
         }
 
+        const xAssignment = new Array(levelGraph.maxId() + 1);
 
         // compact
         Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "rank"]);
         blockGraph.rank();
         _.forEach(levelGraph.nodes(), (node: LevelNode) => {
-            node.x = blockGraph.node(blockPerNode[node.id]).rank;
+            xAssignment[node.id] = blockGraph.node(blockPerNode[node.id]).rank;
         });
         Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "rank"]);
 
@@ -1262,11 +1259,11 @@ export default class SugiyamaLayouter extends Layouter {
         });
         _.forEach(auxBlockGraph.nodes(), block => {
             const blockId = block.id;
-            const nodeX = levelGraph.node(nodesPerBlock[blockId][0]).x + blockWidths[blockId] / 2;
+            const nodeX = xAssignment[nodesPerBlock[blockId][0]] + blockWidths[blockId] / 2;
             let hasLeftEdge = false;
             let hasRightEdge = false;
             _.forEach(auxBlockGraph.neighbors(blockId), neighbor => {
-                const neighborX = levelGraph.node(nodesPerBlock[neighbor.id][0]).x - blockWidths[neighbor.id] / 2;
+                const neighborX = xAssignment[nodesPerBlock[neighbor.id][0]] - blockWidths[neighbor.id] / 2;
                 if (nodeX < neighborX) {
                     hasRightEdge = true;
                 } else {
@@ -1277,21 +1274,20 @@ export default class SugiyamaLayouter extends Layouter {
                 // figure how much the block can be moved
                 let minRightEdgeLength = Number.POSITIVE_INFINITY;
                 _.forEach(blockGraph.outEdges(blockId), outEdge => {
-                    const neighborX = levelGraph.node(nodesPerBlock[outEdge.dst][0]).x - blockWidths[outEdge.dst] / 2;
+                    const neighborX = xAssignment[nodesPerBlock[outEdge.dst][0]] - blockWidths[outEdge.dst] / 2;
                     minRightEdgeLength = Math.min(minRightEdgeLength, neighborX - nodeX);
                 });
                 // move it
                 if (minRightEdgeLength > this._options["targetEdgeLength"]) {
                     const offset = minRightEdgeLength - this._options["targetEdgeLength"];
                     _.forEach(nodesPerBlock[blockId], nodeId => {
-                        levelGraph.node(nodeId).x += offset;
+                        xAssignment[nodeId] += offset;
                     });
                 }
             }
         });
         Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "moveRight"]);
-
-        Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian"]);
+        return xAssignment;
     }
 
     private _restoreCycles(graph: LayoutGraph): void {
