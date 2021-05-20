@@ -46,9 +46,9 @@ export default class SugiyamaLayouter extends Layouter {
         this._addVirtualNodes(graph);
         Timer.stop(["doLayout", "addVirtualNodes"]);
 
-        // STEP 4: ASSIGN COORDINATES
+        // STEP 4: ORDER RANKS
         Timer.start(["doLayout", "orderRanks"]);
-        this._orderRanks(graph);
+        await this._orderRanks(graph);
         Timer.stop(["doLayout", "orderRanks"]);
 
         // STEP 5: ASSIGN COORDINATES
@@ -232,16 +232,16 @@ export default class SugiyamaLayouter extends Layouter {
         });
     }
 
-    private _countCrossings(graph: LayoutGraph): number {
+    private async _countCrossings(graph: LayoutGraph): Promise<number> {
         const orderGraph = this._createConnectorGraph(graph, true);
-        return orderGraph.order({
+        return await orderGraph.order({
             resolveConflicts: false,
             doNothing: true
         });
     }
 
     private _createConnectorGraph(graph: LayoutGraph, isPreorder: boolean, shuffleNodes: boolean = false, shuffleConnectors: boolean = false): OrderGraph {
-        const orderGraph = new OrderGraph;
+        const orderGraph = new OrderGraph(this._wasm);
         const orderRank = [];
         for (let r = 0; r < graph.numRanks; ++r) {
             orderRank[r] = new OrderRank(r);
@@ -375,9 +375,9 @@ export default class SugiyamaLayouter extends Layouter {
         return orderGraph;
     }
 
-    private _orderRanks(graph: LayoutGraph): void {
+    private async _orderRanks(graph: LayoutGraph): Promise<void> {
 
-        const doOrder = (graph: LayoutGraph, shuffle: boolean = false): void => {
+        const doOrder = async (graph: LayoutGraph, shuffle: boolean = false): Promise<void> => {
             Timer.start(["doLayout", "orderRanks", "doOrder"]);
             /**
              * STEP 1: ORDER NODES BASED ON CONNECTORS (OPTIONAL)
@@ -387,7 +387,7 @@ export default class SugiyamaLayouter extends Layouter {
             if (this._options["preorderConnectors"]) {
                 // order
                 const connectorOrderGraph = this._createConnectorGraph(graph, true, shuffle);
-                connectorOrderGraph.order({
+                await connectorOrderGraph.order({
                     orderGroups: true,
                     resolveConflicts: false,
                     shuffles: this._options["shuffleGlobal"] ? 0 : this._options["shuffles"]
@@ -416,13 +416,15 @@ export default class SugiyamaLayouter extends Layouter {
             const nodeMap: Map<number, number> = new Map(); // map from level node to corresponding order node
 
             // child graphs are visited before their parents (guaranteed by forEachRight)
-            _.forEachRight(graph.allGraphs(), (subgraph: LayoutGraph) => {
+            const allGraphs = graph.allGraphs();
+            for (let i = allGraphs.length - 1; i >= 0; --i) {
+                const subgraph = allGraphs[i];
                 this._addVirtualNodes(subgraph, true);
 
                 const levelGraph = subgraph.levelGraph();
 
                 // init graph and ranks
-                const orderGraph = new OrderGraph();
+                const orderGraph = new OrderGraph(this._wasm);
                 const orderGroups = new Array(subgraph.numRanks);
                 for (let r = subgraph.minRank; r < subgraph.minRank + subgraph.numRanks; ++r) {
                     const orderRank = new OrderRank(r);
@@ -463,7 +465,7 @@ export default class SugiyamaLayouter extends Layouter {
                 }
 
                 // do order
-                orderGraph.order({
+                await orderGraph.order({
                     countInitial: this._options["preorderConnectors"],
                     shuffles: this._options["shuffleGlobal"] ? 0 : (this._options["preorderConnectors"] ? 0 : this._options["shuffles"]),
                 });
@@ -627,7 +629,7 @@ export default class SugiyamaLayouter extends Layouter {
                         });
                     }
                 });
-            });
+            }
 
             this._updateLevelNodeRanks(graph);
 
@@ -637,7 +639,7 @@ export default class SugiyamaLayouter extends Layouter {
 
             // order connectors
             const connectorOrderGraph = this._createConnectorGraph(graph, false, false, shuffle && !this._options["preorderConnectors"]);
-            connectorOrderGraph.order({
+            await connectorOrderGraph.order({
                 resolveConflicts: false,
                 shuffles: this._options["shuffleGlobal"] ? 0 : this._options["shuffles"]
             });
@@ -677,13 +679,13 @@ export default class SugiyamaLayouter extends Layouter {
         };
 
         if (!this._options["shuffleGlobal"]) {
-            doOrder(graph);
+            await doOrder(graph);
         } else {
-            Timer.start(["doLayout", "orderRanks", "cloneGraph"]);
             const graphCopy = graph.cloneForOrdering();
+            Timer.start(["doLayout", "orderRanks", "cloneGraph"]);
             Timer.stop(["doLayout", "orderRanks", "cloneGraph"]);
-            doOrder(graphCopy);
-            let minCrossings = this._countCrossings(graphCopy);
+            await doOrder(graphCopy);
+            let minCrossings = await this._countCrossings(graphCopy);
             let bestGraphCopy = graphCopy;
             for (let i = 0; i < this._options["shuffles"]; ++i) {
                 if (minCrossings === 0) {
@@ -692,8 +694,8 @@ export default class SugiyamaLayouter extends Layouter {
                 Timer.start(["doLayout", "orderRanks", "cloneGraph"]);
                 const graphCopy = graph.cloneForOrdering();
                 Timer.stop(["doLayout", "orderRanks", "cloneGraph"]);
-                doOrder(graphCopy, true);
-                let numCrossings = this._countCrossings(graphCopy);
+                await doOrder(graphCopy, true);
+                let numCrossings = await this._countCrossings(graphCopy);
                 if (numCrossings < minCrossings) {
                     minCrossings = numCrossings;
                     bestGraphCopy = graphCopy;

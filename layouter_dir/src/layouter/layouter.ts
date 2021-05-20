@@ -12,9 +12,11 @@ import RenderConnector from "../renderGraph/renderConnector";
 import RenderEdge from "../renderGraph/renderEdge";
 import RenderGraph from "../renderGraph/renderGraph";
 import RenderNode from "../renderGraph/renderNode";
+import Wasm from "../wasm/wasm";
 
 export default abstract class Layouter {
     protected _options: any;
+    protected _wasm: Wasm;
 
     constructor(options: object = {}) {
         this._options = _.defaults(options, {
@@ -29,6 +31,7 @@ export default abstract class Layouter {
             weightLengths: 0.1,
             preorderConnectors: false,
         });
+        this._wasm = new Wasm();
     }
 
     public getOptionsForAnalysis(): object {

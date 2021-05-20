@@ -9,6 +9,7 @@ import OrderNode from "./orderNode";
 import OrderRank from "./orderRank";
 import Timer from "../util/timer";
 import Shuffle from "../util/shuffle";
+import Wasm from "../wasm/wasm";
 
 export default class OrderGraph {
     private _rankGraph: Graph<OrderRank, Edge<any, any>>;
@@ -16,11 +17,13 @@ export default class OrderGraph {
     private _nodeGraph: Graph<OrderNode, Edge<any, any>>;
 
     private _groupEdgesAdded: boolean = false;
+    private _wasm: Wasm;
 
-    constructor() {
+    constructor(wasm: Wasm = null) {
         this._rankGraph = new Graph<OrderRank, Edge<any, any>>();
         this._groupGraph = new Graph<OrderGroup, Edge<any, any>>();
         this._nodeGraph = new Graph<OrderNode, Edge<any, any>>();
+        this._wasm = wasm;
     }
 
     toString(): string {
@@ -157,7 +160,7 @@ export default class OrderGraph {
         return this._groupGraph.edges();
     }
 
-    public order(options: object = {}): number {
+    public async order(options: object = {}): Promise<number> {
         Timer.start(["doLayout", "orderRanks", "doOrder", "order"]);
         options = _.defaults(options, {
             debug: false,
@@ -168,7 +171,7 @@ export default class OrderGraph {
             resolveY: "normal",
             shuffles: 0,
         });
-        const doOrder = (graph: OrderGraph): number => {
+        const doOrder = async (graph: OrderGraph) => {
             Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder"]);
             let minRank = Number.POSITIVE_INFINITY;
             const ranks = graph._rankGraph.toposort();
@@ -250,7 +253,7 @@ export default class OrderGraph {
 
             crossings[0] = 0;
 
-            const countCrossings = (testOrder: Array<number>, r: number, direction: "UP" | "DOWN", preventConflicts: boolean = false) => {
+            const countCrossings = async (testOrder: Array<number>, r: number, direction: "UP" | "DOWN", preventConflicts: boolean = false) => {
                 if (preventConflicts) {
                     const originalOrder = _.clone(order[r]);
                     order[r] = _.clone(testOrder);
@@ -289,7 +292,8 @@ export default class OrderGraph {
                 }
                 // north and south are swapped compared to the _countCrossings signature
                 // result is the same, but this is faster in ordering the edges
-                return this._countCrossings(testOrder.length, order[northR].length, edges);
+                return await this._wasm.countCrossings(testOrder.length, order[northR].length, edges);
+                //return this._countCrossings(testOrder.length, order[northR].length, edges);
             };
 
             /**
@@ -299,7 +303,7 @@ export default class OrderGraph {
              * @param startRank
              * @param preventConflicts
              */
-            const reorder = (shuffle: boolean = false, shuffleNodes: boolean = false, startRank: number = 0, preventConflicts: boolean = false) => {
+            const reorder = async (shuffle: boolean = false, shuffleNodes: boolean = false, startRank: number = 0, preventConflicts: boolean = false) => {
                 Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "reorder"]);
                 if (shuffle) {
                     _.forEach(ranks, (rank: OrderRank, r: number) => {
@@ -414,16 +418,16 @@ export default class OrderGraph {
                             continue;
                         }
 
-                        const tryNewOrder = (newOrder) => {
+                        const tryNewOrder = async (newOrder) => {
                             // count crossings with new order
                             const prevCrossingsNorth = crossings[r + crossingOffsetNorth];
-                            const newCrossingsNorth = countCrossings(newOrder, r, northDirection, preventConflicts);
+                            const newCrossingsNorth = await countCrossings(newOrder, r, northDirection, preventConflicts);
 
                             let newCrossingsSouth = 0;
                             let prevCrossingsSouth = 0;
                             if (r !== lastRank) {
                                 prevCrossingsSouth = crossings[r + crossingOffsetSouth];
-                                newCrossingsSouth = countCrossings(newOrder, r, southDirection, preventConflicts);
+                                newCrossingsSouth = await countCrossings(newOrder, r, southDirection, preventConflicts);
                             }
                             const fewerCrossingsNorth = newCrossingsNorth < prevCrossingsNorth;
                             const fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth <= prevCrossingsNorth + prevCrossingsSouth);
@@ -498,7 +502,9 @@ export default class OrderGraph {
                             // first reorder groups
                             if (options["orderGroups"]) {
                                 const newGroupOrder = _.map(_.sortBy(groupMeans, "1"), "0");
-                                _.forEach(this._getPartialOrders(newGroupOrder, groupOrder[r], groupPositions[r], options["debug"]), tmpGroupOrder => {
+                                const partialOrders = this._getPartialOrders(newGroupOrder, groupOrder[r], groupPositions[r], options["debug"]);
+                                for (let i = 0; i < partialOrders.length; ++i) {
+                                    const tmpGroupOrder = partialOrders[i];
                                     // transform new group order to node order
                                     const tmpOrder = [];
                                     _.forEach(tmpGroupOrder, g => {
@@ -507,7 +513,7 @@ export default class OrderGraph {
                                         }
                                     });
 
-                                    const result = tryNewOrder(tmpOrder);
+                                    const result = await tryNewOrder(tmpOrder);
                                     if (result > 0) {
                                         hasChanged = true;
                                         // store new group order
@@ -517,20 +523,22 @@ export default class OrderGraph {
                                     if (result === 2) {
                                         improveCounter = 2;
                                     }
-                                });
+                                }
                             }
 
                             if (!hasChanged) {
                                 // then reorder nodes
-                                _.forEach(this._getPartialOrders(newNodeOrder, order[r], positions[r]), tmpOrder => {
-                                    const result = tryNewOrder(tmpOrder);
+                                const partialOrders = this._getPartialOrders(newNodeOrder, order[r], positions[r]);
+                                for (let i = 0; i < partialOrders.length; ++i) {
+                                    const tmpOrder = partialOrders[i];
+                                    const result = await tryNewOrder(tmpOrder);
                                     if (result > 0) {
                                         hasChanged = true;
                                     }
                                     if (result === 2) {
                                         improveCounter = 2;
                                     }
-                                });
+                                }
                             }
                         }
                         if (DEBUG) {
@@ -541,7 +549,7 @@ export default class OrderGraph {
                 }
 
                 for (let r = 1; r < ranks.length; ++r) {
-                    crossings[r] = countCrossings(order[r], r, "UP");
+                    crossings[r] = await countCrossings(order[r], r, "UP");
                 }
 
                 Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "reorder"]);
@@ -577,7 +585,7 @@ export default class OrderGraph {
                 }, "edge not between neighboring ranks");
             }
 
-            const getConflict = (type: "HEAVYHEAVY" | "HEAVYLIGHT", r: number, skipIfZero: boolean = false) => {
+            const getConflict = (type: "HEAVYHEAVY" | "HEAVYLIGHT", r: number, skipIfZero: boolean = false): [number, number ,number, number, number] => {
                 if (skipIfZero && crossings[r] === 0) {
                     // there is no conflict in this rank
                     return null;
@@ -706,12 +714,12 @@ export default class OrderGraph {
             /**
              * Tries to resolve illegal crossings, i. e. crossings of edges with infinite weight.
              */
-            const resolveConflicts = () => {
+            const resolveConflicts = async () => {
                 if (DEBUG) {
                     Assert.assertAll(_.range(ranks.length), r => groupOrder[r].length === 1, "conflict resolution with more than one group per rank");
                 }
                 Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve"]);
-                const resolveConflict = (conflict) => {
+                const resolveConflict = async (conflict: [number, number, number, number, number]) => {
                     const [r, crossedNorthPos, crossedSouthPos, crossingNorthPos, crossingSouthPos] = conflict;
 
                     const crossedNorthN = order[r - 1][crossedNorthPos];
@@ -724,7 +732,7 @@ export default class OrderGraph {
                     let crossingSouthNode = ranks[r].groups[0].nodes[crossingSouthN];
                     const crossingEdge = graph.edgeBetween(crossingNorthNode.id, crossingSouthNode.id);
 
-                    const resolveHeavyHeavy = () => {
+                    const resolveHeavyHeavy = async () => {
                         if (options["debug"]) {
                             console.log("resolveHeavyHeavy");
                         }
@@ -734,11 +742,11 @@ export default class OrderGraph {
                         const tmpOrderB = _.cloneDeep(order[r]);
                         _.pull(tmpOrderB, crossedSouthN);
                         tmpOrderB.splice(crossingSouthPos, 0, crossedSouthN);
-                        let crossingsA = countCrossings(tmpOrderA, r, "UP");
-                        let crossingsB = countCrossings(tmpOrderB, r, "UP");
+                        let crossingsA = await countCrossings(tmpOrderA, r, "UP");
+                        let crossingsB = await countCrossings(tmpOrderB, r, "UP");
                         if (r < ranks.length - 1) {
-                            crossingsA += countCrossings(tmpOrderA, r, "DOWN");
-                            crossingsB += countCrossings(tmpOrderB, r, "DOWN");
+                            crossingsA += await countCrossings(tmpOrderA, r, "DOWN");
+                            crossingsB += await countCrossings(tmpOrderB, r, "DOWN");
                         }
                         if (crossingsA < crossingsB) {
                             order[r] = tmpOrderA;
@@ -751,11 +759,11 @@ export default class OrderGraph {
                         });
                         // update number of crossings
                         for (let tmpR = r; tmpR <= Math.min(r + 1, ranks.length - 1); ++tmpR) {
-                            crossings[tmpR] = countCrossings(order[tmpR], tmpR, "UP");
+                            crossings[tmpR] = await countCrossings(order[tmpR], tmpR, "UP");
                         }
                     };
 
-                    const resolveY = () => {
+                    const resolveY = async () => {
                         if (options["debug"]) {
                             console.log("resolveY");
                         }
@@ -946,7 +954,7 @@ export default class OrderGraph {
                         });
 
                         for (let tmpR = 1; tmpR < ranks.length; ++tmpR) {
-                            crossings[tmpR] = countCrossings(order[tmpR], tmpR, "UP");
+                            crossings[tmpR] = await countCrossings(order[tmpR], tmpR, "UP");
                         }
                         if (DEBUG) {
                             Assert.assertAll(_.range(r + 1), r => getConflict("HEAVYHEAVY", r, true) === null, "heavy-heavy conflict after y resolution");
@@ -1090,7 +1098,7 @@ export default class OrderGraph {
                         return nodesPerRankGrouped;
                     };
 
-                    const resolveX = (side: "LEFT" | "RIGHT", nodesPerRank) => {
+                    const resolveX = async (side: "LEFT" | "RIGHT", nodesPerRank) => {
                         if (options["debug"]) {
                             console.log("resolveX", side, nodesPerRank);
                         }
@@ -1128,7 +1136,7 @@ export default class OrderGraph {
                             maxChangedRank = Math.max(maxChangedRank, r + 1);
                         });
                         for (let r = minChangedRank; r <= Math.min(maxChangedRank, ranks.length - 1); ++r) {
-                            crossings[r] = countCrossings(order[r], r, "UP");
+                            crossings[r] = await countCrossings(order[r], r, "UP");
                         }
 
                         if (options["debug"]) {
@@ -1140,26 +1148,26 @@ export default class OrderGraph {
                     };
 
                     if (crossingEdge.weight === Number.POSITIVE_INFINITY) {
-                        resolveHeavyHeavy();
+                        await resolveHeavyHeavy();
                     } else {
                         const leftResolution = checkXResolution("LEFT");
                         const rightResolution = checkXResolution("RIGHT");
                         if (leftResolution === null) {
                             if (rightResolution === null) {
-                                resolveY();
+                                await resolveY();
                             } else {
-                                resolveX("RIGHT", rightResolution);
+                                await resolveX("RIGHT", rightResolution);
                             }
                         } else {
                             if (rightResolution === null) {
-                                resolveX("LEFT", leftResolution);
+                                await resolveX("LEFT", leftResolution);
                             } else {
                                 const numNodesLeft = _.sum(_.map(leftResolution, rank => rank["MOVING"].size));
                                 const numNodesRight = _.sum(_.map(rightResolution, rank => rank["MOVING"].size));
                                 if (numNodesLeft < numNodesRight) {
-                                    resolveX("LEFT", leftResolution);
+                                    await resolveX("LEFT", leftResolution);
                                 } else {
-                                    resolveX("RIGHT", rightResolution);
+                                    await resolveX("RIGHT", rightResolution);
                                 }
                             }
                         }
@@ -1171,19 +1179,19 @@ export default class OrderGraph {
                 }
 
                 for (let r = 1; r < ranks.length; ++r) {
-                    crossings[r] = countCrossings(order[r], r, "UP");
+                    crossings[r] = await countCrossings(order[r], r, "UP");
                 }
                 for (let r = 1; r < ranks.length; ++r) {
                     while (getConflict("HEAVYHEAVY", r, true) !== null) {
                         const conflict = getConflict("HEAVYHEAVY", r);
-                        resolveConflict(conflict);
+                        await resolveConflict(conflict);
                         if (options["debug"]) {
                             storeLocal();
                         }
                     }
                     while (getConflict("HEAVYLIGHT", r, true) !== null) {
                         const conflict = getConflict("HEAVYLIGHT", r);
-                        resolveConflict(conflict);
+                        await resolveConflict(conflict);
                         if (options["debug"]) {
                             storeLocal();
                         }
@@ -1202,16 +1210,16 @@ export default class OrderGraph {
 
             if (options["countInitial"]) {
                 for (let r = 1; r < ranks.length; ++r) {
-                    crossings[r] = countCrossings(order[r], r, "UP");
+                    crossings[r] = await countCrossings(order[r], r, "UP");
                 }
             }
             if (options["shuffles"] === 0) {
-                reorder();
+                await reorder();
             } else {
                 const originalOrder = _.cloneDeep(order);
                 const originalGroupOrder = _.cloneDeep(groupOrder);
                 const originalCrossings = _.cloneDeep(crossings);
-                reorder();
+                await reorder();
                 let numCrossings = _.sum(crossings);
                 let minCrossings = numCrossings;
                 let bestOrder = _.cloneDeep(order);
@@ -1229,7 +1237,7 @@ export default class OrderGraph {
                         this._setGroupPositionAndOffset(groupOrder[r], groupPositions[r], groupOffsetsPos[r], rank);
                     });
                     crossings = _.cloneDeep(originalCrossings);
-                    reorder(true, true);
+                    await reorder(true, true);
                     numCrossings = _.sum(crossings);
                     if (numCrossings < minCrossings) {
                         minCrossings = numCrossings;
@@ -1250,8 +1258,8 @@ export default class OrderGraph {
             }
 
             if (options["resolveConflicts"]) {
-                resolveConflicts();
-                reorder(false, false, 0, true);
+                await resolveConflicts();
+                await reorder(false, false, 0, true);
             }
 
             // transform component ranks to absolute ranks
@@ -1284,7 +1292,8 @@ export default class OrderGraph {
 
         let numCrossings = 0;
         const groupComponents = this._groupGraph.components();
-        _.forEach(groupComponents, (groupGraphComponent: Component<OrderGroup, Edge<any, any>>) => {
+        for (let i = 0; i < groupComponents.length; ++i) {
+            const groupGraphComponent = groupComponents[i];
             const componentGraph = new OrderGraph();
             const ranks: Array<OrderRank> = [];
             _.forEach(groupGraphComponent.nodes(), (group: OrderGroup) => {
@@ -1308,14 +1317,14 @@ export default class OrderGraph {
 
             if (componentGraph._nodeGraph.numEdges() < 2) {
                 // with 0 or one edges, there is nothing to reorder
-                return;
+                continue;
             }
 
             componentGraph._addGroupEdges();
             componentGraph._addRankEdges();
 
-            numCrossings += doOrder(componentGraph);
-        });
+            numCrossings += await doOrder(componentGraph);
+        }
         Timer.stop(["doLayout", "orderRanks", "doOrder", "order"]);
 
         return numCrossings;
