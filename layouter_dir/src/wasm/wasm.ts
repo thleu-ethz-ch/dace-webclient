@@ -1,5 +1,6 @@
-import {Module} from "../../wasm/countCrossings";
+import {Module} from "../../wasm/reorder";
 import * as _ from "lodash";
+import OrderRank from "../order/orderRank";
 
 export default class Wasm
 {
@@ -25,14 +26,37 @@ export default class Wasm
         return Promise.resolve();
     }
 
-    async countCrossings(numNorth: number, numSouth: number, edges: Array<[number, number, number]>): Promise<number> {
+    async reorder(order: Array<Array<number>>, neighborsDown: Array<Array<Array<number>>>, weightsDown: Array<Array<Array<number>>>): Promise<void> {
         await this.waitUntilReady();
-        const wasmEdges = Module["HEAPU32"];
-        _.forEach(edges, ([northPos, southPos, weight]: [number, number, number], i: number) => {
-            wasmEdges[3 * i] = northPos;
-            wasmEdges[3 * i + 1] = southPos;
-            wasmEdges[3 * i + 2] = weight;
-        });
-        return Module._countCrossings(numNorth, numSouth, edges.length, wasmEdges);
+        let pointer = 0;
+        for (let r = 0; r < order.length; ++r) {
+            Module["HEAP32"][pointer++] = order[r].length;
+            _.forEach(order[r], (n: number) => {
+                Module["HEAP32"][pointer++] = n;
+            });
+        }
+        for (let r = 0; r < order.length - 1; ++r) {
+            Module["HEAP32"][pointer++] = _.sum(_.map(neighborsDown[r], "length"));
+            _.forEach(neighborsDown[r], (neighbors: Array<number>, from: number) => {
+                _.forEach(neighbors, (to: number, i: number) => {
+                    let weight = weightsDown[r][from][i];
+                    if (weight === Number.POSITIVE_INFINITY) {
+                        weight = 1;
+                    }
+                    Module["HEAP32"][pointer++] = from;
+                    Module["HEAP32"][pointer++] = to;
+                    Module["HEAP32"][pointer++] = weight;
+                });
+            });
+        }
+        console.log(order.length, Module["HEAP32"]);
+        Module._reorder(order.length, Module["HEAP32"]);
+        console.log(order.length, Module["HEAP32"]);
+        pointer = 0;
+        for (let r = 0; r < order.length; ++r) {
+            for (let pos = 0; pos < order[r].length; ++pos) {
+                order[r][pos] = Module["HEAP32"][pointer++]
+            }
+        }
     }
 }

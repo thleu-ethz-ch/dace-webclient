@@ -93,12 +93,12 @@ export default class Renderer {
             });
 
             layouter.layout(graph).then((layout: LayoutGraph) => {
-                const layoutAnalysis = new LayoutAnalysis(layout);
+                /*const layoutAnalysis = new LayoutAnalysis(layout);
                 if (layoutAnalysis.validate()) {
                     console.log("Layout satisfies constraints.");
                 } else {
                     console.log("Layout violates constraints.");
-                }
+                }*/
                 //console.log("Weighted cost: " + layoutAnalysis.cost(true).toFixed(0));
                 /*const performanceAnalysis = new PerformanceAnalysis(layouter);
                 performanceAnalysis.measure(name, 1).then(time => {
@@ -108,7 +108,7 @@ export default class Renderer {
                 // center and fit the graph in the viewport
                 //const box = graph.boundingBox();
                 //console.log("Total size: " + box.width.toFixed(0) + "x" + box.height.toFixed(0));
-                console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
+                //console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
                 Timer.printTimes();
 
