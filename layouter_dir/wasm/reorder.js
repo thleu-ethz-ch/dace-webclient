@@ -31,15 +31,15 @@ function locateFile(path) {
 var read_, readAsync, readBinary, setWindowTitle;
 var nodeFS;
 var nodePath;
-if (ENVIRONMENT_IS_NODE) {
+if (false) {
     if (ENVIRONMENT_IS_WORKER) {
-        //scriptDirectory = require("path").dirname(scriptDirectory) + "/"
+        scriptDirectory = require("path").dirname(scriptDirectory) + "/"
     } else {
         scriptDirectory = __dirname + "/"
     }
     read_ = function shell_read(filename, binary) {
-        //if (!nodeFS) nodeFS = require("fs");
-        //if (!nodePath) nodePath = require("path");
+        if (!nodeFS) nodeFS = require("fs");
+        if (!nodePath) nodePath = require("path");
         filename = nodePath["normalize"](filename);
         return nodeFS["readFileSync"](filename, binary ? null : "utf8")
     };
@@ -172,6 +172,13 @@ function assert(condition, text) {
     if (!condition) {
         abort("Assertion failed: " + text)
     }
+}
+
+function alignUp(x, multiple) {
+    if (x % multiple > 0) {
+        x += multiple - x % multiple
+    }
+    return x
 }
 
 var buffer, HEAP8, HEAPU8, HEAP16, HEAPU16, HEAP32, HEAPU32, HEAPF32, HEAPF64;
@@ -492,14 +499,32 @@ function _emscripten_memcpy_big(dest, src, num) {
     HEAPU8.copyWithin(dest, src, src + num)
 }
 
-function abortOnCannotGrowMemory(requestedSize) {
-    abort("OOM")
+function emscripten_realloc_buffer(size) {
+    try {
+        wasmMemory.grow(size - buffer.byteLength + 65535 >>> 16);
+        updateGlobalBufferAndViews(wasmMemory.buffer);
+        return 1
+    } catch (e) {
+    }
 }
 
 function _emscripten_resize_heap(requestedSize) {
     var oldSize = HEAPU8.length;
     requestedSize = requestedSize >>> 0;
-    abortOnCannotGrowMemory(requestedSize)
+    var maxHeapSize = 2147483648;
+    if (requestedSize > maxHeapSize) {
+        return false
+    }
+    for (var cutDown = 1; cutDown <= 4; cutDown *= 2) {
+        var overGrownHeapSize = oldSize * (1 + .2 / cutDown);
+        overGrownHeapSize = Math.min(overGrownHeapSize, requestedSize + 100663296);
+        var newSize = Math.min(maxHeapSize, alignUp(Math.max(requestedSize, overGrownHeapSize), 65536));
+        var replacement = emscripten_realloc_buffer(newSize);
+        if (replacement) {
+            return true
+        }
+    }
+    return false
 }
 
 var asmLibraryArg = {
@@ -572,5 +597,4 @@ if (Module["preInit"]) {
         Module["preInit"].pop()()
     }
 }
-
-export {Module};
+export{Module}

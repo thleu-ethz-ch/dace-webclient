@@ -486,6 +486,9 @@ export default class OrderGraph {
 
                                 // sort by the means
                                 nodeMeans = _.sortBy(nodeMeans, pair => pair[1]);
+                                if (options["debug"]) {
+                                    //console.log("node means: ", _.map(nodeMeans, pair => pair[0]));
+                                }
 
                                 for (let posInGroup = 0; posInGroup < group.nodes.length; ++posInGroup) {
                                     newNodeOrder[groupOffsetsPos[r][g] + posInGroup] = nodeMeans[posInGroup][0];
@@ -530,6 +533,9 @@ export default class OrderGraph {
                                 const partialOrders = this._getPartialOrders(newNodeOrder, order[r], positions[r]);
                                 for (let i = 0; i < partialOrders.length; ++i) {
                                     const tmpOrder = partialOrders[i];
+                                    if (r === 47) {
+                                        console.log(tmpOrder.toString());
+                                    }
                                     const result = tryNewOrder(tmpOrder);
                                     if (result > 0) {
                                         hasChanged = true;
@@ -1214,9 +1220,20 @@ export default class OrderGraph {
             }
             if (options["shuffles"] === 0) {
                 if (options["resolveConflicts"]) {
-                    console.log(ranks[0].groups[0].nodes[0].label());
-                    reorder();
-                    await this._wasm.reorder(order, neighborsDown, weightsDown);
+                    //console.log("NUMNODES", graph.nodes().length);
+                    let start = Date.now()
+                    if (graph.nodes().length === 909) {
+                        await this._wasm.reorder(order, neighborsDown, weightsDown);
+                    } else {
+                        reorder();
+                    }
+                    let stop = Date.now();
+                    //console.log(stop - start);
+
+                    for (let r = 1; r < ranks.length; ++r) {
+                        crossings[r] = countCrossings(order[r], r, "UP");
+                    }
+                    console.log("numnodes", graph.nodes().length, "numcrossings", _.sum(crossings));
                 } else {
                     reorder();
                 }
@@ -1407,6 +1424,7 @@ export default class OrderGraph {
         }
         const tmpOrders = [];
         _.forEach(changes, change => {
+            //console.log("change " + change[0] + " to " + change[1]);
             tmpOrders.push(_.concat(
                 _.slice(order, 0, change[0]),
                 _.slice(newOrder, change[0], change[1] + 1),

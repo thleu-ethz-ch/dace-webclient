@@ -1,8 +1,11 @@
+#include <stdio.h>
 #include <cmath>
 #include <vector>
 #include <algorithm>
+#include <sys/time.h>
 
 extern "C" {
+    int* countingTree;
 
     /**
      * Adapted from Barth, W., Jünger, M., & Mutzel, P. (2002, August). Simple and efficient bilayer cross counting.
@@ -10,7 +13,6 @@ extern "C" {
      */
     int countCrossingsRank(int numNorth, int numSouth, const std::vector<std::pair<std::pair<int, int>, int>> &sortedEdges) {
         int numEdges = sortedEdges.size();
-
         // build the accumulator tree
         int firstIndex = 1;
         while (firstIndex < numSouth) {
@@ -18,20 +20,22 @@ extern "C" {
         }
         int treeSize = 2 * firstIndex - 1;
         firstIndex -= 1; // index of leftmost leaf
-        int* tree = (int*)calloc(treeSize, sizeof(int));
+        for (int i = 0; i < treeSize; ++i) {
+            countingTree[i] = 0;
+        }
 
         // compute the total weight of the crossings
         int crossWeight = 0;
         for (int i = 0; i < numEdges; ++i) {
             int index = sortedEdges[i].first.second + firstIndex;
-            tree[index] += sortedEdges[i].second;
+            countingTree[index] += sortedEdges[i].second;
             int weightSum = 0;
             while (index > 0) {
                 if (index % 2) {
-                    weightSum += tree[index + 1];
+                    weightSum += countingTree[index + 1];
                 }
                 index = floor((index - 1) / 2);
-                tree[index] += sortedEdges[i].second;
+                countingTree[index] += sortedEdges[i].second;
             }
             crossWeight += sortedEdges[i].second * weightSum;
         }
@@ -41,7 +45,7 @@ extern "C" {
     int countCrossings(int r, const std::vector<int> &testOrder, const std::vector<std::vector<std::pair<int, int>>> &neighbors, const std::vector<int> &northPositions) {
         std::vector<std::pair<std::pair<int, int>, int>> edges;
 
-        for (int southPos = 0; southPos < testOrder.size(); ++southPos) {
+        for (int southPos = 0; southPos < (int)testOrder.size(); ++southPos) {
             int southN = testOrder[southPos];
             for (auto neighborIt = neighbors[southN].cbegin(); neighborIt != neighbors[southN].end(); ++neighborIt) {
                 int northPos = northPositions[neighborIt->first];
@@ -97,31 +101,42 @@ extern "C" {
             newCrossingsSouth = countCrossings(r, newOrder, edges[r][boolDirection], positions[r + signDirection]);
         }
         bool fewerCrossingsNorth = newCrossingsNorth < prevCrossingsNorth;
-        bool fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth <= prevCrossingsNorth + prevCrossingsSouth);
+        bool fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth) <= (prevCrossingsNorth + prevCrossingsSouth);
         if (fewerCrossingsNorth && fewerOrEqualCrossingsTotal) {
             crossings[r + crossingOffsetNorth] = newCrossingsNorth;
             if (r != lastRank) {
                 crossings[r + crossingOffsetSouth] = newCrossingsSouth;
             }
             order[r] = newOrder;
-            for (int pos = 0; pos < newOrder.size(); ++pos) {
+            for (int pos = 0; pos < (int)newOrder.size(); ++pos) {
                 positions[r][newOrder[pos]] = pos;
             }
-            int fewerCrossingsTotal = (newCrossingsNorth + newCrossingsSouth < prevCrossingsNorth + prevCrossingsSouth);
+            int fewerCrossingsTotal = (newCrossingsNorth + newCrossingsSouth) < (prevCrossingsNorth + prevCrossingsSouth);
+            //printf("fewer crossings, north: before: %d, after: %d, south: before: %d, after: %d\n", prevCrossingsNorth, newCrossingsNorth, prevCrossingsSouth, newCrossingsSouth);
             return (1 + (fewerCrossingsTotal ? 1 : 0));
         } else {
+            //printf("not fewer crossings, north: before: %d, after: %d, south: before: %d, after: %d\n", prevCrossingsNorth, newCrossingsNorth, prevCrossingsSouth, newCrossingsSouth);
             return 0;
         }
     }
 
-    void reorder(int numRanks, int* inputArray) {
+    bool sortPairByFirst(const std::pair<float, int> &a, const std::pair<float, int> &b)
+    {
+        return (a.first < b.first);
+    }
+
+    void reorder(int numRanks, int* inputArray, int inputSize) {
         int* inputStart = inputArray;
+        int *order = (int*)malloc(inputSize * sizeof(int));
+        int *positions = (int*)malloc(2 * inputSize * sizeof(int));
+        int *edges = (int*)malloc(2 * inputSize * sizeof(int));
 
         std::vector<std::vector<int>> order(numRanks);
         std::vector<std::vector<std::vector<std::vector<std::pair<int, int>>>>> edges(numRanks);
 
+        int maxNodesPerRank = 0;
+
         // read nodes
-        int maxId = 0;
         for (int r = 0; r < numRanks; ++r) {
             int numNodes = *inputArray++;
             order[r].resize(numNodes);
@@ -131,6 +146,7 @@ extern "C" {
             edges[r].resize(2);
             edges[r][0].resize(numNodes);
             edges[r][1].resize(numNodes);
+            maxNodesPerRank = std::max(maxNodesPerRank, numNodes);
         }
 
         // read edges
@@ -146,7 +162,7 @@ extern "C" {
         }
         
         bool boolDirection = 1; // downward: 1; upward: 0
-        bool signDirection = 1; // downward: 1; upward: -1
+        int signDirection = 1; // downward: 1; upward: -1
         int crossingOffsetNorth = !boolDirection;
         int crossingOffsetSouth = boolDirection;
 
@@ -154,26 +170,35 @@ extern "C" {
         std::vector<std::vector<int>> positions(numRanks);
         for (int r = 0; r < numRanks; ++r) {
             positions[r].resize(order[r].size());
-            for (int pos = 0; pos < order[r].size(); ++pos) {
+            for (int pos = 0; pos < (int)order[r].size(); ++pos) {
                 positions[r][order[r][pos]] = pos;
             }
         }
-        std::vector<int> crossings(numRanks, __INT32_MAX__);
+        std::vector<int> crossings(numRanks, 1000000000);
         crossings[0] = 0;
+        int treeSize = 1;
+        while (treeSize < maxNodesPerRank) {
+            treeSize *= 2;
+        }
+        treeSize *= 2;
+        countingTree = (int*)calloc(treeSize, sizeof(int));
+
         int improveCounter = 2;
         while (improveCounter > 0) {
+            //printf(boolDirection ? "DOWN\n" : "UP\n");
             improveCounter--;
             int firstRank = (boolDirection ? 1 : (numRanks - 2));
             int lastRank = (boolDirection ? (numRanks - 1) : 0);
             for (int r = firstRank; r - signDirection != lastRank; r += signDirection) {
+                //printf("rank %d\n", r);
                 if (crossings[r + crossingOffsetNorth] == 0) {
                     continue;
                 }
                 int northR = r - signDirection;
-                int numNodes = order[r].size();
-                bool hasChanged = true;
-                while (hasChanged) {
-                    hasChanged = false;
+                int numNodes = (int)order[r].size();
+                //bool hasChanged = true;
+                //while (hasChanged) {
+                    //hasChanged = false;
                     std::vector<int> newNodeOrder(numNodes);
                     std::vector<std::pair<float, int>> nodeMeans;
                     nodeMeans.reserve(numNodes);
@@ -188,48 +213,86 @@ extern "C" {
                             num += weight;
                         }
                         if (num > 0) {
-                            nodeMeans.push_back(std::make_pair(sum / num, n));
+                            nodeMeans.push_back(std::make_pair((float)sum / (float)num, n));
                         } else {
-                            nodeMeans.push_back(std::make_pair(pos, n));
+                            nodeMeans.push_back(std::make_pair((float)pos, n)); 
                         }
                     }
 
                     // sort by the means
-                    std::sort(nodeMeans.begin(), nodeMeans.end());
+                    std::stable_sort(nodeMeans.begin(), nodeMeans.end(), sortPairByFirst);
                     for (int pos = 0; pos < numNodes; ++pos) {
                         newNodeOrder[pos] = nodeMeans[pos].second;
                     }
-
+                    
                     // then reorder nodes
                     std::vector<std::pair<int, int>> changes;
+                    //std::vector<int> originalOrder = order[r];
                     getChanges(newNodeOrder, positions[r], changes);
                     for (auto changeIt = changes.cbegin(); changeIt != changes.cend(); ++changeIt) {
                         std::vector<int> tmpOrder = order[r];
                         for (int i = changeIt->first; i <= changeIt->second; ++i) {
                             tmpOrder[i] = newNodeOrder[i];
                         }
-                        int result = tryNewOrder(newNodeOrder, r, crossingOffsetNorth, crossingOffsetSouth, boolDirection, signDirection, lastRank, order, positions, crossings, edges);
-                        if (result > 0) {
-                            hasChanged = true;
+                        /*for (int i = 0; i < (int)newNodeOrder.size(); ++i) {
+                            printf("%d,", tmpOrder[i]);
                         }
+                        printf("\n");*/
+                        int result = tryNewOrder(tmpOrder, r, crossingOffsetNorth, crossingOffsetSouth, boolDirection, signDirection, lastRank, order, positions, crossings, edges);
                         if (result == 2) {
                             improveCounter = 2;
                         }
                     }
-                }
+                //}
             }
             boolDirection = !boolDirection;
             signDirection *= -1;
             crossingOffsetNorth = !boolDirection;
             crossingOffsetSouth = boolDirection;
         }
+        /*int numCrossings = 0;
+        for (int r = 1; r < numRanks; ++r) {
+            numCrossings += countCrossings(r, order[r], edges[r][0], positions[r - 1]);
+        }
+        printf("crossings: %d\n", numCrossings);*/
+
         // write back
         for (int r = 0; r < numRanks; ++r) {
-            for (int n = 0; n < order[r].size(); ++n) {
+            for (int n = 0; n < (int)order[r].size(); ++n) {
                 *inputStart = order[r][n];
                 inputStart++;
             }
         }
+        free(countingTree);
+    }
 
+    int main() {
+        FILE *input = fopen("test_unreadable.txt", "r");
+        if (input == NULL) {
+            fprintf(stderr, "Input file not found!\n");
+            return 0;
+        }
+        int numRanks;
+        if (!fscanf(input, "%d", &numRanks)) {
+            fprintf(stderr, "Error reading input!\n");
+            fclose(input);
+            return 0;
+        }
+        int* heap = (int*)calloc(1 << 30, sizeof(int));
+        int* pointer = &heap[0];
+        while (fscanf(input, ",%d", pointer++) > 0) {
+            // just read
+        }
+        int numNodes = 0;
+        int numEdges = 0;
+        struct timeval start_t, end_t;
+        gettimeofday(&start_t, NULL);
+        reorder(numRanks, heap, (--pointer - &heap[0]));
+        gettimeofday(&end_t, NULL);
+   
+        double time = double(end_t.tv_sec - start_t.tv_sec) * 1000.0;
+        time += double(end_t.tv_usec - start_t.tv_usec) / 1000.0;
+        printf("%lf ms\n", time);
+        return 1;
     }
 }
