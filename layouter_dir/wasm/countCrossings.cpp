@@ -77,7 +77,7 @@ extern "C" {
     int compareMeans(const void* a, const void* b) {
         NodeMean* meanA = (NodeMean*)a;
         NodeMean* meanB = (NodeMean*)b;
-        return (meanA->mean < meanB->mean) ? -1 : (meanA->mean > meanB->mean ? 1 : 0);
+        return (meanA->mean < meanB->mean) ? -1 : (meanA->mean > meanB->mean);
     }
 
     int countCrossings(int r, int numNodes, int *testOrder, int* numNeighborsPerNode, Neighbor** neighborsPerNode, int numNodesNorth, int* northPositions) {
@@ -153,8 +153,8 @@ extern "C" {
             for (int pos = 0; pos < numNodesPerRank[r]; ++pos) {
                 positionsPerRank[r][newOrder[pos]] = pos;
             }
-            int fewerCrossingsTotal = (newCrossingsNorth + newCrossingsSouth) < (prevCrossingsNorth + prevCrossingsSouth);
-            return (1 + (fewerCrossingsTotal ? 1 : 0));
+            bool fewerCrossingsTotal = (newCrossingsNorth + newCrossingsSouth) < (prevCrossingsNorth + prevCrossingsSouth);
+            return (1 + fewerCrossingsTotal);
         } else {
             return 0;
         }
@@ -371,12 +371,14 @@ extern "C" {
             crossingOffsetNorth = !boolDirection;
             crossingOffsetSouth = boolDirection;
         }
+        #if !defined(WASM)
         int numCrossings = 0;
         for (int r = 1; r < numRanks; ++r) {
             numCrossings += countCrossings(r, numNodesPerRank[r], orderPerRank[r], numEdgesPerNodePerRankPerDir[0][r], edgesPerNodePerRankPerDir[0][r], numNodesPerRank[r - 1], positionsPerRank[r - 1]);
         }
-        //printf("crossings: %d\n", numCrossings);
-
+        printf("crossings: %d\n", numCrossings);
+        #endif // WASM
+        
         // write back
         orderPointer = order;
         for (int i = 0; i < numNodes; ++i) {
