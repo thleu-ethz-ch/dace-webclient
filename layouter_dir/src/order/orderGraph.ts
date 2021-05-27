@@ -533,9 +533,6 @@ export default class OrderGraph {
                                 const partialOrders = this._getPartialOrders(newNodeOrder, order[r], positions[r]);
                                 for (let i = 0; i < partialOrders.length; ++i) {
                                     const tmpOrder = partialOrders[i];
-                                    if (r === 47) {
-                                        console.log(tmpOrder.toString());
-                                    }
                                     const result = tryNewOrder(tmpOrder);
                                     if (result > 0) {
                                         hasChanged = true;
@@ -1221,19 +1218,22 @@ export default class OrderGraph {
             if (options["shuffles"] === 0) {
                 if (options["resolveConflicts"]) {
                     //console.log("NUMNODES", graph.nodes().length);
-                    let start = Date.now()
-                    if (graph.nodes().length === 909) {
+                    if (graph.nodes().length === 40721) {
+                        let start = Date.now()
                         await this._wasm.reorder(order, neighborsDown, weightsDown);
+                        for (let r = 0; r < ranks.length; ++r) {
+                            _.forEach(order[r], (n, pos) => {
+                                positions[r][n] = pos;
+                            });
+                        }
+                        for (let r = 1; r < ranks.length; ++r) {
+                            crossings[r] = countCrossings(order[r], r, "UP");
+                        }
+                        let stop = Date.now();
+                        console.log(stop - start);
                     } else {
                         reorder();
                     }
-                    let stop = Date.now();
-                    //console.log(stop - start);
-
-                    for (let r = 1; r < ranks.length; ++r) {
-                        crossings[r] = countCrossings(order[r], r, "UP");
-                    }
-                    console.log("numnodes", graph.nodes().length, "numcrossings", _.sum(crossings));
                 } else {
                     reorder();
                 }

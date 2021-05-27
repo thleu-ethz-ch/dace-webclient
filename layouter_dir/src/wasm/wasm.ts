@@ -54,12 +54,10 @@ export default class Wasm
                 });
             });
         }
-        console.log(order.length, _.slice(heap, 0, pointer));
         //if (order.length === 65) {
-            this.download("test.txt", order.length + "," + numNodes + "," + numEdges + "," + _.slice(heap, 0, pointer).toString())
+            //this.download("test.txt", order.length + "," + numNodes + "," + numEdges + "," + _.slice(heap, 0, pointer).toString())
         //}
-        Module._reorder(order.length, heap);
-        //console.log(order.length, heap, 0, pointer);
+        Module._reorder(order.length, numNodes, numEdges, heap.byteOffset);
         pointer = 0;
         for (let r = 0; r < order.length; ++r) {
             for (let pos = 0; pos < order[r].length; ++pos) {
