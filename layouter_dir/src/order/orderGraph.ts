@@ -10,6 +10,7 @@ import OrderRank from "./orderRank";
 import Timer from "../util/timer";
 import Shuffle from "../util/shuffle";
 import Wasm from "../wasm/wasm";
+import fastReorder from "./fastReorder";
 
 export default class OrderGraph {
     private _rankGraph: Graph<OrderRank, Edge<any, any>>;
@@ -1220,7 +1221,7 @@ export default class OrderGraph {
                     //console.log("NUMNODES", graph.nodes().length);
                     if (graph.nodes().length === 40721) {
                         let start = Date.now()
-                        await this._wasm.reorder(order, neighborsDown, weightsDown);
+                        /*await this._wasm.reorder(order, neighborsDown, weightsDown);
                         for (let r = 0; r < ranks.length; ++r) {
                             _.forEach(order[r], (n, pos) => {
                                 positions[r][n] = pos;
@@ -1228,7 +1229,9 @@ export default class OrderGraph {
                         }
                         for (let r = 1; r < ranks.length; ++r) {
                             crossings[r] = countCrossings(order[r], r, "UP");
-                        }
+                        }*/
+                        fastReorder(order, positions, crossings, neighborsUp, weightsUp, neighborsDown, weightsDown);
+                        //reorder();
                         let stop = Date.now();
                         console.log(stop - start);
                     } else {
