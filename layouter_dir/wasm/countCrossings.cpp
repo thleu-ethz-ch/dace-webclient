@@ -28,14 +28,11 @@ extern "C" {
         float mean;
     } NodeMean;
 
-    Edge* countingEdges;
-    int* countingTree;
-
     /**
      * Adapted from Barth, W., Jünger, M., & Mutzel, P. (2002, August). Simple and efficient bilayer cross counting.
      * In International Symposium on Graph Drawing (pp. 130-141). Springer, Berlin, Heidelberg.
      */
-    int countCrossingsRank(int numNorth, int numSouth, int numEdges) {
+    int countCrossingsRank(int numNorth, int numSouth, int numEdges, int* countingTree, Edge* countingEdges) {
         // build the accumulator tree
         int firstIndex = 1;
         while (firstIndex < numSouth) {
@@ -80,7 +77,7 @@ extern "C" {
         return (meanA->mean < meanB->mean) ? -1 : (meanA->mean > meanB->mean);
     }
 
-    int countCrossings(int r, int numNodes, int *testOrder, int* numNeighborsPerNode, Neighbor** neighborsPerNode, int numNodesNorth, int* northPositions) {
+    int countCrossings(int r, int numNodes, int *testOrder, int* numNeighborsPerNode, Neighbor** neighborsPerNode, int numNodesNorth, int* northPositions, int* countingTree, Edge* countingEdges) {
         Edge* edgePointer = countingEdges;
         for (int southPos = 0; southPos < numNodes; ++southPos) {
             int southN = testOrder[southPos];
@@ -92,7 +89,7 @@ extern "C" {
         }
         int numEdges = edgePointer - countingEdges;
         qsort(countingEdges, numEdges, sizeof(Edge), compareNorthSouth);
-        return countCrossingsRank(numNodes, numNodesNorth, edgePointer - countingEdges);
+        return countCrossingsRank(numNodes, numNodesNorth, edgePointer - countingEdges, countingTree, countingEdges);
     }
 
     int getChanges(int numNodes, int* newOrder, int* positions, Change* changes, int* permutation) {
@@ -128,17 +125,17 @@ extern "C" {
         return resultPointer - changes;
     }
 
-    int tryNewOrder(int* newOrder, int r, int* numNodesPerRank, int crossingOffsetNorth, int crossingOffsetSouth, int boolDirection, int signDirection, int lastRank, int* order, int** positionsPerRank, int* crossings, int*** numEdgesPerNodePerRankPerDir, Neighbor**** edgesPerNodePerRankPerDir) {
-        // count crossings with new order
+    int tryNewOrder(int* newOrder, int r, int* numNodesPerRank, int crossingOffsetNorth, int crossingOffsetSouth, int boolDirection, int signDirection, int lastRank, int* order, int** positionsPerRank, int* crossings, int*** numEdgesPerNodePerRankPerDir, Neighbor**** edgesPerNodePerRankPerDir, int* countingTree, Edge* countingEdges) {
+        // count crossings with new orderOrder
         int numNodes = numNodesPerRank[r];
         int prevCrossingsNorth = crossings[r + crossingOffsetNorth];
-        int newCrossingsNorth = countCrossings(r, numNodes, newOrder, numEdgesPerNodePerRankPerDir[!boolDirection][r], edgesPerNodePerRankPerDir[!boolDirection][r], numNodesPerRank[r - signDirection], positionsPerRank[r - signDirection]);
+        int newCrossingsNorth = countCrossings(r, numNodes, newOrder, numEdgesPerNodePerRankPerDir[!boolDirection][r], edgesPerNodePerRankPerDir[!boolDirection][r], numNodesPerRank[r - signDirection], positionsPerRank[r - signDirection], countingTree, countingEdges);
 
         int newCrossingsSouth = 0;
         int prevCrossingsSouth = 0;
         if (r != lastRank) {
             prevCrossingsSouth = crossings[r + crossingOffsetSouth];
-            newCrossingsSouth = countCrossings(r, numNodes, newOrder, numEdgesPerNodePerRankPerDir[boolDirection][r], edgesPerNodePerRankPerDir[boolDirection][r], numNodesPerRank[r + signDirection], positionsPerRank[r + signDirection]);
+            newCrossingsSouth = countCrossings(r, numNodes, newOrder, numEdgesPerNodePerRankPerDir[boolDirection][r], edgesPerNodePerRankPerDir[boolDirection][r], numNodesPerRank[r + signDirection], positionsPerRank[r + signDirection], countingTree, countingEdges);
         }
         bool fewerCrossingsNorth = newCrossingsNorth < prevCrossingsNorth;
         bool fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth) <= (prevCrossingsNorth + prevCrossingsSouth);
@@ -191,7 +188,7 @@ extern "C" {
         int** numEdgesPerNodePerRank = (int**)nextFree;
         nextFree += 2 * numRanks * sizeof(int*);
         int*** numEdgesPerNodePerRankPerDir = (int***)nextFree;
-        nextFree += 2 * sizeof(int***);
+        nextFree += 2 * sizeof(int**);
         numEdgesPerNodePerRankPerDir[0] = numEdgesPerNodePerRank;
         numEdgesPerNodePerRankPerDir[1] = numEdgesPerNodePerRank + numRanks;
 
@@ -240,8 +237,16 @@ extern "C" {
             }
             maxEdgesPerRank = std::max(maxEdgesPerRank, numEdges);
         }
+        /*if (numRanks == 41) {
         
-        countingEdges = (Edge*)nextFree;
+            inputStart[0] = sizeof(NodeMean);
+            inputStart[1] = sizeof(Edge);
+            inputStart[2] = sizeof(Neighbor);
+            inputStart[3] = sizeof(Change);
+            return;
+        }*/
+        
+        Edge* countingEdges = (Edge*)nextFree;
         nextFree += maxEdgesPerRank * sizeof(Edge);
 
         Neighbor* edgesPointer = edges;
@@ -257,7 +262,7 @@ extern "C" {
                 }
             }
         }
-        
+        int maxWeight = 0;
         Neighbor** edgePointerPerNode = (Neighbor**)nextFree;
         nextFree += maxNodesPerRank * sizeof(Neighbor*);
         inputArray = edgesStart;
@@ -271,6 +276,7 @@ extern "C" {
                 int to = *inputArray++;
                 int weight = *inputArray++;
                 *(edgePointerPerNode[to])++ = {from, weight};
+                maxWeight = std::max(maxWeight, weight);
             }
         }
         inputArray = edgesStart;
@@ -304,7 +310,7 @@ extern "C" {
             treeSize *= 2;
         }
         treeSize *= 2;
-        countingTree = (int*)nextFree;
+        int* countingTree = (int*)nextFree;
         nextFree += treeSize * sizeof(int);
         Change* changes = (Change*)nextFree;
         nextFree += maxNodesPerRank * sizeof(Change);
@@ -316,6 +322,8 @@ extern "C" {
         nextFree += maxNodesPerRank * sizeof(int);
         int* permutation = (int*)nextFree;
         nextFree += maxNodesPerRank * sizeof(int);
+
+        float multiplicator = (float)maxWeight * maxEdgesPerRank + 1;
 
         int improveCounter = 2;
         while (improveCounter > 0) {
@@ -339,9 +347,9 @@ extern "C" {
                         num += edge.weight;
                     }
                     if (num > 0) {
-                        nodeMeans[pos] = {n, (float)maxEdgesPerRank * sum / num + pos};
+                        nodeMeans[pos] = {n, multiplicator * sum / num + pos};
                     } else {
-                        nodeMeans[pos] = {n, (float)maxEdgesPerRank * pos};
+                        nodeMeans[pos] = {n, multiplicator * pos + pos};
                     }
                 }
 
@@ -360,7 +368,7 @@ extern "C" {
                     for (int i = change.begin; i <= change.end; ++i) {
                         tmpOrder[i] = newNodeOrder[i];
                     }
-                    int result = tryNewOrder(tmpOrder, r, numNodesPerRank, crossingOffsetNorth, crossingOffsetSouth, boolDirection, signDirection, lastRank, orderPerRank[r], positionsPerRank, crossings, numEdgesPerNodePerRankPerDir, edgesPerNodePerRankPerDir);
+                    int result = tryNewOrder(tmpOrder, r, numNodesPerRank, crossingOffsetNorth, crossingOffsetSouth, boolDirection, signDirection, lastRank, orderPerRank[r], positionsPerRank, crossings, numEdgesPerNodePerRankPerDir, edgesPerNodePerRankPerDir, countingTree, countingEdges);
                     if (result == 2) {
                         improveCounter = 2;
                     }
@@ -374,14 +382,15 @@ extern "C" {
         #if !defined(WASM)
         int numCrossings = 0;
         for (int r = 1; r < numRanks; ++r) {
-            numCrossings += countCrossings(r, numNodesPerRank[r], orderPerRank[r], numEdgesPerNodePerRankPerDir[0][r], edgesPerNodePerRankPerDir[0][r], numNodesPerRank[r - 1], positionsPerRank[r - 1]);
+            numCrossings += countCrossings(r, numNodesPerRank[r], orderPerRank[r], numEdgesPerNodePerRankPerDir[0][r], edgesPerNodePerRankPerDir[0][r], numNodesPerRank[r - 1], positionsPerRank[r - 1], countingTree, countingEdges);
         }
-        printf("crossings: %d\n", numCrossings);
+        //printf("crossings: %d\n", numCrossings);
         #endif // WASM
         
         // write back
         orderPointer = order;
         for (int i = 0; i < numNodes; ++i) {
+            //printf("%d,", *orderPointer);
             *inputStart++ = *orderPointer++;
         }
     }
@@ -398,7 +407,7 @@ extern "C" {
             return 0;
         }
 
-        int* heap = (int*)calloc(1 << 30, sizeof(int));
+        int* heap = (int*)calloc(1 << 28, sizeof(int));
         int* pointer = &heap[0];
         while (fscanf(input, ",%d", pointer++) > 0) {
             // just read

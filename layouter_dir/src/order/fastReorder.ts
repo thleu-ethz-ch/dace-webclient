@@ -190,6 +190,8 @@ export default function fastReorder(order: Array<Array<number>>, positions: Arra
         const numRanks = order.length;
         const maxNodesPerRank = _.max(_.map(order, "length"));
         const maxEdgesPerRank = _.max(_.map(neighbors[0], rankNeighbors => _.sum(_.map(rankNeighbors, "length"))));
+        const maxEdgeWeight = _.max(_.map(neighbors[0], rankNeighbors => _.max(_.map(rankNeighbors, nodeNeighbors => _.max(_.map(nodeNeighbors, "weight"))))));
+        const multiplicator = maxEdgeWeight * maxEdgesPerRank + 1;
         countingEdges = Array(maxEdgesPerRank);
 
         let boolDirection = true; // downward: 1; upward: 0
@@ -231,9 +233,9 @@ export default function fastReorder(order: Array<Array<number>>, positions: Arra
                         num += edge.weight;
                     }
                     if (num > 0) {
-                        nodeMeans[pos] = {n: n, mean: maxEdgesPerRank * sum / num + pos};
+                        nodeMeans[pos] = {n: n, mean: multiplicator * sum / num + pos};
                     } else {
-                        nodeMeans[pos] = {n: n, mean: maxEdgesPerRank * pos};
+                        nodeMeans[pos] = {n: n, mean: multiplicator * pos + pos};
                     }
                 }
 
@@ -264,11 +266,10 @@ export default function fastReorder(order: Array<Array<number>>, positions: Arra
             crossingOffsetNorth = boolDirection ? 0 : 1;
             crossingOffsetSouth = boolDirection ? 1 : 0;
         }
-        let numCrossings = 0;
-        for (let r = 1; r < numRanks; ++r) {
-            numCrossings += countCrossings(r, order[r].length, order[r], neighbors[0][r], positions[r - 1]);
-        }
     }
 
     reorder();
+    for (let r = 1; r < order.length; ++r) {
+        crossings[r] = countCrossings(r, order[r].length, order[r], neighbors[0][r], positions[r - 1]);
+    }
 }
