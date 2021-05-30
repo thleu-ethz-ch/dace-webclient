@@ -333,6 +333,34 @@ export default class OrderGraph {
                 return this._countCrossings(testOrder.length, order[northR].length, edges);
             };
 
+            const changeNodePosInOrder = (oldOrder: Array<number>, oldPos: number, newPos: number) => {
+                const newOrder = new Array(oldOrder.length);
+                if (oldPos < newPos) {
+                    for (let pos = 0; pos < oldPos; ++pos) {
+                        newOrder[pos] = oldOrder[pos];
+                    }
+                    for (let pos = oldPos + 1; pos <= newPos; ++pos) {
+                        newOrder[pos - 1] = oldOrder[pos];
+                    }
+                    newOrder[newPos] = oldOrder[oldPos];
+                    for (let pos = newPos + 1; pos < oldOrder.length; ++pos) {
+                        newOrder[pos] = oldOrder[pos];
+                    }
+                } else {
+                    for (let pos = 0; pos < newPos; ++pos) {
+                        newOrder[pos] = oldOrder[pos];
+                    }
+                    newOrder[newPos] = oldOrder[oldPos];
+                    for (let pos = newPos; pos < oldPos; ++pos) {
+                        newOrder[pos + 1] = oldOrder[pos];
+                    }
+                    for (let pos = oldPos + 1; pos < oldOrder.length; ++pos) {
+                        newOrder[pos] = oldOrder[pos];
+                    }
+                }
+                return newOrder;
+            };
+
             /**
              * Sweeps the ranks up and down and reorders the nodes according to the barycenter heuristic
              * @param shuffle
@@ -714,7 +742,7 @@ export default class OrderGraph {
                     }
                 }
 
-                const resolveConflict = (conflict: [number, number, number, number, number]) => {
+                const resolveConflict = (isHeavyHevay: boolean, conflict: [number, number, number, number, number]) => {
                     Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve", "resolveConflict"]);
 
                     Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve", "resolveConflict", "faststuff"]);
@@ -728,38 +756,42 @@ export default class OrderGraph {
                     let crossingNorthNode = ranks[r - 1].groups[0].nodes[crossingNorthN];
                     const crossingSouthN = order[r][crossingSouthPos];
                     let crossingSouthNode = ranks[r].groups[0].nodes[crossingSouthN];
-                    const crossingEdge = graph.edgeBetween(crossingNorthNode.id, crossingSouthNode.id);
+                    let crossingEdge;
 
                     const resolveHeavyHeavy = () => {
                         Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve", "resolveConflict", "resolveHeavyHeavy"]);
                         if (options["debug"]) {
                             console.log("resolveHeavyHeavy");
                         }
-                        const tmpOrderA = _.clone(order[r]);
-                        _.pull(tmpOrderA, crossingSouthN);
-                        tmpOrderA.splice(crossedSouthPos, 0, crossingSouthN);
-                        const tmpOrderB = _.clone(order[r]);
-                        _.pull(tmpOrderB, crossedSouthN);
-                        tmpOrderB.splice(crossingSouthPos, 0, crossedSouthN);
-                        let crossingsA = countCrossings(tmpOrderA, r, "UP");
-                        let crossingsB = countCrossings(tmpOrderB, r, "UP");
+
+                        const tmpOrderA = changeNodePosInOrder(order[r], crossingSouthPos, crossedSouthPos);
+                        const tmpOrderB = changeNodePosInOrder(order[r], crossedSouthPos, crossingSouthPos);
+
+                        let crossingsANorth = countCrossings(tmpOrderA, r, "UP");
+                        let crossingsBNorth = countCrossings(tmpOrderB, r, "UP");
+                        let crossingsASouth = 0;
+                        let crossingsBSouth = 0;
                         if (r < ranks.length - 1) {
-                            crossingsA += countCrossings(tmpOrderA, r, "DOWN");
-                            crossingsB += countCrossings(tmpOrderB, r, "DOWN");
+                            crossingsASouth = countCrossings(tmpOrderA, r, "DOWN");
+                            crossingsBSouth = countCrossings(tmpOrderB, r, "DOWN");
                         }
-                        if (crossingsA < crossingsB) {
+                        if ((crossingsANorth + crossingsASouth) < (crossingsBNorth + crossingsBSouth)) {
                             order[r] = tmpOrderA;
+                            crossings[r] = crossingsANorth;
+                            if (r < ranks.length - 1) {
+                                crossings[r + 1] = crossingsASouth;
+                            }
                         } else {
                             order[r] = tmpOrderB;
+                            crossings[r] = crossingsANorth;
+                            if (r < ranks.length - 1) {
+                                crossings[r + 1] = crossingsBSouth;
+                            }
                         }
                         // update positions
                         _.forEach(order[r], (n, pos) => {
                             positions[r][n] = pos;
                         });
-                        // update number of crossings
-                        for (let tmpR = r; tmpR <= Math.min(r + 1, ranks.length - 1); ++tmpR) {
-                            crossings[tmpR] = countCrossings(order[tmpR], tmpR, "UP");
-                        }
                         Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve", "resolveConflict", "resolveHeavyHeavy"]);
                     };
 
@@ -1163,9 +1195,10 @@ export default class OrderGraph {
                         Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve", "resolveConflict", "resolveX"]);
                     };
 
-                    if (crossingEdge.weight === Number.POSITIVE_INFINITY) {
+                    if (isHeavyHevay) {
                         resolveHeavyHeavy();
                     } else {
+                        crossingEdge = graph.edgeBetween(crossingNorthNode.id, crossingSouthNode.id);
                         const leftResolution = checkXResolution("LEFT");
                         const rightResolution = checkXResolution("RIGHT");
                         if (leftResolution === null) {
@@ -1204,7 +1237,7 @@ export default class OrderGraph {
                         if (conflict === null) {
                             break;
                         }
-                        resolveConflict(conflict);
+                        resolveConflict(true, conflict);
                         if (options["debug"]) {
                             storeLocal();
                         }
@@ -1214,7 +1247,7 @@ export default class OrderGraph {
                         if (conflict === null) {
                             break;
                         }
-                        resolveConflict(conflict);
+                        resolveConflict(false, conflict);
                         if (options["debug"]) {
                             storeLocal();
                         }
