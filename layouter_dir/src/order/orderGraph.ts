@@ -210,17 +210,19 @@ export default class OrderGraph {
 
             let minRank = Number.POSITIVE_INFINITY;
             const ranks = graph._rankGraph.toposort();
-            const groupOffsetsN = []; // number of nodes in groups left of this group per rank (at start)
-            const groupOffsetsPos = []; // number of nodes in groups left of this group per rank (reflecting current order)
-            let groupOrder = []; // current order of groups on this level (e. g. 2, 0, 1)
-            let groupPositions = [];// inverse of groupOrder (e. g. 1, 2, 0)
-            let order = []; // current order of nodes on this level (e. g. 2, 0, 1)
-            let positions = []; // inverse of order (e. g. 1, 2, 0)
-            const neighborsDown = [];
-            const weightsDown = [];
-            const neighborsUp = [];
-            const weightsUp = [];
-            let crossings = []; // number of crossings above each rank
+            const groupOffsetsN = new Array(ranks.length); // number of nodes in groups left of this group per rank (at start)
+            const groupOffsetsPos = new Array(ranks.length); // number of nodes in groups left of this group per rank (reflecting current order)
+            let groupOrder = new Array(ranks.length); // current order of groups on this level (e. g. 2, 0, 1)
+            let groupPositions = new Array(ranks.length);// inverse of groupOrder (e. g. 1, 2, 0)
+            let order = new Array(ranks.length); // current order of nodes on this level (e. g. 2, 0, 1)
+            let positions = new Array(ranks.length); // inverse of order (e. g. 1, 2, 0)
+            const neighborsDown = new Array(ranks.length);
+            const weightsDown = new Array(ranks.length);
+            const neighborsUp = new Array(ranks.length);
+            const weightsUp = new Array(ranks.length);
+            let crossings = new Array(ranks.length); // number of crossings above each rank
+            const virtual = new Array(ranks.length);
+            const intranode = new Array(ranks.length);
 
             const nodesPerRank = [];
 
@@ -239,7 +241,6 @@ export default class OrderGraph {
                 weightsUp[r] = [];
                 crossings[r] = Number.POSITIVE_INFINITY;
                 nodesPerRank[r] = [];
-
                 let offset = 0;
                 _.forEach(rank.groups, (group: OrderGroup) => {
                     groupOffsetsN[r][group.index] = offset;
@@ -612,77 +613,39 @@ export default class OrderGraph {
                     // there is no conflict in this rank
                     return null;
                 }
-                const segmentStarts = [];
-                const segmentEnds = [];
-                for (let n = 0; n < Math.max(order[r - 1].length); ++n) {
-                    segmentStarts[n] = [];
-                }
-                for (let n = 0; n < Math.max(order[r].length); ++n) {
-                    segmentEnds[n] = [];
-                }
-                for (let n = 0; n < order[r].length; ++n) {
-                    const posSouth = positions[r][n];
-                    for (let neighbor = 0; neighbor < neighborsUp[r][n].length; ++neighbor) {
-                        const posNorth = positions[r - 1][neighborsUp[r][n][neighbor]];
-                        const heavy = (weightsUp[r][n][neighbor] === Number.POSITIVE_INFINITY);
-                        if (type === "HEAVYHEAVY" && !heavy) {
-                            continue;
-                        }
-                        const intranode = (heavy && !ranks[r].groups[0].nodes[n].isVirtual);
-                        if (type === "HEAVYLIGHT" && heavy && !intranode) {
-                            continue;
-                        }
-                        const segment = [posNorth, posSouth, heavy];
-                        segmentStarts[posNorth].push(segment);
-                        segmentEnds[posSouth].push(segment);
+                let heavyLeftNorth = -1;
+                let heavyLeftSouth = -1;
+                let pos = 0;
+                for (let tmpPos = 0; tmpPos < positions[r].length; ++tmpPos) {
+                    const tmpN = order[r][tmpPos];
+                    let hasHeavy = _.some(weightsUp[r][tmpN], weight => weight === Number.POSITIVE_INFINITY);
+                    if (type === "HEAVYLIGHT") {
+                        hasHeavy &&= intranode[r][tmpN];
                     }
-                }
-                const openSegments: Set<[number, number, boolean]> = new Set();
-                for (let n = 0; n < Math.max(order[r].length, order[r - 1].length); ++n) {
-                    _.forEach(segmentStarts[n], (segment: [number, number, boolean]) => {
-                        const [posNorth, posSouth] = segment;
-                        if (posNorth >= posSouth) {
-                            openSegments.delete(segment);
+                    if (tmpPos === positions[r].length - 1 || hasHeavy) {
+                        let heavyRightNorth = positions[r - 1].length;
+                        let heavyRightSouth = positions[r].length;
+                        if (hasHeavy) {
+                            heavyRightNorth = positions[r - 1][neighborsUp[r][tmpN][0]];
+                            heavyRightSouth = tmpPos;
                         }
-                    });
-                    _.forEach(segmentEnds[n], (segment: [number, number, boolean]) => {
-                        const [posNorth, posSouth] = segment;
-                        if (posNorth < posSouth) { // equality handled in loop above
-                            openSegments.delete(segment);
-                        }
-                    });
-                    const newSegments = [];
-                    _.forEach(segmentStarts[n], (segment: [number, number, boolean]) => {
-                        const [posNorth, posSouth] = segment;
-                        if (posNorth <= posSouth) {
-                            newSegments.push(segment);
-                        }
-                    });
-                    _.forEach(segmentEnds[n], (segment: [number, number, boolean]) => {
-                        const [posNorth, posSouth] = segment;
-                        if (posNorth > posSouth) { // equality handled in loop above
-                            newSegments.push(segment);
-                        }
-                    });
-                    for (let newSegment of newSegments) {
-                        const [posNorth, posSouth, heavy] = newSegment;
-                        let newDir = Math.sign(posSouth - posNorth);
-                        for (let openSegment of openSegments) {
-                            const [openPosNorth, openPosSouth, openHeavy] = openSegment;
-                            // dir is
-                            let openDir = Math.sign(openPosSouth - openPosNorth);
-                            if ((newDir !== openDir) || (newDir === 1 && posSouth < openPosSouth) || (posNorth < openPosNorth)) {
-                                // segments have different direction or new segment is more vertical
-                                if (openHeavy) {
-                                    return [r, openPosNorth, openPosSouth, posNorth, posSouth];
-                                } else if (heavy) {
-                                    return [r, posNorth, posSouth, openPosNorth, openPosSouth];
+                        while (pos <= tmpPos) {
+                            const n = order[r][pos];
+                            for (let neighbor = 0; neighbor < neighborsUp[r][n].length; ++neighbor) {
+                                if (type === "HEAVYLIGHT" || weightsUp[r][n][neighbor] === Number.POSITIVE_INFINITY) {
+                                    const neighborPos = positions[r - 1][neighborsUp[r][n][neighbor]];
+                                    if (neighborPos < heavyLeftNorth) {
+                                        return [r, heavyLeftNorth, heavyLeftSouth, neighborPos, pos];
+                                    }
+                                    if (neighborPos > heavyRightNorth) {
+                                        return [r, heavyRightNorth, heavyRightSouth, neighborPos, pos];
+                                    }
                                 }
                             }
+                            pos++;
                         }
-                        if (newDir !== 0) {
-                            openSegments.add(newSegment);
-                        }
+                        heavyLeftNorth = heavyRightNorth;
+                        heavyLeftSouth = heavyRightSouth;
                     }
                 }
                 return null;
@@ -741,6 +704,16 @@ export default class OrderGraph {
                     Assert.assertAll(_.range(ranks.length), r => groupOrder[r].length === 1, "conflict resolution with more than one group per rank");
                 }
                 Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve"]);
+
+                for (let r = 0; r < order.length; ++r) {
+                    virtual[r] = new Array(positions[r].length);
+                    intranode[r] = new Array(positions[r].length);
+                    for (let n = 0; n < positions[r].length; ++n) {
+                        virtual[r][n] = ranks[r].groups[0].nodes[n].isVirtual;
+                        intranode[r][n] = ranks[r].groups[0].nodes[n].isIntranode;
+                    }
+                }
+
                 const resolveConflict = (conflict: [number, number, number, number, number]) => {
                     Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve", "resolveConflict"]);
 
@@ -823,6 +796,9 @@ export default class OrderGraph {
                             _.forEach(order[r], (n, pos) => {
                                 positions[r][n] = pos;
                             });
+                            // update virtual / intranode
+                            virtual[r].push(node.isVirtual);
+                            intranode[r].push(node.isIntranode);
 
                             return nextN;
                         };
@@ -850,6 +826,10 @@ export default class OrderGraph {
                             _.forEach(order[r], (n, pos) => {
                                 positions[r][n] = pos;
                             });
+
+                            // update virtual / intranode
+                            virtual[r].splice(n, 1);
+                            intranode[r].splice(n, 1);
 
                             if (permanent) {
                                 graph.removeNode(node.id);
@@ -902,6 +882,8 @@ export default class OrderGraph {
                             groupOffsetsPos[newR] = [0];
                             groupOffsetsN[newR] = [0];
                             order[newR] = [];
+                            virtual[newR] = [];
+                            intranode[newR] = [];
                             positions[newR] = [];
                             crossings[newR] = 0;
                         }
@@ -918,7 +900,7 @@ export default class OrderGraph {
                                         // create a virtual node for each in edge and route edge through new node
                                         const sortedEdges = _.sortBy(graph.inEdges(node.id), edge => positions[r - 2][graph.node(edge.src).index]);
                                         _.forEachRight(sortedEdges, inEdge => {
-                                            const newNode = new OrderNode(null, true, node.label() + "'");
+                                            const newNode = new OrderNode(null, true, false, /*node.label() + "'"*/);
                                             this.addNode(newNode);
                                             addNode(r - 1, pos, newNode);
                                             const srcNode = graph.node(inEdge.src);
@@ -936,7 +918,7 @@ export default class OrderGraph {
                                         // sort edges to prevent crossings between them
                                         const sortedEdges = _.sortBy(graph.outEdges(node.id), edge => positions[tmpR + 1][graph.node(edge.dst).index]);
                                         _.forEach(sortedEdges, outEdge => {
-                                            const newNode = new OrderNode(null, true, node.label() + "'");
+                                            const newNode = new OrderNode(null, true, false, /*node.label() + "'"*/);
                                             this.addNode(newNode);
                                             addNode(tmpR, order[tmpR].length, newNode);
                                             const dstNode = graph.node(outEdge.dst);
@@ -1217,15 +1199,21 @@ export default class OrderGraph {
                     crossings[r] = countCrossings(order[r], r, "UP");
                 }
                 for (let r = 1; r < ranks.length; ++r) {
-                    while (getConflict("HEAVYHEAVY", r, true) !== null) {
+                    while (true) {
                         const conflict = getConflict("HEAVYHEAVY", r);
+                        if (conflict === null) {
+                            break;
+                        }
                         resolveConflict(conflict);
                         if (options["debug"]) {
                             storeLocal();
                         }
                     }
-                    while (getConflict("HEAVYLIGHT", r, true) !== null) {
+                    while (true) {
                         const conflict = getConflict("HEAVYLIGHT", r);
+                        if (conflict === null) {
+                            break;
+                        }
                         resolveConflict(conflict);
                         if (options["debug"]) {
                             storeLocal();

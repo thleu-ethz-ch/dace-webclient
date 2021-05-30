@@ -9,10 +9,12 @@ export default class OrderNode extends Node<any, any>
     public index: number = 0; // the index within the group, used as an id, changes only when another node is removed
     public rank: number = 0;
     public readonly isVirtual: boolean;
+    public readonly isIntranode: boolean;
 
-    constructor(reference: any, isVirtual: boolean, label: string = "") {
+    constructor(reference: any, isVirtual: boolean, isIntranode: boolean, label: string = "") {
         super(label);
         this.reference = reference;
         this.isVirtual = isVirtual;
+        this.isIntranode = isIntranode;
     }
 }

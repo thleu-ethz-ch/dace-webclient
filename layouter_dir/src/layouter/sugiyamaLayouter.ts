@@ -143,7 +143,7 @@ export default class SugiyamaLayouter extends Layouter {
 
             const rankGraph = new RankGraph();
             _.forEach(subgraph.nodes(), node => {
-                rankGraph.addNode(new RankNode(node.label()), node.id);
+                rankGraph.addNode(new RankNode(/*node.label()*/), node.id);
             });
             _.forEach(subgraph.edges(), edge => {
                 rankGraph.addEdge(new Edge(edge.src, edge.dst, subgraph.node(edge.src).rankSpan));
@@ -192,7 +192,7 @@ export default class SugiyamaLayouter extends Layouter {
                     const newNode = new LayoutNode({width: 0, height: 0}, 0, !bundle, bundle);
                     bundle = ((edge.dstBundle !== null) && (edge.dstBundle.edges.length > 1) && (tmpDstRank === dstNode.rank - 2));
                     newNode.rank = tmpDstRank;
-                    newNode.setLabel("virtual node on edge from " + srcNode.label() + " to " + dstNode.label());
+                    //newNode.setLabel("virtual node on edge from " + srcNode.label() + " to " + dstNode.label());
                     tmpDstId = edge.graph.addNode(newNode, null);
                     if (addToLevelGraph) {
                         const levelNode = newNode.graph.levelGraph().addLayoutNode(newNode);
@@ -305,7 +305,7 @@ export default class SugiyamaLayouter extends Layouter {
                         shuffleHierarchy.push(parent);
                     });
                     if (isPreorder || levelNode.isFirst) {
-                        connectorGroup = new OrderGroup(levelNode, node.label());
+                        connectorGroup = new OrderGroup(levelNode);
                         connectorGroup.shuffleHierarchy = shuffleHierarchy;
                         orderRank[levelNode.rank].addGroup(connectorGroup);
                         connectorGroup.position = index;
@@ -316,7 +316,7 @@ export default class SugiyamaLayouter extends Layouter {
                                 connectors = Shuffle.shuffle(connectors);
                             }
                             _.forEach(connectors, (connector: LayoutConnector) => {
-                                const connectorNode = new OrderNode(connector, false, connector.name);
+                                const connectorNode = new OrderNode(connector, false, false);
                                 connectorGroup.addNode(connectorNode);
                                 connectorMap.set(connector, connectorNode.id);
                                 if (connector.isScoped) {
@@ -327,7 +327,7 @@ export default class SugiyamaLayouter extends Layouter {
                     }
                     if (isPreorder || levelNode.isLast) {
                         if (!isPreorder && !node.hasScopedConnectors) {
-                            connectorGroup = new OrderGroup(levelNode, node.label());
+                            connectorGroup = new OrderGroup(levelNode);
                             connectorGroup.shuffleHierarchy = shuffleHierarchy;
                             orderRank[levelNode.rank].addGroup(connectorGroup);
                             connectorGroup.position = index;
@@ -340,7 +340,7 @@ export default class SugiyamaLayouter extends Layouter {
                             }
                             _.forEach(connectors, (connector: LayoutConnector) => {
                                 if (!connector.isScoped) {
-                                    const connectorNode = new OrderNode(connector, false, connector.name);
+                                    const connectorNode = new OrderNode(connector, false, false);
                                     connectorGroup.addNode(connectorNode);
                                     connectorMap.set(connector, connectorNode.id);
                                 }
@@ -348,7 +348,7 @@ export default class SugiyamaLayouter extends Layouter {
                         }
                     }
                     if (isPreorder && node.rankSpan > 1) {
-                        const orderNode = new OrderNode(null, !levelNode.isFirst && !levelNode.isLast, node.label());
+                        const orderNode = new OrderNode(null, false, false);
                         connectorGroup.addNode(orderNode);
                         levelNodeMap.set(levelNode, orderNode);
                     }
@@ -464,7 +464,7 @@ export default class SugiyamaLayouter extends Layouter {
                     Shuffle.shuffle(levelNodes);
                 }
                 _.forEach(levelNodes, (levelNode: LevelNode) => {
-                    const orderNode = new OrderNode(levelNode, levelNode.layoutNode.isVirtual || levelNode.layoutNode.isBundle, levelNode.label());
+                    const orderNode = new OrderNode(levelNode, levelNode.layoutNode.isVirtual || levelNode.layoutNode.isBundle, levelNode.layoutNode.rankSpan > 1);
                     orderGroups[levelNode.rank].addNode(orderNode, levelNode.id);
                     nodeMap.set(levelNode.id, orderNode.id);
                     orderNode.position = levelNode.position; // has no effect when option preorderConnectors is false
@@ -503,7 +503,7 @@ export default class SugiyamaLayouter extends Layouter {
                     if (levelNode === null) {
                         // virtual node was created by orderGraph.order() => add this node to layout graph
                         const newLayoutNode = new LayoutNode({width: 0, height: 0}, 0, true);
-                        newLayoutNode.setLabel(orderNode.label());
+                        //newLayoutNode.setLabel(orderNode.label());
                         newLayoutNode.rank = orderNode.rank;
                         subgraph.addNode(newLayoutNode, null);
                         newOrderNodes.add(orderNode);
@@ -623,7 +623,7 @@ export default class SugiyamaLayouter extends Layouter {
                                 _.forEach(newNodes, (levelNode: LevelNode) => {
                                     // virtual node was created by orderGraph.order() => add this node to layout graph
                                     const newLayoutNode = new LayoutNode({width: 0, height: 0}, 0, true);
-                                    newLayoutNode.setLabel(levelNode.label());
+                                    //newLayoutNode.setLabel(levelNode.label());
                                     newLayoutNode.rank = levelNode.layoutNode.rank;
                                     subgraph.addNode(newLayoutNode, null);
                                     const newLevelNode = levelGraph.addLayoutNode(newLayoutNode);
@@ -1209,6 +1209,7 @@ export default class SugiyamaLayouter extends Layouter {
         const verticalDir = (neighbors === "UP" ? 1 : -1);
         const neighborOutMethod = (neighbors === "UP" ? "outEdges" : "inEdges");
         const neighborInMethod = (neighbors === "UP" ? "inEdges" : "outEdges");
+        const numNeighborInMethod = (neighbors === "UP" ? "numInEdges" : "numOutEdges");
         const neighborEdgeInAttr = (neighbors === "UP" ? "dst" : "src");
 
         const blockPerNode = new Array(levelGraph.maxId() + 1);
@@ -1248,13 +1249,13 @@ export default class SugiyamaLayouter extends Layouter {
             Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "markConflicts"]);
 
             // mark segments that cross a heavy segment as non-usable
-
             let heavyLeft = -1;
             let n = 0;
             for (let tmpN = 0; tmpN < ranks[r].length; ++tmpN) {
-                if (tmpN === ranks[r].length - 1 || _.filter(levelGraph[neighborInMethod](ranks[r][tmpN].id), edge => edge.weight === Number.POSITIVE_INFINITY).length > 0) {
-                    let heavyRight = ranks[r - verticalDir].length + 1;
-                    if (_.filter(levelGraph[neighborInMethod](ranks[r][tmpN].id), edge => edge.weight === Number.POSITIVE_INFINITY).length > 0) {
+                const hasHeavy = _.some(levelGraph[neighborInMethod](ranks[r][tmpN].id), edge => edge.weight === Number.POSITIVE_INFINITY);
+                if (tmpN === ranks[r].length - 1 || hasHeavy) {
+                    let heavyRight = ranks[r - verticalDir].length;
+                    if (hasHeavy) {
                         heavyRight = neighbors[tmpN][0];
                     }
                     while (n <= tmpN) {
