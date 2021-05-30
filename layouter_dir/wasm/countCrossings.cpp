@@ -77,13 +77,13 @@ extern "C" {
         return (meanA->mean < meanB->mean) ? -1 : (meanA->mean > meanB->mean);
     }
 
-    int countCrossings(int r, int numNodes, int *testOrder, int* numNeighborsPerNode, Neighbor** neighborsPerNode, int numNodesNorth, int* northPositions, int* countingTree, Edge* countingEdges) {
+    int countCrossings(int r, int numNodes, int *testOrder, int* numNeighborsPerNode, Neighbor** neighborsPerNode, int numNodesNorth, int* positions, int* countingTree, Edge* countingEdges) {
         Edge* edgePointer = countingEdges;
         for (int southPos = 0; southPos < numNodes; ++southPos) {
             int southN = testOrder[southPos];
             for (int e = 0; e < numNeighborsPerNode[southN]; ++e) {
                 Neighbor neighbor = neighborsPerNode[southN][e];
-                int northPos = northPositions[neighbor.end];
+                int northPos = positions[neighbor.end];
                 *edgePointer++ = {southPos, northPos, neighbor.weight};
             }
         }
@@ -125,17 +125,17 @@ extern "C" {
         return resultPointer - changes;
     }
 
-    int tryNewOrder(int* newOrder, int r, int* numNodesPerRank, int crossingOffsetNorth, int crossingOffsetSouth, int boolDirection, int signDirection, int lastRank, int* order, int** positionsPerRank, int* crossings, int*** numEdgesPerNodePerRankPerDir, Neighbor**** edgesPerNodePerRankPerDir, int* countingTree, Edge* countingEdges) {
+    int tryNewOrder(int* newOrder, int r, int* numNodesPerRank, int crossingOffsetNorth, int crossingOffsetSouth, int boolDirection, int signDirection, int lastRank, int* order, int* positions, int* crossings, int** numEdgesPerNodePerDir, Neighbor*** edgesPerNodePerDir, int* countingTree, Edge* countingEdges) {
         // count crossings with new orderOrder
         int numNodes = numNodesPerRank[r];
         int prevCrossingsNorth = crossings[r + crossingOffsetNorth];
-        int newCrossingsNorth = countCrossings(r, numNodes, newOrder, numEdgesPerNodePerRankPerDir[!boolDirection][r], edgesPerNodePerRankPerDir[!boolDirection][r], numNodesPerRank[r - signDirection], positionsPerRank[r - signDirection], countingTree, countingEdges);
+        int newCrossingsNorth = countCrossings(r, numNodes, newOrder, numEdgesPerNodePerDir[!boolDirection], edgesPerNodePerDir[!boolDirection], numNodesPerRank[r - signDirection], positions, countingTree, countingEdges);
 
         int newCrossingsSouth = 0;
         int prevCrossingsSouth = 0;
         if (r != lastRank) {
             prevCrossingsSouth = crossings[r + crossingOffsetSouth];
-            newCrossingsSouth = countCrossings(r, numNodes, newOrder, numEdgesPerNodePerRankPerDir[boolDirection][r], edgesPerNodePerRankPerDir[boolDirection][r], numNodesPerRank[r + signDirection], positionsPerRank[r + signDirection], countingTree, countingEdges);
+            newCrossingsSouth = countCrossings(r, numNodes, newOrder, numEdgesPerNodePerDir[boolDirection], edgesPerNodePerDir[boolDirection], numNodesPerRank[r + signDirection], positions, countingTree, countingEdges);
         }
         bool fewerCrossingsNorth = newCrossingsNorth < prevCrossingsNorth;
         bool fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth) <= (prevCrossingsNorth + prevCrossingsSouth);
@@ -148,7 +148,7 @@ extern "C" {
                 order[n] = newOrder[n];
             }
             for (int pos = 0; pos < numNodesPerRank[r]; ++pos) {
-                positionsPerRank[r][newOrder[pos]] = pos;
+                positions[newOrder[pos]] = pos;
             }
             bool fewerCrossingsTotal = (newCrossingsNorth + newCrossingsSouth) < (prevCrossingsNorth + prevCrossingsSouth);
             return (1 + fewerCrossingsTotal);
@@ -157,40 +157,34 @@ extern "C" {
         }
     }
 
-    void reorder(int numRanks, int numNodes, int numEdges, int* inputArray) {
+    void reorder(int numRanks, int numNodes, int maxId, int numEdges, int* inputArray) {
         int* inputStart = inputArray;
         char* nextFree = (char*)inputStart + (2 * numRanks - 1 + numNodes + 3 * numEdges) * sizeof(int);
         int* order = (int*)nextFree;
         nextFree += numNodes * sizeof(int);
         int* positions = (int*)nextFree;
-        nextFree += numNodes * sizeof(int);
+        nextFree += (maxId + 1) * sizeof(int);
         int* numNodesPerRank = (int*)nextFree;
         nextFree += numRanks * sizeof(int);
         int** orderPerRank = (int**)nextFree;
         nextFree += numRanks * sizeof(int*);
-        int** positionsPerRank = (int**)nextFree;
-        nextFree += numRanks * sizeof(int*);
         Neighbor* edges = (Neighbor*)nextFree;
         nextFree += 2 * numEdges * sizeof(Neighbor);
         Neighbor** edgesPerNode =  (Neighbor**)nextFree;
-        nextFree += 2 * numNodes * sizeof(Neighbor*);
-        Neighbor*** edgesPerNodePerRank = (Neighbor***)nextFree;
-        nextFree += 2 * numRanks * sizeof(Neighbor**);
-        Neighbor**** edgesPerNodePerRankPerDir = (Neighbor****)nextFree;
+        nextFree += 2 * (maxId + 1) * sizeof(Neighbor*);
+        Neighbor*** edgesPerNodePerDir = (Neighbor***)nextFree;
         nextFree += 2 * sizeof(Neighbor***);
-        edgesPerNodePerRankPerDir[0] = edgesPerNodePerRank;
-        edgesPerNodePerRankPerDir[1] = edgesPerNodePerRank + numRanks;
+        edgesPerNodePerDir[0] = edgesPerNode;
+        edgesPerNodePerDir[1] = edgesPerNode + (maxId + 1);
         int* numEdgesPerNode = (int*)nextFree;
-        nextFree += 2 * numNodes * sizeof(int);
-        for (int i = 0; i < 2 * numNodes; ++i) {
+        nextFree += 2 * (maxId + 1) * sizeof(int);
+        for (int i = 0; i < 2 * (maxId + 1); ++i) {
             numEdgesPerNode[i] = 0;
         }
-        int** numEdgesPerNodePerRank = (int**)nextFree;
-        nextFree += 2 * numRanks * sizeof(int*);
-        int*** numEdgesPerNodePerRankPerDir = (int***)nextFree;
+        int** numEdgesPerNodePerDir = (int**)nextFree;
         nextFree += 2 * sizeof(int**);
-        numEdgesPerNodePerRankPerDir[0] = numEdgesPerNodePerRank;
-        numEdgesPerNodePerRankPerDir[1] = numEdgesPerNodePerRank + numRanks;
+        numEdgesPerNodePerDir[0] = numEdgesPerNode;
+        numEdgesPerNodePerDir[1] = numEdgesPerNode + (maxId + 1);
 
         int maxNodesPerRank = 0;
 
@@ -198,32 +192,20 @@ extern "C" {
         int* numNodesPointer = numNodesPerRank;
         int* orderPointer = order;
         int** orderPerRankPointer = orderPerRank;
-        int* positionsPointer = positions;
-        int** positionsPerRankPointer = positionsPerRank;
-        int* numUpEdgesPointer = numEdgesPerNode;
-        int* numDownEdgesPointer = numEdgesPerNode + numNodes;
-        int** numDownEdgesPerRankPointer = numEdgesPerNodePerRank;
-        int** numUpEdgesPerRankPointer = numEdgesPerNodePerRank + numRanks;
         for (int r = 0; r < numRanks; ++r) {
             int numNodes = *inputArray++;
             *numNodesPointer++ = numNodes;
             *orderPerRankPointer++ = orderPointer;
-            *positionsPerRankPointer++ = positionsPointer;
-            *numDownEdgesPerRankPointer++ = numDownEdgesPointer;
-            *numUpEdgesPerRankPointer++ = numUpEdgesPointer;
             for (int n = 0; n < numNodes; ++n) {
                 *orderPointer++ = *inputArray++;
-                *numUpEdgesPointer++ = 0;
-                *numDownEdgesPointer++ = 0;
             }
             for (int pos = 0; pos < numNodes; ++pos) {
-                *positionsPointer++ = orderPerRank[r][pos];
+                positions[orderPerRank[r][pos]] = pos;
             }
             maxNodesPerRank = std::max(maxNodesPerRank, numNodes);
         }
 
         int maxEdgesPerRank = 0;
-
         // read edges
         int* edgesStart = inputArray;
         for (int r = 1; r < numRanks; ++r) {
@@ -232,45 +214,33 @@ extern "C" {
                 int from = *inputArray++;
                 int to = *inputArray++;
                 inputArray++;
-                numEdgesPerNodePerRankPerDir[0][r][to]++; // 0: up-neighbors
-                numEdgesPerNodePerRankPerDir[1][r - 1][from]++; // 1: down-neighbors 
+                numEdgesPerNodePerDir[0][to]++; // 0: up-neighbors
+                numEdgesPerNodePerDir[1][from]++; // 1: down-neighbors 
             }
             maxEdgesPerRank = std::max(maxEdgesPerRank, numEdges);
         }
-        /*if (numRanks == 41) {
-        
-            inputStart[0] = sizeof(NodeMean);
-            inputStart[1] = sizeof(Edge);
-            inputStart[2] = sizeof(Neighbor);
-            inputStart[3] = sizeof(Change);
-            return;
-        }*/
         
         Edge* countingEdges = (Edge*)nextFree;
         nextFree += maxEdgesPerRank * sizeof(Edge);
 
         Neighbor* edgesPointer = edges;
         Neighbor** edgesPerNodePointer = edgesPerNode;
-        Neighbor*** edgesPerNodePerRankPointer = edgesPerNodePerRank;
 
         for (int dir = 0; dir < 2; ++dir) {
-            for (int r = 0; r < numRanks; ++r) {
-                *edgesPerNodePerRankPointer++ = edgesPerNodePointer;
-                for (int n = 0; n < numNodesPerRank[r]; ++n) {
-                    *edgesPerNodePointer++ = edgesPointer;
-                    edgesPointer += numEdgesPerNodePerRankPerDir[dir][r][n];
-                }
+            for (int n = 0; n < maxId + 1; ++n) {
+                *edgesPerNodePointer++ = edgesPointer;
+                edgesPointer += numEdgesPerNodePerDir[dir][n];
             }
         }
         int maxWeight = 0;
         Neighbor** edgePointerPerNode = (Neighbor**)nextFree;
-        nextFree += maxNodesPerRank * sizeof(Neighbor*);
+        nextFree += (maxId + 1) * sizeof(Neighbor*);
+        for (int n = 0; n < maxId + 1; ++n) {
+            edgePointerPerNode[n] = edgesPerNodePerDir[0][n];
+        }
         inputArray = edgesStart;
         for (int r = 1; r < numRanks; ++r) {
             int numEdges = *inputArray++;
-            for (int n = 0; n < numNodesPerRank[r]; ++n) {
-                edgePointerPerNode[n] = edgesPerNodePerRankPerDir[0][r][n];
-            }
             for (int e = 0; e < numEdges; ++e) {
                 int from = *inputArray++;
                 int to = *inputArray++;
@@ -279,12 +249,12 @@ extern "C" {
                 maxWeight = std::max(maxWeight, weight);
             }
         }
+        for (int n = 0; n < maxId + 1; ++n) {
+            edgePointerPerNode[n] = edgesPerNodePerDir[1][n];
+        }
         inputArray = edgesStart;
         for (int r = 1; r < numRanks; ++r) {
             int numEdges = *inputArray++;
-            for (int n = 0; n < numNodesPerRank[r - 1]; ++n) {
-                edgePointerPerNode[n] = edgesPerNodePerRankPerDir[1][r - 1][n];
-            }
             for (int e = 0; e < numEdges; ++e) {
                 int from = *inputArray++;
                 int to = *inputArray++;
@@ -334,15 +304,14 @@ extern "C" {
                 if (crossings[r + crossingOffsetNorth] == 0) {
                     continue;
                 }
-                int northR = r - signDirection;
                 int numNodes = numNodesPerRank[r];
                 for (int pos = 0; pos < numNodes; ++pos) {
                     int n = orderPerRank[r][pos];
                     int sum = 0;
                     int num = 0;
-                    for (int e = 0; e < numEdgesPerNodePerRankPerDir[!boolDirection][r][n]; ++e) {
-                        Neighbor edge = edgesPerNodePerRankPerDir[!boolDirection][r][n][e];
-                        int neighborPos = positionsPerRank[northR][edge.end];
+                    for (int e = 0; e < numEdgesPerNodePerDir[!boolDirection][n]; ++e) {
+                        Neighbor edge = edgesPerNodePerDir[!boolDirection][n][e];
+                        int neighborPos = positions[edge.end];
                         sum += edge.weight * neighborPos;
                         num += edge.weight;
                     }
@@ -359,7 +328,7 @@ extern "C" {
                     newNodeOrder[pos] = nodeMeans[pos].n;
                 }
 
-                int numChanges = getChanges(numNodes, newNodeOrder, positionsPerRank[r], changes, permutation);
+                int numChanges = getChanges(numNodes, newNodeOrder, positions, changes, permutation);
                 for (int c = 0; c < numChanges; ++c) {
                     Change change = changes[c];
                     for (int n = 0; n < numNodes; ++n) {
@@ -368,7 +337,7 @@ extern "C" {
                     for (int i = change.begin; i <= change.end; ++i) {
                         tmpOrder[i] = newNodeOrder[i];
                     }
-                    int result = tryNewOrder(tmpOrder, r, numNodesPerRank, crossingOffsetNorth, crossingOffsetSouth, boolDirection, signDirection, lastRank, orderPerRank[r], positionsPerRank, crossings, numEdgesPerNodePerRankPerDir, edgesPerNodePerRankPerDir, countingTree, countingEdges);
+                    int result = tryNewOrder(tmpOrder, r, numNodesPerRank, crossingOffsetNorth, crossingOffsetSouth, boolDirection, signDirection, lastRank, orderPerRank[r], positions, crossings, numEdgesPerNodePerDir, edgesPerNodePerDir, countingTree, countingEdges);
                     if (result == 2) {
                         improveCounter = 2;
                     }
@@ -382,7 +351,7 @@ extern "C" {
         #if !defined(WASM)
         int numCrossings = 0;
         for (int r = 1; r < numRanks; ++r) {
-            numCrossings += countCrossings(r, numNodesPerRank[r], orderPerRank[r], numEdgesPerNodePerRankPerDir[0][r], edgesPerNodePerRankPerDir[0][r], numNodesPerRank[r - 1], positionsPerRank[r - 1], countingTree, countingEdges);
+            numCrossings += countCrossings(r, numNodesPerRank[r], orderPerRank[r], numEdgesPerNodePerDir[0], edgesPerNodePerDir[0], numNodesPerRank[r - 1], positions, countingTree, countingEdges);
         }
         //printf("crossings: %d\n", numCrossings);
         #endif // WASM
@@ -401,8 +370,8 @@ extern "C" {
             fprintf(stderr, "Input file not found!\n");
             return 0;
         }
-        int numRanks, numNodes, numEdges;
-        if (fscanf(input, "%d,%d,%d", &numRanks, &numNodes, &numEdges) != 3) {
+        int numRanks, numNodes, maxId, numEdges;
+        if (fscanf(input, "%d,%d,%d,%d", &numRanks, &numNodes, &maxId, &numEdges) != 4) {
             fprintf(stderr, "Input file has wrong format!\n");
             return 0;
         }
@@ -415,7 +384,7 @@ extern "C" {
         
         struct timeval start_t, end_t;
         gettimeofday(&start_t, NULL);
-        reorder(numRanks, numNodes, numEdges, heap);
+        reorder(numRanks, numNodes, maxId, numEdges, heap);
         gettimeofday(&end_t, NULL);
    
         double time = double(end_t.tv_sec - start_t.tv_sec) * 1000.0;

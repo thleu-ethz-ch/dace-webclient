@@ -1,6 +1,7 @@
 import {Module} from "../../wasm/reorder";
 import * as _ from "lodash";
 import OrderRank from "../order/orderRank";
+import Assert from "../util/assert";
 
 export default class Wasm
 {
@@ -54,14 +55,18 @@ export default class Wasm
                 });
             });
         }
+        //console.log(order.length + "," + numNodes + "," + numEdges + "," + _.slice(heap, 0, pointer).toString());
         //if (order.length === 65) {
             //this.download("test.txt", order.length + "," + numNodes + "," + numEdges + "," + _.slice(heap, 0, pointer).toString())
         //}
+        //let start = Date.now();
         Module._reorder(order.length, numNodes, numEdges, heap.byteOffset);
+        //let end = Date.now();
+        //console.log("binary", end - start);
         pointer = 0;
         for (let r = 0; r < order.length; ++r) {
             for (let pos = 0; pos < order[r].length; ++pos) {
-                order[r][pos] = heap[pointer++]
+                order[r][pos] = heap[pointer++];
             }
         }
     }
