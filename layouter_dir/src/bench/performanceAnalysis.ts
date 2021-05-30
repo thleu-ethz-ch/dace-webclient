@@ -12,18 +12,18 @@ export default class PerformanceAnalysis {
     }
 
     // adapted from https://gist.github.com/venning/b6593f965773985f923f
-    sd(numbers: Array<number>): number {
+    public sd(numbers: Array<number>): number {
         const mean = _.mean(numbers);
         return Math.sqrt(_.sum(_.map(numbers, (i) => Math.pow((i - mean), 2))) / numbers.length);
     };
 
-    measure(graph: RenderGraph, runs: number = 10, breakdown: boolean = false): any {
+    public async measure(graph: RenderGraph, runs: number = 10, breakdown: boolean = false): Promise<any> {
         const graphCopy = _.cloneDeep(graph);
         const times = [];
         for (let run = 0; run < runs; ++run) {
             Timer.reset();
             const start = Date.now();
-            this._layouter.layout(graphCopy);
+            await this._layouter.layout(graphCopy);
             const end = Date.now();
             if (breakdown) {
                 times.push(Timer.getTimes());

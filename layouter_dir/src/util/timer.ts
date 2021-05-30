@@ -50,6 +50,8 @@ export default class Timer {
             });
             slot["sum"] = _.sum(measurements);
             slot["mean"] = _.mean(measurements);
+            slot["min"] = _.min(measurements);
+            slot["max"] = _.max(measurements);
             slot["count"] = measurements.length;
         });
         return timePerPath;
@@ -64,6 +66,10 @@ export default class Timer {
                 }
                 timeString += "; called " + slot.count + " times; average: ";
                 timeString += (slot.mean > 1000 ? ((slot.mean / 1000).toFixed(1) + " s") : (slot.mean.toFixed(1) + " ms"));
+                timeString += "; min: ";
+                timeString += (slot.min > 1000 ? ((slot.min / 1000).toFixed(1) + " s") : (slot.min.toFixed(1) + " ms"));
+                timeString += "; max: ";
+                timeString += (slot.max > 1000 ? ((slot.max / 1000).toFixed(1) + " s") : (slot.max.toFixed(1) + " ms"));
                 console.log(_.repeat("| ", level - 1) + name + ": " + timeString);
             }
             for (let name in slot.children) {

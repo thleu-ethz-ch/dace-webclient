@@ -4,6 +4,7 @@ import LayoutEdge from "../layoutGraph/layoutEdge";
 import LayoutGraph from "../layoutGraph/layoutGraph";
 import LayoutNode from "../layoutGraph/layoutNode";
 import Segment from "../geometry/segment";
+import {inPlaceSort} from "fast-sort";
 
 export default class LayoutAnalysis {
     private readonly _layoutGraph: LayoutGraph;
@@ -274,7 +275,8 @@ export default class LayoutAnalysis {
                 endpoints.push([this._uniqueSegments[i].end[axis], i, this._uniqueSegments[i].start[axis] > this._uniqueSegments[i].end[axis]]);
             }
             let openSegments = new Set();
-            _.forEach(_.sortBy(endpoints, "0"), ([coord, segId, isFirst]) => {
+            inPlaceSort(endpoints).asc("0");
+            _.forEach(endpoints, ([coord, segId, isFirst]) => {
                 if (isFirst) {
                     openSegments.forEach((openSegId: number) => {
                         let min = Math.min(openSegId, segId);

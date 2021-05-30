@@ -4,6 +4,7 @@ import Graph from "../graph/graph";
 import LayoutEdge from "../layoutGraph/layoutEdge";
 import LayoutNode from "../layoutGraph/layoutNode";
 import LevelNode from "./levelNode";
+import {inPlaceSort} from "fast-sort";
 
 export default class LevelGraph extends Graph<LevelNode, Edge<any, any>> {
     private _ranks: Array<Array<LevelNode>> = null;
@@ -17,7 +18,7 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>> {
     }
 
     public addLayoutNode(layoutNode: LayoutNode): LevelNode {
-        let levelNode = new LevelNode(layoutNode, layoutNode.rank, true);
+        let levelNode = new LevelNode(layoutNode, layoutNode.rank, layoutNode.width, true);
         let src = this.addNode(levelNode);
         this._firstNodeMap[layoutNode.id] = levelNode.id;
         const levelNodes = [levelNode];
@@ -47,34 +48,33 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>> {
     }
 
     public ranks(): Array<Array<LevelNode>> {
-        this._minRank = Number.POSITIVE_INFINITY;
-        this._maxRank = Number.NEGATIVE_INFINITY;
-        _.forEach(this.nodes(), (node: LevelNode) => {
-            this._minRank = Math.min(this._minRank, node.rank);
-            this._maxRank = Math.max(this._maxRank, node.rank);
-        });
-        const minRank = this._minRank;
-        const maxRank = this._maxRank;
-        let numRanks = maxRank - minRank + 1;
-        if (maxRank === Number.NEGATIVE_INFINITY) {
-            numRanks = 0;
-        }
-        this._ranks = new Array(numRanks);
-        const unsortedRanks = new Array(numRanks);
-        for (let r = 0; r < numRanks; ++r) {
-            unsortedRanks[r] = [];
-        }
-        _.forEach(this.nodes(), (node: LevelNode) => {
-            unsortedRanks[node.rank - minRank].push(node);
-        });
-        _.forEach(unsortedRanks, (rank: Array<LevelNode>, r: number) => {
-            this._ranks[r] = _.sortBy(rank, (node: LevelNode) => {
-                return node.position;
+        if (this._ranks === null) {
+            this._minRank = Number.POSITIVE_INFINITY;
+            this._maxRank = Number.NEGATIVE_INFINITY;
+            _.forEach(this.nodes(), (node: LevelNode) => {
+                this._minRank = Math.min(this._minRank, node.rank);
+                this._maxRank = Math.max(this._maxRank, node.rank);
             });
-            for (let pos = 0; pos < this._ranks[r].length; ++pos) {
-                this._ranks[r][pos].position = pos;
+            const minRank = this._minRank;
+            const maxRank = this._maxRank;
+            let numRanks = maxRank - minRank + 1;
+            if (maxRank === Number.NEGATIVE_INFINITY) {
+                numRanks = 0;
             }
-        });
+            this._ranks = new Array(numRanks);
+            for (let r = 0; r < numRanks; ++r) {
+                this._ranks[r] = [];
+            }
+            _.forEach(this.nodes(), (node: LevelNode) => {
+                this._ranks[node.rank - minRank].push(node);
+            });
+            _.forEach(this._ranks, (rank: Array<LevelNode>, r: number) => {
+                inPlaceSort(this._ranks[r]).asc(node => node.position);
+                for (let pos = 0; pos < this._ranks[r].length; ++pos) {
+                    this._ranks[r][pos].position = pos;
+                }
+            });
+        }
         return this._ranks;
     }
 
@@ -90,7 +90,7 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>> {
     {
         const graphCopy = new LevelGraph();
         _.forEach(this.nodes(), (node: LevelNode) => {
-            const nodeCopy = new LevelNode(node.layoutNode, node.rank, node.isFirst);
+            const nodeCopy = new LevelNode(node.layoutNode, node.rank, node.width, node.isFirst);
             nodeCopy.isLast = node.isLast;
             nodeCopy.position = node.position;
             graphCopy.addNode(nodeCopy, node.id);
@@ -99,5 +99,10 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>> {
             graphCopy.addEdge(new Edge(edge.src, edge.dst, edge.weight), edge.id);
         });
         return graphCopy;
+    }
+
+    public invalidateRankOrder(): void
+    {
+        this._ranks = null;
     }
 }

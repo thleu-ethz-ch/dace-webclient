@@ -1,6 +1,7 @@
 import {CONNECTOR_SIZE, CONNECTOR_SPACING, DEBUG} from "../util/constants";
 import * as _ from "lodash";
 import * as seedrandom from "seedrandom";
+import * as workerpool from "workerpool";
 import Assert from "../util/assert";
 import Component from "../graph/component";
 import LayoutBundle from "../layoutGraph/layoutBundle";
@@ -17,6 +18,7 @@ import Wasm from "../wasm/wasm";
 export default abstract class Layouter {
     protected _options: any;
     protected _wasm: Wasm;
+    protected _pool: any;
 
     constructor(options: object = {}) {
         this._options = _.defaults(options, {
@@ -32,14 +34,15 @@ export default abstract class Layouter {
             preorderConnectors: false,
         });
         this._wasm = new Wasm();
+        this._pool = workerpool.pool("worker/worker.js", {minWorkers: 4});
     }
 
     public getOptionsForAnalysis(): object {
         return _.pick(this._options, [
-            'targetEdgeLength',
-            'weightBends',
-            'weightCrossings',
-            'weightLengths',
+            "targetEdgeLength",
+            "weightBends",
+            "weightCrossings",
+            "weightLengths",
         ]);
     }
 
