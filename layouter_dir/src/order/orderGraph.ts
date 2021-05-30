@@ -218,10 +218,8 @@ export default class OrderGraph {
             let positions = []; // inverse of order (e. g. 1, 2, 0)
             const neighborsDown = [];
             const weightsDown = [];
-            const weightsDownNoInf = [];
             const neighborsUp = [];
             const weightsUp = [];
-            const weightsUpNoInf = [];
             let crossings = []; // number of crossings above each rank
 
             const nodesPerRank = [];
@@ -237,10 +235,8 @@ export default class OrderGraph {
                 positions[r] = [];
                 neighborsDown[r] = [];
                 weightsDown[r] = [];
-                weightsDownNoInf[r] = [];
                 neighborsUp[r] = [];
                 weightsUp[r] = [];
-                weightsUpNoInf[r] = [];
                 crossings[r] = Number.POSITIVE_INFINITY;
                 nodesPerRank[r] = [];
 
@@ -265,19 +261,15 @@ export default class OrderGraph {
                         positions[r][n] = pos;
                         neighborsDown[r][n] = [];
                         weightsDown[r][n] = [];
-                        weightsDownNoInf[r][n] = [];
                         neighborsUp[r][n] = [];
                         weightsUp[r][n] = [];
-                        weightsUpNoInf[r][n] = [];
                         _.forEach(graph._nodeGraph.outEdges(node.id), (edge: Edge<any, any>) => {
                             neighborsDown[r][n].push(graph.node(edge.dst).index + groupOffsetsN[r + 1][graph.node(edge.dst).group.index]);
                             weightsDown[r][n].push(edge.weight);
-                            weightsDownNoInf[r][n].push(edge.weight === Number.POSITIVE_INFINITY ? 1 : edge.weight);
                         });
                         _.forEach(graph._nodeGraph.inEdges(node.id), (edge: Edge<any, any>) => {
                             neighborsUp[r][n].push(graph.node(edge.src).index + groupOffsetsN[r - 1][graph.node(edge.src).group.index]);
                             weightsUp[r][n].push(edge.weight);
-                            weightsUpNoInf[r][n].push(edge.weight === Number.POSITIVE_INFINITY ? 1 : edge.weight);
                         });
                     });
                 });
@@ -322,13 +314,17 @@ export default class OrderGraph {
                 }
                 const edges = [];
                 const neighbors = (direction === "UP" ? neighborsUp : neighborsDown);
-                const weights = (direction === "UP" ? weightsUpNoInf : weightsDownNoInf);
+                const weights = (direction === "UP" ? weightsUp : weightsDown);
                 const northR = (direction === "UP" ? (r - 1) : (r + 1));
 
                 for (let southPos = 0; southPos < testOrder.length; ++southPos) {
                     const southN = testOrder[southPos];
                     for (let neighbor = 0; neighbor < neighbors[r][southN].length; ++neighbor) {
-                        edges.push([southPos, positions[northR][neighbors[r][southN][neighbor]], weights[r][southN][neighbor]]);
+                        let weight = weights[r][southN][neighbor];
+                        if (weight === Number.POSITIVE_INFINITY) {
+                            weight = 1;
+                        }
+                        edges.push([southPos, positions[northR][neighbors[r][southN][neighbor]], weight]);
                     }
                 }
                 // north and south are swapped compared to the _countCrossings signature
@@ -346,7 +342,7 @@ export default class OrderGraph {
             const reorder = (shuffle: boolean = false, shuffleNodes: boolean = false, startRank: number = 0, preventConflicts: boolean = false) => {
                 Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "reorder"]);
                 const maxEdgesPerRank: number = _.max(_.map(neighborsUp, rankNeighbors => _.sum(_.map(rankNeighbors, "length"))));
-                const maxEdgeWeight: number = _.max(_.map(weightsUpNoInf, rankNeighbors => _.max(_.map(rankNeighbors, nodeNeighbors => _.max(nodeNeighbors)))));
+                const maxEdgeWeight: number = _.max(_.map(weightsUp, rankNeighbors => _.max(_.map(rankNeighbors, nodeNeighbors => _.max(_.map(nodeNeighbors, weight => weight === Number.POSITIVE_INFINITY ? 1 : weight))))));
                 const multiplicator = maxEdgeWeight * maxEdgesPerRank + 1;
                 if (shuffle) {
                     _.forEach(ranks, (rank: OrderRank, r: number) => {
@@ -435,7 +431,7 @@ export default class OrderGraph {
                     let lastRank = downward ? ranks.length - 1 : startRank;
                     const direction = downward ? 1 : -1;
                     const neighborsNorth = downward ? neighborsUp : neighborsDown;
-                    const weightsNorth = downward ? weightsUpNoInf : weightsDownNoInf;
+                    const weightsNorth = downward ? weightsUp : weightsDown;
                     const crossingOffsetNorth = downward ? 0 : 1;
                     const crossingOffsetSouth = downward ? 1 : 0;
                     const northDirection = downward ? "UP" : "DOWN";
@@ -511,7 +507,10 @@ export default class OrderGraph {
                                     let sum = 0;
                                     let num = 0;
                                     for (let neighbor = 0; neighbor < neighborsNorth[r][n].length; ++neighbor) {
-                                        const weight = weightsNorth[r][n][neighbor];
+                                        let weight = weightsNorth[r][n][neighbor];
+                                        if (weight === Number.POSITIVE_INFINITY) {
+                                            weight = 1;
+                                        }
                                         const neighborPos = positions[northRank][neighborsNorth[r][n][neighbor]];
                                         sum += weight * neighborPos;
                                         num += weight;
@@ -964,17 +963,13 @@ export default class OrderGraph {
                         for (let tmpR = 0; tmpR < ranks.length; ++tmpR) {
                             neighborsDown[tmpR] = [];
                             weightsDown[tmpR] = [];
-                            weightsDownNoInf[tmpR] = [];
                             neighborsUp[tmpR] = [];
                             weightsUp[tmpR] = [];
-                            weightsUpNoInf[tmpR] = [];
                             _.forEach(ranks[tmpR].groups[0].nodes, (node: OrderNode, n: number) => {
                                 neighborsDown[tmpR][n] = [];
                                 weightsDown[tmpR][n] = [];
-                                weightsDownNoInf[tmpR][n] = [];
                                 neighborsUp[tmpR][n] = [];
                                 weightsUp[tmpR][n] = [];
-                                weightsUpNoInf[tmpR][n] = [];
                             });
                         }
                         _.forEach(graph.edges(), edge => {
@@ -982,10 +977,8 @@ export default class OrderGraph {
                             const dstNode = graph.node(edge.dst);
                             neighborsDown[srcNode.rank][srcNode.index].push(dstNode.index);
                             weightsDown[srcNode.rank][srcNode.index].push(edge.weight);
-                            weightsDownNoInf[srcNode.rank][srcNode.index].push(edge.weight === Number.POSITIVE_INFINITY ? 1 : edge.weight);
                             neighborsUp[dstNode.rank][dstNode.index].push(srcNode.index);
                             weightsUp[dstNode.rank][dstNode.index].push(edge.weight);
-                            weightsUpNoInf[dstNode.rank][dstNode.index].push(edge.weight === Number.POSITIVE_INFINITY ? 1 : edge.weight);
                         });
 
                         for (let tmpR = 1; tmpR < ranks.length; ++tmpR) {
@@ -1262,7 +1255,7 @@ export default class OrderGraph {
 
                     //console.log("NUMNODES", graph.nodes().length);
                     //if (graph.nodes().length === 40721) {
-                    await this._wasm.reorder(order, neighborsDown, weightsDownNoInf);
+                    await this._wasm.reorder(order, neighborsDown, weightsDown);
                     for (let r = 0; r < ranks.length; ++r) {
                         _.forEach(order[r], (n, pos) => {
                             positions[r][n] = pos;

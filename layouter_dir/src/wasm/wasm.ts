@@ -26,7 +26,7 @@ export default class Wasm
         return Promise.resolve();
     }
 
-    async reorder(order: Array<Array<number>>, neighborsDown: Array<Array<Array<number>>>, weightsDownNoInf: Array<Array<Array<number>>>): Promise<void> {
+    async reorder(order: Array<Array<number>>, neighborsDown: Array<Array<Array<number>>>, weightsDown: Array<Array<Array<number>>>): Promise<void> {
         await this.waitUntilReady();
         let pointer = 0;
         const heap = Module["HEAP32"];
@@ -44,9 +44,13 @@ export default class Wasm
             numEdges += heap[pointer++];
             _.forEach(neighborsDown[r], (neighbors: Array<number>, from: number) => {
                 _.forEach(neighbors, (to: number, i: number) => {
+                    let weight = weightsDown[r][from][i];
+                    if (weight === Number.POSITIVE_INFINITY) {
+                        weight = 1;
+                    }
                     heap[pointer++] = from;
                     heap[pointer++] = to;
-                    heap[pointer++] = weightsDownNoInf[r][from][i];
+                    heap[pointer++] = weight;
                 });
             });
         }
