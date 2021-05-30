@@ -1130,8 +1130,8 @@ export default class SugiyamaLayouter extends Layouter {
             _.forEach(ranks, (rank: Array<LevelNode>, r: number) => {
                 numNodesPerRank[r] = rank.length;
                 _.forEach(rank, (node: LevelNode) => {
-                    levelNodes[n++] = node.id
-                    levelNodes[n++] = node.width;
+                    levelNodes[n++] = node.id;
+                    levelNodes[n++] = node.layoutNode.width;
                     levelNodes[n++] = node.isFirst;
                     levelNodes[n++] = node.isLast;
                 });
@@ -1184,8 +1184,8 @@ export default class SugiyamaLayouter extends Layouter {
                 const xs = _.map(xAssignments, xAssignment => xAssignment[node.id]);
                 inPlaceSort(xs).asc();
                 let x = (xs[1] + xs[2]) / 2;
-                //x = alignGraphs[0].node(node.id).x; // uncomment to see 1 of the 4 merged layouts
-                x -= node.width / 2;
+                //x = xs[0]; // comment sort and uncomment this line to see 1 of the 4 merged layouts
+                x -= node.layoutNode.width / 2;
                 minX = Math.min(minX, x);
                 node.x = offset + x;
             }

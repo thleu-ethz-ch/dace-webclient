@@ -4,6 +4,7 @@ import Graph from "../graph/graph";
 import Node from "../graph/node";
 import OrderNode from "./orderNode";
 import OrderRank from "./orderRank";
+import {inPlaceSort} from "fast-sort";
 
 export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>> {
     public readonly reference: any;
@@ -38,9 +39,10 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>> {
     }
 
     orderNodes(): void {
-        this.order = _.map(_.sortBy(_.map(this.nodes, (node: OrderNode, n: number) => {
-            return {n: n, pos: node.position};
-        }), "pos"), "n");
+        const nodes = _.map(this.nodes, (node: OrderNode, n: number) => {
+            return [n, node.position];
+        });
+        this.order = _.map(inPlaceSort(nodes).asc(node => node[1]), "0");
     }
 
     orderedNodes(): Array<OrderNode> {

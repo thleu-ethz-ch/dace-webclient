@@ -2,6 +2,7 @@ import * as _ from "lodash";
 import Node from "../graph/node";
 import OrderGraph from "./orderGraph";
 import OrderGroup from "./orderGroup";
+import {inPlaceSort} from "fast-sort";
 
 export default class OrderRank extends Node<any, any>
 {
@@ -17,9 +18,10 @@ export default class OrderRank extends Node<any, any>
     }
 
     orderGroups(): void {
-        this.order = _.map(_.sortBy(_.map(this.groups, (group: OrderGroup, n: number) => {
-            return {n: n, pos: group.position};
-        }), "pos"), "n");
+        const groups = _.map(this.groups, (group: OrderGroup, n: number) => {
+            return [n, group.position];
+        });
+        this.order = _.map(inPlaceSort(groups).asc(group => group[1]), "0");
     }
 
     orderedGroups(): Array<OrderGroup> {
