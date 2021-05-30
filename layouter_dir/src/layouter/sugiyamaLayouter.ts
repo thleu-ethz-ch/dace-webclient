@@ -316,7 +316,7 @@ export default class SugiyamaLayouter extends Layouter {
                                 connectors = Shuffle.shuffle(connectors);
                             }
                             _.forEach(connectors, (connector: LayoutConnector) => {
-                                const connectorNode = new OrderNode(connector, false, false);
+                                const connectorNode = new OrderNode(connector, false, false, connector.name);
                                 connectorGroup.addNode(connectorNode);
                                 connectorMap.set(connector, connectorNode.id);
                                 if (connector.isScoped) {
@@ -340,7 +340,7 @@ export default class SugiyamaLayouter extends Layouter {
                             }
                             _.forEach(connectors, (connector: LayoutConnector) => {
                                 if (!connector.isScoped) {
-                                    const connectorNode = new OrderNode(connector, false, false);
+                                    const connectorNode = new OrderNode(connector, false, false, connector.name);
                                     connectorGroup.addNode(connectorNode);
                                     connectorMap.set(connector, connectorNode.id);
                                 }
@@ -348,7 +348,7 @@ export default class SugiyamaLayouter extends Layouter {
                         }
                     }
                     if (isPreorder && node.rankSpan > 1) {
-                        const orderNode = new OrderNode(null, false, false);
+                        const orderNode = new OrderNode(null, false, false, node.label());
                         connectorGroup.addNode(orderNode);
                         levelNodeMap.set(levelNode, orderNode);
                     }
@@ -666,7 +666,7 @@ export default class SugiyamaLayouter extends Layouter {
             const connectorOrderGraph = this._createConnectorGraph(graph, false, false, shuffle && !this._options["preorderConnectors"]);
             await connectorOrderGraph.order({
                 resolveConflicts: false,
-                shuffles: this._options["shuffleGlobal"] ? 0 : this._options["shuffles"]
+                shuffles: this._options["shuffleGlobal"] ? 0 : this._options["shuffles"],
             });
 
             // copy order information from order graph to layout graph

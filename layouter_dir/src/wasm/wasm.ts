@@ -1,7 +1,11 @@
 import {Module} from "../../wasm/reorder";
 import * as _ from "lodash";
 import OrderRank from "../order/orderRank";
-import Assert from "../util/assert";
+
+interface Neighbor {
+    end: number;
+    weight: number;
+}
 
 export default class Wasm
 {
@@ -27,7 +31,7 @@ export default class Wasm
         return Promise.resolve();
     }
 
-    async reorder(order: Array<Array<number>>, neighborsDown: Array<Array<Array<number>>>, weightsDown: Array<Array<Array<number>>>): Promise<void> {
+    async reorder(order: Array<Array<number>>, neighborsUp: Array<Array<Neighbor>>, maxId: number, numEdgesPerRank: Array<number>): Promise<void> {
         await this.waitUntilReady();
         let pointer = 0;
         const heap = Module["HEAP32"];
@@ -40,33 +44,29 @@ export default class Wasm
             });
         }
         let numEdges = 0;
-        for (let r = 0; r < order.length - 1; ++r) {
-            heap[pointer] = _.sum(_.map(neighborsDown[r], "length"));
+        for (let r = 1; r < order.length; ++r) {
+            heap[pointer] = numEdgesPerRank[r];
             numEdges += heap[pointer++];
-            _.forEach(neighborsDown[r], (neighbors: Array<number>, from: number) => {
-                _.forEach(neighbors, (to: number, i: number) => {
-                    let weight = weightsDown[r][from][i];
+            _.forEach(order[r], (nodeId: number) => {
+                _.forEach(neighborsUp[nodeId], (neighbor: Neighbor) => {
+                    let weight = neighbor.weight;
                     if (weight === Number.POSITIVE_INFINITY) {
                         weight = 1;
                     }
-                    heap[pointer++] = from;
-                    heap[pointer++] = to;
+                    heap[pointer++] = neighbor.end;
+                    heap[pointer++] = nodeId;
                     heap[pointer++] = weight;
                 });
             });
         }
-        //console.log(order.length + "," + numNodes + "," + numEdges + "," + _.slice(heap, 0, pointer).toString());
         //if (order.length === 65) {
-            //this.download("test.txt", order.length + "," + numNodes + "," + numEdges + "," + _.slice(heap, 0, pointer).toString())
+            //this.download("test_symm.txt", order.length + "," + numNodes + "," + maxId + "," + numEdges + "," + _.slice(heap, 0, pointer).toString())
         //}
-        //let start = Date.now();
-        Module._reorder(order.length, numNodes, numEdges, heap.byteOffset);
-        //let end = Date.now();
-        //console.log("binary", end - start);
+        Module._reorder(order.length, numNodes, maxId, numEdges, heap.byteOffset);
         pointer = 0;
         for (let r = 0; r < order.length; ++r) {
             for (let pos = 0; pos < order[r].length; ++pos) {
-                order[r][pos] = heap[pointer++];
+                order[r][pos] = heap[pointer++]
             }
         }
     }

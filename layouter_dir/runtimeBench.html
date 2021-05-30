@@ -72,7 +72,7 @@
             let l = 0;
             for (let l = 0; l < layouters.length; ++l) {
                 let tmpL = l;
-                layoutLib.Bench.runtime(layoutLib.Loader.load, new layouters[l][1](layouters[l][2]), graphs, 5).then((result) => {
+                layoutLib.Bench.runtime(layoutLib.Loader.load, new layouters[l][1](layouters[l][2]), graphs, 10).then((result) => {
                     for (let g = 0; g < graphs.length; ++g) {
                         tableRows[tmpL + 1].childNodes[g + 1].getElementsByClassName("time")[0].innerHTML = result[g];
                     }

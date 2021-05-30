@@ -21,7 +21,8 @@ export default class OrderRank extends Node<any, any>
         const groups = _.map(this.groups, (group: OrderGroup, n: number) => {
             return [n, group.position];
         });
-        this.order = _.map(inPlaceSort(groups).asc(group => group[1]), "0");
+        inPlaceSort(groups).asc(group => group[1])
+        this.order = _.map(groups, "0");
     }
 
     orderedGroups(): Array<OrderGroup> {
