@@ -316,7 +316,7 @@ export default class SugiyamaLayouter extends Layouter {
                                 connectors = Shuffle.shuffle(connectors);
                             }
                             _.forEach(connectors, (connector: LayoutConnector) => {
-                                const connectorNode = new OrderNode(connector, false, false, connector.name);
+                                const connectorNode = new OrderNode(connector, false, false, /*connector.name*/);
                                 connectorGroup.addNode(connectorNode);
                                 connectorMap.set(connector, connectorNode.id);
                                 if (connector.isScoped) {
@@ -340,7 +340,7 @@ export default class SugiyamaLayouter extends Layouter {
                             }
                             _.forEach(connectors, (connector: LayoutConnector) => {
                                 if (!connector.isScoped) {
-                                    const connectorNode = new OrderNode(connector, false, false, connector.name);
+                                    const connectorNode = new OrderNode(connector, false, false, /*connector.name*/);
                                     connectorGroup.addNode(connectorNode);
                                     connectorMap.set(connector, connectorNode.id);
                                 }
@@ -348,7 +348,7 @@ export default class SugiyamaLayouter extends Layouter {
                         }
                     }
                     if (isPreorder && node.rankSpan > 1) {
-                        const orderNode = new OrderNode(null, false, false, node.label());
+                        const orderNode = new OrderNode(null, false, false, /*node.label()*/);
                         connectorGroup.addNode(orderNode);
                         levelNodeMap.set(levelNode, orderNode);
                     }
@@ -467,7 +467,9 @@ export default class SugiyamaLayouter extends Layouter {
                     const orderNode = new OrderNode(levelNode, levelNode.layoutNode.isVirtual || levelNode.layoutNode.isBundle, levelNode.layoutNode.rankSpan > 1);
                     orderGroups[levelNode.rank].addNode(orderNode, levelNode.id);
                     nodeMap.set(levelNode.id, orderNode.id);
-                    orderNode.position = levelNode.position; // has no effect when option preorderConnectors is false
+                    if (this._options["preorderConnectors"]) {
+                        orderNode.position = levelNode.position;
+                    }
                 });
 
                 // add edges
@@ -1113,14 +1115,13 @@ export default class SugiyamaLayouter extends Layouter {
         let xAssignments: Array<Array<number>>;
         if (levelGraph.numNodes() > 10000) {
             let numNodesPerRank, levelNodes, levelEdges;
-            if (SharedArrayBuffer !== undefined) {
+            if (typeof(SharedArrayBuffer) !== "undefined") {
                 const numNodesPerRankSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * ranks.length);
                 numNodesPerRank = new Int32Array(numNodesPerRankSab);
                 const levelNodesSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 4 * levelGraph.numNodes());
                 levelNodes = new Int32Array(levelNodesSab);
                 const levelEdgesSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 3 * levelGraph.numEdges());
                 levelEdges = new Int32Array(levelEdgesSab);
-
             } else {
                 numNodesPerRank = new Array(ranks.length);
                 levelNodes = new Array(levelGraph.numNodes());
