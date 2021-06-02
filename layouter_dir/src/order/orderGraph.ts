@@ -175,7 +175,7 @@ export default class OrderGraph {
         Timer.start(["doLayout", "orderRanks", "doOrder", "order"]);
         options = _.defaults(options, {
             debug: false,
-            doNothing: false,
+            countOnly: false,
             orderGroups: false,
             countInitial: false,
             resolveConflicts: true,
@@ -362,23 +362,23 @@ export default class OrderGraph {
                                 let nextDeepOrder = [];
                                 let prevParent = undefined;
                                 let sameParentSequence = [];
-                                _.forEach(deepOrder, (gs: any) => {
-                                    let g = gs;
-                                    while (Array.isArray(g)) {
-                                        g = g[0];
+                                _.forEach(deepOrder, (groupIds: any) => {
+                                    let groupId = groupIds;
+                                    while (Array.isArray(groupId)) {
+                                        groupId = groupId[0];
                                     }
-                                    const parent = ranks[r].groups[g].shuffleHierarchy[level];
+                                    const parent = graph.group(groupId).shuffleHierarchy[level];
                                     if (parent === undefined) {
-                                        nextDeepOrder.push(gs);
+                                        nextDeepOrder.push(groupIds);
                                         return;
                                     }
                                     if (parent === prevParent) {
-                                        sameParentSequence.push(gs);
+                                        sameParentSequence.push(groupIds);
                                     } else {
                                         if (prevParent !== undefined) {
                                             nextDeepOrder.push(Shuffle.shuffle(sameParentSequence));
                                         }
-                                        sameParentSequence = [gs];
+                                        sameParentSequence = [groupIds];
                                     }
                                     prevParent = parent;
                                 });
@@ -386,7 +386,7 @@ export default class OrderGraph {
                                 deepOrder = _.clone(nextDeepOrder);
                             }
                             groupOrder[r] = _.flattenDeep(deepOrder);
-                            this._setGroupPositionAndOffset(groupOrder[r], groupPositions, groupOffsetsPos, ranks[r]);
+                            this._setGroupPositionAndOffset(groupOrder[r], groupPositions, groupOffsetsPos, numNodesPerGroup);
                             _.forEach(groupOrder[r], (groupId: number) => {
                                 let nodeIds = _.slice(order[r], groupOffsetsPos[groupId], groupOffsetsPos[groupId] + numNodesPerGroup[groupId]);
                                 if (shuffleNodes) {
@@ -431,7 +431,8 @@ export default class OrderGraph {
                 let boolDirection = 1;
                 let boolOppositeDirection = 0;
                 let signDirection = 1;
-                let improveCounter = (!options["doNothing"] && (ranks.length > 1)) ? 2 : 0; // if only one rank, nothing to order
+                let improveCounter = (ranks.length > 1) ? 2 : 0; // if only one rank, nothing to order
+                let minCrossings = _.sum(crossings);
                 while (improveCounter > 0) {
                     improveCounter--;
                     if (options["debug"]) {
@@ -474,8 +475,8 @@ export default class OrderGraph {
                                 newCrossingsSouth = countCrossings(newOrder, r, southDirection, preventConflicts);
                             }
                             const fewerCrossingsNorth = newCrossingsNorth < prevCrossingsNorth;
-                            const fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth <= prevCrossingsNorth + prevCrossingsSouth);
-                            if (fewerCrossingsNorth && fewerOrEqualCrossingsTotal) {
+                            //const fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth <= prevCrossingsNorth + prevCrossingsSouth);
+                            if (fewerCrossingsNorth) {
                                 if (options["debug"]) {
                                     console.log("fewer crossings north", prevCrossingsNorth, "->", newCrossingsNorth, "south: ", prevCrossingsSouth, "->", newCrossingsSouth);
                                 }
@@ -540,9 +541,9 @@ export default class OrderGraph {
                                 }
 
                                 if (groupNum > 0) {
-                                    groupMeans.push([groupId, groupSum / groupNum]);
+                                    groupMeans.push([groupId, multiplicator * groupSum / groupNum + groupPositions[groupId]]);
                                 } else {
-                                    groupMeans.push([groupId, groupPositions[groupId]]);
+                                    groupMeans.push([groupId, multiplicator * groupPositions[groupId] + groupPositions[groupId]]);
                                 }
                             });
 
@@ -571,11 +572,8 @@ export default class OrderGraph {
                                     if (result > 0) {
                                         // store new group order
                                         groupOrder[r] = tmpGroupOrder;
-                                        this._setGroupPositionAndOffset(groupOrder[r], groupPositions, groupOffsetsPos, ranks[r]);
+                                        this._setGroupPositionAndOffset(groupOrder[r], groupPositions, groupOffsetsPos, numNodesPerGroup);
                                         hasChanged = true;
-                                    }
-                                    if (result === 2) {
-                                        improveCounter = 2;
                                     }
                                 }
                             }
@@ -595,8 +593,8 @@ export default class OrderGraph {
                                         console.log("tmpOrder", _.map(tmpOrder, nodeId => graph.node(nodeId).label()));
                                     }
                                     const result = tryNewOrder(tmpOrder);
-                                    if (result === 2) {
-                                        improveCounter = 2;
+                                    if (result > 0) {
+                                        hasChanged = true;
                                     }
                                 }
                             }
@@ -608,10 +606,23 @@ export default class OrderGraph {
                     boolDirection = boolOppositeDirection;
                     boolOppositeDirection = boolDirection ? 0 : 1;
                     signDirection *= -1;
+                    for (let r = 1; r < ranks.length; ++r) {
+                        if (crossings[r]  === Number.POSITIVE_INFINITY) {
+                            crossings[r] = countCrossings(order[r], r);
+                        }
+                    }
+                    const newCrossings = _.sum(crossings);
+                    if (newCrossings < minCrossings) {
+                        minCrossings = newCrossings;
+                        improveCounter = 2;
+                    }
                 }
 
-                for (let r = 1; r < ranks.length; ++r) {
-                    crossings[r] = countCrossings(order[r], r);
+                for (let r = 0; r < numRanks; ++r) {
+                    _.forEach(order[r], (nodeId: number, pos: number) => {
+                        positions[nodeId] = pos;
+                    });
+                    this._setGroupPositionAndOffset(groupOrder[r], groupPositions, groupOffsetsPos, numNodesPerGroup);
                 }
 
                 Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "reorder"]);
@@ -889,9 +900,10 @@ export default class OrderGraph {
                             this._groupGraph.addEdge(new Edge(ranks[newR - 1].groups[0].id, ranks[newR].groups[0].id));
                             this._rankGraph.addEdge(new Edge(ranks[newR - 1].id, ranks[newR].id));
                             newRankComponent.order = [0];
-                            groupOrder[newR] = [0];
-                            groupPositions[newR] = [0];
-                            groupOffsetsPos[newR] = [0];
+                            groupOrder[newR] = [newGroup.id];
+                            groupPositions[newGroup.id] = 0;
+                            groupOffsetsPos[newGroup.id] = 0;
+                            numNodesPerGroup[newGroup.id] = 0;
                             order[newR] = [];
                             crossings[newR] = 0;
                         }
@@ -1223,6 +1235,11 @@ export default class OrderGraph {
                 Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve"]);
             }
 
+            if (options["orderGroups"]) {
+                if (472 === graph._nodeGraph.numNodes()) {
+                    //options["debug"] = true;
+                }
+            }
             if (options["debug"]) {
                 storeLocal();
             }
@@ -1232,13 +1249,16 @@ export default class OrderGraph {
                     crossings[r] = countCrossings(order[r], r, 0);
                 }
             }
+            if (options["countOnly"]) {
+                return _.sum(crossings);
+            }
             if (options["shuffles"] === 0) {
                 if (options["resolveConflicts"]) {
                     //fastReorder(order, positions, crossings, neighborsUp, weightsUp, neighborsDown, weightsDown);
 
                     //console.log("NUMNODES", graph.nodes().length);
                     //if (graph.nodes().length === 40721) {
-                    await this._wasm.reorder(order, neighbors[0], graph._nodeGraph.maxId(), numEdgesPerRank);
+                    /*await this._wasm.reorder(order, neighbors[0], graph._nodeGraph.maxId(), numEdgesPerRank);
                     for (let r = 0; r < ranks.length; ++r) {
                         _.forEach(order[r], (nodeId: number, pos: number) => {
                             positions[nodeId] = pos;
@@ -1246,9 +1266,9 @@ export default class OrderGraph {
                     }
                     for (let r = 1; r < ranks.length; ++r) {
                         crossings[r] = countCrossings(order[r], r, 0);
-                    }
+                    }*/
                     //}
-                    //reorder();
+                    reorder();
                 } else {
                     reorder();
                 }
@@ -1271,7 +1291,7 @@ export default class OrderGraph {
                             positions[nodeId] = pos;
                         });
                         groupOrder[r] = _.clone(originalGroupOrder[r]);
-                        this._setGroupPositionAndOffset(groupOrder[r], groupPositions, groupOffsetsPos, rank);
+                        this._setGroupPositionAndOffset(groupOrder[r], groupPositions, groupOffsetsPos, numNodesPerGroup);
                     });
                     crossings = _.cloneDeep(originalCrossings);
                     reorder(true, true);
@@ -1294,8 +1314,13 @@ export default class OrderGraph {
                 }
             }
 
+            if (options["debug"]) {
+                storeLocal();
+            }
+
             if (options["resolveConflicts"]) {
                 resolveConflicts();
+                options["debug"] = false;
                 reorder(false, false, 0, true);
             }
 
@@ -1307,7 +1332,7 @@ export default class OrderGraph {
             }
 
             // store new positions
-            _.forEach(ranks, (rank: OrderRank, r: number) => {
+            _.forEach(ranks, (rank: OrderRank) => {
                 _.forEach(rank.groups, (group: OrderGroup) => {
                     group.position = groupPositions[group.id];
                     _.forEach(group.nodes, (node: OrderNode) => {
@@ -1462,12 +1487,12 @@ export default class OrderGraph {
         return changes;
     }
 
-    private _setGroupPositionAndOffset(groupOrder: Array<number>, groupPositions: Array<number>, groupOffsetsPos: Array<number>, rank: OrderRank): void {
+    private _setGroupPositionAndOffset(groupOrder: Array<number>, groupPositions: Array<number>, groupOffsetsPos: Array<number>, numNodesPerGroup: Array<number>): void {
         let offset = 0;
         _.forEach(groupOrder, (groupId: number, pos: number) => {
             groupPositions[groupId] = pos;
             groupOffsetsPos[groupId] = offset;
-            offset += rank.groups[groupId].nodes.length;
+            offset += numNodesPerGroup[groupId];
         });
     }
 }

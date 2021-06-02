@@ -261,7 +261,8 @@ export default class SugiyamaLayouter extends Layouter {
         const orderGraph = this._createConnectorGraph(graph, true);
         return await orderGraph.order({
             resolveConflicts: false,
-            doNothing: true
+            countInitial: true,
+            countOnly: true,
         });
     }
 
@@ -405,7 +406,7 @@ export default class SugiyamaLayouter extends Layouter {
         const doOrder = async (graph: LayoutGraph, shuffle: boolean = false): Promise<void> => {
             Timer.start(["doLayout", "orderRanks", "doOrder"]);
             /**
-             * STEP 1: ORDER NODES BASED ON CONNECTORS (OPTIONAL)
+             * STEP 1 (OPTIONAL): ORDER NODES BASED ON CONNECTORS
              * In this step, scope insides and outsides are handled in the same order graph.
              * If there are nested scopes, they are flattened.
              */
@@ -425,7 +426,7 @@ export default class SugiyamaLayouter extends Layouter {
                         levelNode.position = orderGroup.position;
                         let tmpNode = levelNode;
                         while (tmpNode.layoutNode.graph.entryNode !== null) {
-                            tmpNode = tmpNode.layoutNode.graph.parentNode.levelNodes[levelNode.rank - levelNode.layoutNode.rank];
+                            tmpNode = tmpNode.layoutNode.graph.parentNode.levelNodes[tmpNode.rank - tmpNode.layoutNode.graph.parentNode.rank];
                             tmpNode.position = levelNode.position;
                         }
                     }
@@ -447,6 +448,7 @@ export default class SugiyamaLayouter extends Layouter {
                 this._addVirtualNodes(subgraph, true);
 
                 const levelGraph = subgraph.levelGraph();
+                levelGraph.invalidateRankOrder();
 
                 // init graph and ranks
                 const orderGraph = new OrderGraph(this._wasm);
@@ -464,7 +466,7 @@ export default class SugiyamaLayouter extends Layouter {
                     Shuffle.shuffle(levelNodes);
                 }
                 _.forEach(levelNodes, (levelNode: LevelNode) => {
-                    const orderNode = new OrderNode(levelNode, levelNode.layoutNode.isVirtual || levelNode.layoutNode.isBundle, levelNode.layoutNode.rankSpan > 1);
+                    const orderNode = new OrderNode(levelNode, levelNode.layoutNode.isVirtual || levelNode.layoutNode.isBundle, levelNode.layoutNode.rankSpan > 1, levelNode.layoutNode.label());
                     orderGroups[levelNode.rank].addNode(orderNode, levelNode.id);
                     nodeMap.set(levelNode.id, orderNode.id);
                     if (this._options["preorderConnectors"]) {
@@ -493,6 +495,7 @@ export default class SugiyamaLayouter extends Layouter {
 
                 // do order
                 await orderGraph.order({
+                    debug: false/*subgraph.numNodes() === 189*/,
                     countInitial: this._options["preorderConnectors"],
                     shuffles: this._options["shuffleGlobal"] ? 0 : (this._options["preorderConnectors"] ? 0 : this._options["shuffles"]),
                 });
@@ -602,6 +605,7 @@ export default class SugiyamaLayouter extends Layouter {
                     newNodesPerEdge.set(key, nodes);
                 });
 
+                levelGraph.invalidateRankOrder();
                 const ranks = levelGraph.ranks();
 
                 // remove from layout graph edges that were removed in order graph
