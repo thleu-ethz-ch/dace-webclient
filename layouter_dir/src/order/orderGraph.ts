@@ -1258,7 +1258,7 @@ export default class OrderGraph {
 
                     //console.log("NUMNODES", graph.nodes().length);
                     //if (graph.nodes().length === 40721) {
-                    /*await this._wasm.reorder(order, neighbors[0], graph._nodeGraph.maxId(), numEdgesPerRank);
+                    await this._wasm.reorder(order, neighbors[0], graph._nodeGraph.maxId(), numEdgesPerRank);
                     for (let r = 0; r < ranks.length; ++r) {
                         _.forEach(order[r], (nodeId: number, pos: number) => {
                             positions[nodeId] = pos;
@@ -1266,9 +1266,9 @@ export default class OrderGraph {
                     }
                     for (let r = 1; r < ranks.length; ++r) {
                         crossings[r] = countCrossings(order[r], r, 0);
-                    }*/
+                    }
                     //}
-                    reorder();
+                    //reorder();
                 } else {
                     reorder();
                 }
