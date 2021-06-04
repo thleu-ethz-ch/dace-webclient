@@ -27,13 +27,13 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public rank: number = null; // global rank (level) of the node
     public rankSpan: number = 1;
     public index: number = 0;
+    public isVirtual: boolean;
 
     public levelNodes: Array<LevelNode> = [];
 
     public childGraphs: Array<LayoutGraph> = [];
 
     public readonly padding: number;
-    public readonly isVirtual: boolean;
     public readonly isBundle: boolean;
 
     private readonly _inConnectors: Map<string, LayoutConnector> = new Map();
@@ -54,6 +54,14 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         }
     }
 
+    numInConnectors() {
+        return this.inConnectors.length;
+    }
+
+    numOutConnectors() {
+        return this.outConnectors.length;
+    }
+
     connectors() {
         return _.concat(this.inConnectors, this.outConnectors);
     }
@@ -64,6 +72,16 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
         } else {
             return this._outConnectors.get(name);
         }
+    }
+
+    connectorIndex(type: "IN" | "OUT", name: string): number {
+        const connectors = (type === "IN" ? this.inConnectors : this.outConnectors);
+        for (let i = 0; i < connectors.length; ++i) {
+            if (connectors[i].name === name) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     addConnector(type: "IN" | "OUT", name: string, temporary: boolean = false): void {

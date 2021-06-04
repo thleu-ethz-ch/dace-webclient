@@ -47,25 +47,26 @@
         window.addEventListener("load", function () {
             let graphs = [];
             for (let g = 0; g < layoutLib.Bench.GRAPHS_ALL.length; ++g) {
-                if (layoutLib.Bench.GRAPHS_ALL[g] !== "bert") {
+                //if (layoutLib.Bench.GRAPHS_ALL[g] !== "bert") {
                     graphs.push(layoutLib.Bench.GRAPHS_ALL[g]);
-                }
+                //}
             }
             Array.prototype.push.apply(graphs, layoutLib.Bench.GRAPHS_POLYBENCH);
             for (let g = 0; g < layoutLib.Bench.GRAPHS_NPBENCH.length; ++g) {
-                if (layoutLib.Bench.GRAPHS_NPBENCH[g] !== "npbench/channel_flow") {
+                //if (layoutLib.Bench.GRAPHS_NPBENCH[g] !== "npbench/channel_flow") {
                     graphs.push(layoutLib.Bench.GRAPHS_NPBENCH[g]);
-                }
+                //}
             }
             //graphs = layoutLib.Bench.GRAPHS_POLYBENCH;
+            graphs = ["bert", "eos", "linfrmr", "tile", "npbench/channel_flow"];
             const layouters = [
                 //["Dagre", layoutLib.layouter.DagreLayouter, {}],
-                ["Sugiyama", layoutLib.layouter.SugiyamaLayouter, {}],
-                ["Sugiyama-SL", layoutLib.layouter.SugiyamaLayouter, {shuffles: 16, shuffleGlobal: false}],
-                ["Sugiyama-SG", layoutLib.layouter.SugiyamaLayouter, {shuffles: 16, shuffleGlobal: true}],
-                ["Sugiyama-V1", layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true}],
-                ["Sugiyama-V1-SL", layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, shuffles: 16, shuffleGlobal: false}],
-                ["Sugiyama-V1-SG", layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, shuffles: 16, shuffleGlobal: true}],
+                //["Sugiyama", layoutLib.layouter.SugiyamaLayouter, {}],
+                //["Sugiyama-SL", layoutLib.layouter.SugiyamaLayouter, {shuffles: 16, shuffleGlobal: false}],
+                ["Sugiyama-SG", layoutLib.layouter.SugiyamaLayouter, {shuffles: 100, shuffleGlobal: true}],
+                //["Sugiyama-V1", layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true}],
+                //["Sugiyama-V1-SL", layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, shuffles: 16, shuffleGlobal: false}],
+                ["Sugiyama-V1-SG", layoutLib.layouter.SugiyamaLayouter, {preorderConnectors: true, shuffles: 100, shuffleGlobal: true}],
             ];
 
             const table = document.getElementById("table");

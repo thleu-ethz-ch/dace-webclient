@@ -1,6 +1,7 @@
 importScripts("../dist/layoutLib.js");
 
 const _ = layoutLib.lodash;
+let graph;
 
 function alignMedian(numRanks, numNodesPerRank, levelGraphNodes, numEdges, levelGraphEdges, neighbors, preference, targetEdgeLength) {
     const levelGraph = new layoutLib.levelGraph.LevelGraph();
@@ -174,11 +175,89 @@ function alignMedian(numRanks, numNodesPerRank, levelGraphNodes, numEdges, level
     return xAssignment;
 }
 
-function test() {
-    return;
+function returnGraph() {
+
 }
 
-layoutLib.workerpool.worker({
-    alignMedian: alignMedian,
-    test: test,
-});
+async function orderRanks(seed, numGraphs, metadata, nodes, inConnectors, outConnectors, edges) {
+    layoutLib.seedrandom(seed, {global: true});
+    const graph = new layoutLib.layoutGraph.LayoutGraph();
+    const parentPerLevel = [graph];
+    let n = 0;
+    let i = 0;
+    let o = 0;
+    let e = 0;
+    for (let g = 0; g < numGraphs; ++g) {
+        const level = metadata[8 * g];
+        const parentNode = metadata[8 * g + 1];
+        const numNodes = metadata[8 * g + 2];
+        const numInConnectors = metadata[8 * g + 3];
+        const numOutConnectors = metadata[8 * g + 4];
+        const numEdges = metadata[8 * g + 5];
+        const minRank = metadata[8 * g + 6];
+        const numRanks = metadata[8 * g + 7];
+        let subgraph = graph;
+        if (parentNode !== -1) {
+            subgraph = new layoutLib.layoutGraph.LayoutGraph();
+            const parent = parentPerLevel[level - 1].node(parentNode);
+            parent.childGraphs.push(subgraph);
+            subgraph.parentNode = parent;
+            parentPerLevel[level] = subgraph;
+        }
+        subgraph.minRank = minRank;
+        subgraph.numRanks = numRanks;
+        for (let tmpN = 0; tmpN < numNodes; ++tmpN) {
+            const node = new layoutLib.layoutGraph.LayoutNode(null, 0, false, false, false);
+            subgraph.addNode(node, nodes[n++]);
+            node.rank = nodes[n++];
+            node.rankSpan = nodes[n++];
+            node.isVirtual = nodes[n++];
+            node.isScopeNode = nodes[n++];
+            if (subgraph.parentNode !== null && subgraph.parentNode.isScopeNode) {
+                if (node.rank === subgraph.minRank) {
+                    subgraph.entryNode = node;
+                }
+                if (node.rank === subgraph.minRank + subgraph.numRanks - 1) {
+                    subgraph.exitNode = node;
+                }
+            }
+        }
+        for (let tmpI = 0; tmpI < numInConnectors; ++tmpI) {
+            const node = subgraph.node(inConnectors[i++]);
+            node.addConnector("IN", node.inConnectors.length.toString(), false);
+        }
+        for (let tmpO = 0; tmpO < numOutConnectors; ++tmpO) {
+            const node = subgraph.node(outConnectors[o++]);
+            const counterPartIndex = outConnectors[o++];
+            node.addConnector("OUT", node.outConnectors.length.toString(), false);
+            const connector = node.outConnectors[node.outConnectors.length - 1];
+            if (counterPartIndex > -1) {
+                connector.isScoped = true;
+                connector.counterpart = node.inConnectors[counterPartIndex];
+                connector.counterpart.isScoped = true;
+                connector.counterpart.counterpart = connector;
+            }
+        }
+        for (let tmpE = 0; tmpE < numEdges; ++tmpE) {
+            const edgeId = edges[e++];
+            const src = edges[e++];
+            const dst = edges[e++];
+            const srcConnector = edges[e++];
+            const dstConnector = edges[e++];
+            const weight = edges[e++];
+            const edge = new layoutLib.layoutGraph.LayoutEdge(src, dst, srcConnector === -1 ? null : srcConnector.toString(), dstConnector === -1 ? null : dstConnector.toString());
+            edge.weight = weight;
+            subgraph.addEdge(edge, edgeId);
+        }
+    }
+    const layouter = new layoutLib.layouter.SugiyamaLayouter({webAssembly: false, webWorkers: false});
+    await layouter.doOrder(graph, true);
+    return layouter.countCrossings(graph);
+}
+
+function test(name) {
+    console.log("hello", name);
+    return name;
+}
+
+layoutLib.util.WorkerPool.registerWorker();

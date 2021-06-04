@@ -1,8 +1,7 @@
 module.exports = {
     /* node modules */
     lodash: require('lodash'),
-    workerpool: require('workerpool'),
-
+    seedrandom: require('seedrandom'),
     Bench: require('./bench/bench').default,
     Loader: require('./parse/loader').default,
     Parser: require('./parse/parser').default,
@@ -11,6 +10,12 @@ module.exports = {
         Graph: require('./graph/graph').default,
         Node: require('./graph/node').default,
         Edge: require('./graph/edge').default,
+    },
+    layoutGraph: {
+        LayoutConnector: require('./layoutGraph/layoutConnector').default,
+        LayoutEdge: require('./layoutGraph/layoutEdge').default,
+        LayoutGraph: require('./layoutGraph/layoutGraph').default,
+        LayoutNode: require('./layoutGraph/layoutNode').default,
     },
     levelGraph: {
         LevelGraph: require('./levelGraph/levelGraph').default,
@@ -26,6 +31,7 @@ module.exports = {
         SugiyamaLayouter: require('./layouter/sugiyamaLayouter').default,
     },
     util: {
+        WorkerPool: require('./util/workerPool').default,
         Serializer: require('./util/serializer').default,
         Timer: require('./util/timer').default,
     },

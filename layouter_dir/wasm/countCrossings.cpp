@@ -303,8 +303,8 @@ extern "C" {
 
         float multiplicator = (float)maxWeight * maxEdgesPerRank + 1;
 
-        int improveCounter = 2;
         int minCrossings = totalCrossings(numRanks, numNodesPerRank, orderPerRank, numEdgesPerNodePerDir[0], edgesPerNodePerDir[0], positions, countingTree, countingEdges);
+        int improveCounter = 2;
         while (improveCounter > 0) {
             improveCounter--;
             int firstRank = (boolDirection ? 1 : (numRanks - 2));

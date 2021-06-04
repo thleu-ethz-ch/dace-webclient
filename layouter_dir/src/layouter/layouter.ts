@@ -14,6 +14,7 @@ import RenderEdge from "../renderGraph/renderEdge";
 import RenderGraph from "../renderGraph/renderGraph";
 import RenderNode from "../renderGraph/renderNode";
 import Wasm from "../wasm/wasm";
+import WorkerPool from "../util/workerPool";
 
 export default abstract class Layouter {
     protected _options: any;
@@ -26,15 +27,22 @@ export default abstract class Layouter {
             withLabels: false,
             bundle: false,
             optimizeAngles: false,
-            shuffles: 0,
-            shuffleGlobal: false,
+            numShuffles: navigator.hardwareConcurrency / 2,
+            shuffleGlobal: true,
             weightBends: 0.2,
             weightCrossings: 1,
             weightLengths: 0.1,
-            preorderConnectors: false,
+            preorderConnectors: true,
+            webAssembly: true,
+            webWorkers: true,
         });
-        this._wasm = new Wasm();
-        this._pool = workerpool.pool("worker/worker.js", {minWorkers: 4});
+        if (this._options["webWorkers"]) {
+            //this._pool = workerpool.pool("worker/worker.js", {minWorkers: 4});
+            this._pool = new WorkerPool("worker/worker.js", Math.max(this._options["numShuffles"], 4));
+        }
+        if (this._options["webAssembly"]) {
+            this._wasm = new Wasm();
+        }
     }
 
     public getOptionsForAnalysis(): object {

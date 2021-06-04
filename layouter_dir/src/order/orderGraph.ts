@@ -431,8 +431,8 @@ export default class OrderGraph {
                 let boolDirection = 1;
                 let boolOppositeDirection = 0;
                 let signDirection = 1;
-                let improveCounter = (ranks.length > 1) ? 2 : 0; // if only one rank, nothing to order
                 let minCrossings = _.sum(crossings);
+                let improveCounter = 2;
                 while (improveCounter > 0) {
                     improveCounter--;
                     if (options["debug"]) {
@@ -1253,7 +1253,7 @@ export default class OrderGraph {
                 return _.sum(crossings);
             }
             if (options["shuffles"] === 0) {
-                if (options["resolveConflicts"]) {
+                if (this._wasm !== null && options["resolveConflicts"]) {
                     //fastReorder(order, positions, crossings, neighborsUp, weightsUp, neighborsDown, weightsDown);
 
                     //console.log("NUMNODES", graph.nodes().length);

@@ -1,5 +1,6 @@
 import {CONNECTOR_SIZE, CONNECTOR_SPACING, DEBUG} from "../util/constants";
 import * as _ from "lodash";
+import * as seedrandom from "seedrandom";
 import Assert from "../util/assert";
 import Box from "../geometry/box";
 import Edge from "../graph/edge";
@@ -257,7 +258,7 @@ export default class SugiyamaLayouter extends Layouter {
         });
     }
 
-    private async _countCrossings(graph: LayoutGraph): Promise<number> {
+    public async countCrossings(graph: LayoutGraph): Promise<number> {
         const orderGraph = this._createConnectorGraph(graph, true);
         return await orderGraph.order({
             resolveConflicts: false,
@@ -372,14 +373,15 @@ export default class SugiyamaLayouter extends Layouter {
             if (DEBUG) {
                 Assert.assert(dstNode.rank > srcNode.rank, "edge not between neighboring ranks", edge, srcNode, dstNode);
             }
+
             let srcOrderNodeId = connectorMap.get(srcNode.connector("OUT", edge.srcConnector));
-            if (srcOrderNodeId === undefined) {
+            /*if (srcOrderNodeId === undefined) {
                 srcOrderNodeId = connectorMap.get(srcNode.connector("OUT", "bottomIn"));
-            }
+            }*/
             let dstOrderNodeId = connectorMap.get(dstNode.connector("IN", edge.dstConnector));
-            if (dstOrderNodeId === undefined) {
+            /*if (dstOrderNodeId === undefined) {
                 dstOrderNodeId = connectorMap.get(srcNode.connector("IN", "topOut"));
-            }
+            }*/
             orderGraph.addEdge(new Edge(srcOrderNodeId, dstOrderNodeId, 1));
         });
 
@@ -401,341 +403,445 @@ export default class SugiyamaLayouter extends Layouter {
         return orderGraph;
     }
 
-    private async _orderRanks(graph: LayoutGraph): Promise<void> {
-
-        const doOrder = async (graph: LayoutGraph, shuffle: boolean = false): Promise<void> => {
-            Timer.start(["doLayout", "orderRanks", "doOrder"]);
-            /**
-             * STEP 1 (OPTIONAL): ORDER NODES BASED ON CONNECTORS
-             * In this step, scope insides and outsides are handled in the same order graph.
-             * If there are nested scopes, they are flattened.
-             */
-            if (this._options["preorderConnectors"]) {
-                // order
-                const connectorOrderGraph = this._createConnectorGraph(graph, true, shuffle);
-                await connectorOrderGraph.order({
-                    orderGroups: true,
-                    resolveConflicts: false,
-                    shuffles: this._options["shuffleGlobal"] ? 0 : this._options["shuffles"]
-                });
-
-                // copy order information from order graph to layout graph
-                _.forEach(connectorOrderGraph.groups(), (orderGroup: OrderGroup) => {
-                    const levelNode = orderGroup.reference;
-                    if (levelNode !== null) {
-                        levelNode.position = orderGroup.position;
-                        let tmpNode = levelNode;
-                        while (tmpNode.layoutNode.graph.entryNode !== null) {
-                            tmpNode = tmpNode.layoutNode.graph.parentNode.levelNodes[tmpNode.rank - tmpNode.layoutNode.graph.parentNode.rank];
-                            tmpNode.position = levelNode.position;
-                        }
-                    }
-                });
-            }
-
-            /**
-             * STEP 2: ORDER NODES (OPTIONAL) & RESOLVE CONFLICTS
-             * This is done strictly hierarchically.
-             * Child graphs are represented as a chain over multiple ranks in their parent.
-             */
-
-            const nodeMap: Map<number, number> = new Map(); // map from level node to corresponding order node
-
-            // child graphs are visited before their parents (guaranteed by forEachRight)
-            const allGraphs = graph.allGraphs();
-            for (let i = allGraphs.length - 1; i >= 0; --i) {
-                const subgraph = allGraphs[i];
-                this._addVirtualNodes(subgraph, true);
-
-                const levelGraph = subgraph.levelGraph();
-                levelGraph.invalidateRankOrder();
-
-                // init graph and ranks
-                const orderGraph = new OrderGraph(this._wasm);
-                const orderGroups = new Array(subgraph.numRanks);
-                for (let r = subgraph.minRank; r < subgraph.minRank + subgraph.numRanks; ++r) {
-                    const orderRank = new OrderRank(r);
-                    orderGraph.addRank(orderRank);
-                    orderGroups[r] = new OrderGroup(null);
-                    orderRank.addGroup(orderGroups[r]);
-                }
-
-                // add nodes
-                let levelNodes = _.clone(levelGraph.nodes());
-                if (shuffle && !this._options["preorderConnectors"]) {
-                    Shuffle.shuffle(levelNodes);
-                }
-                _.forEach(levelNodes, (levelNode: LevelNode) => {
-                    const orderNode = new OrderNode(levelNode, levelNode.layoutNode.isVirtual || levelNode.layoutNode.isBundle, levelNode.layoutNode.rankSpan > 1, levelNode.layoutNode.label());
-                    orderGroups[levelNode.rank].addNode(orderNode, levelNode.id);
-                    nodeMap.set(levelNode.id, orderNode.id);
-                    if (this._options["preorderConnectors"]) {
-                        orderNode.position = levelNode.position;
-                    }
-                });
-
-                // add edges
-                // for each pair of nodes, sum up the weights of edges in-between
-                _.forEach(levelGraph.edges(), (edge: Edge<any, any>) => {
-                    const existingEdge = orderGraph.edgeBetween(edge.src, edge.dst);
-                    if (existingEdge === undefined) {
-                        orderGraph.addEdge(new Edge(edge.src, edge.dst, edge.weight));
-                    } else {
-                        existingEdge.weight += edge.weight;
-                    }
-                });
-
-                if (DEBUG) {
-                    Assert.assertAll(orderGraph.edges(), edge => {
-                        const srcNode = edge.graph.node(edge.src);
-                        const dstNode = edge.graph.node(edge.dst);
-                        return (srcNode.group.rank.rank + 1 === dstNode.group.rank.rank);
-                    }, "order graph edge not between neighboring ranks");
-                }
-
-                // do order
-                await orderGraph.order({
-                    debug: false/*subgraph.numNodes() === 189*/,
-                    countInitial: this._options["preorderConnectors"],
-                    shuffles: this._options["shuffleGlobal"] ? 0 : (this._options["preorderConnectors"] ? 0 : this._options["shuffles"]),
-                });
-
-                // copy node order into layout graph
-                const newOrderNodes: Set<OrderNode> = new Set();
-
-                _.forEach(orderGraph.nodes(), (orderNode: OrderNode) => {
-                    let levelNode: LevelNode = orderNode.reference;
-                    if (levelNode === null) {
-                        // virtual node was created by orderGraph.order() => add this node to layout graph
-                        const newLayoutNode = new LayoutNode({width: 0, height: 0}, 0, true);
-                        //newLayoutNode.setLabel(orderNode.label());
-                        newLayoutNode.rank = orderNode.rank;
-                        subgraph.addNode(newLayoutNode, null);
-                        newOrderNodes.add(orderNode);
-                        levelNode = levelGraph.addLayoutNode(newLayoutNode);
-                        orderNode.reference = levelNode;
-                    } else {
-                        if (levelNode.isFirst) {
-                            levelNode.layoutNode.updateRank(orderNode.rank);//levelNode.layoutNode.rank + orderNode.rank - orderNode.initialRank;
-                        }
-                    }
-                    subgraph.numRanks = Math.max(subgraph.numRanks, levelNode.rank - subgraph.minRank + 1);
-                    levelNode.position = orderNode.position;
-                });
-
-                let tmpSubgraph = subgraph;
-                while (tmpSubgraph.parentNode !== null) {
-                    const parent = tmpSubgraph.parentNode;
-                    const prevRankSpan = parent.rankSpan;
-                    const newRankSpan = Math.max(prevRankSpan, tmpSubgraph.numRanks);
-                    const diff = newRankSpan - prevRankSpan;
-                    if (diff !== 0) {
-                        const levelGraph = parent.graph.levelGraph();
-                        parent.rankSpan = newRankSpan;
-
-                        /**
-                         * UPDATE LEVEL NODES REPRESENTATION IN PARENT
-                         */
-                        let positions = _.map(parent.levelNodes, "position");
-                        positions.length = newRankSpan;
-                        _.fill(positions, positions[prevRankSpan - 1], prevRankSpan);
-                        const lastLevelNode = _.last(parent.levelNodes);
-                        // add new nodes
-                        const newNodes = [];
-                        for (let r = 0; r < diff; ++r) {
-                            const newNode = new LevelNode(parent, lastLevelNode.rank + r, 0);
-                            levelGraph.addNode(newNode);
-                            newNodes.push(newNode);
-                        }
-                        parent.levelNodes.length--;
-                        Array.prototype.push.apply(parent.levelNodes, newNodes);
-                        parent.levelNodes.push(lastLevelNode);
-                        lastLevelNode.rank += diff;
-                        // redirect last edge
-                        const lastEdge = levelGraph.inEdges(lastLevelNode.id)[0];
-                        levelGraph.redirectEdge(lastEdge.id, _.last(newNodes).id, lastLevelNode.id);
-                        // update positions
-                        _.forEach(parent.levelNodes, (levelNode: LevelNode, r: number) => {
-                            levelNode.position = positions[r];
-                        });
-                        // add edges between new nodes
-                        for (let r = prevRankSpan - 2; r < newRankSpan - 2; ++r) {
-                            levelGraph.addEdge(new Edge(parent.levelNodes[r].id, parent.levelNodes[r + 1].id, Number.POSITIVE_INFINITY));
-                        }
-                        /////////////////////////////////////////////////////
-
-                        _.forEach(parent.graph.bfs(parent.id), (node: LayoutNode) => {
-                            if (node !== parent) {
-                                node.offsetRank(diff);
-                            }
-                            node.graph.numRanks = Math.max(node.graph.numRanks, node.rank + node.rankSpan - node.graph.minRank);
-                        });
-                    }
-                    tmpSubgraph = parent.graph;
-                }
-
-                // find for all new nodes the dominating and dominated non-new node
-                const visited = _.fill(new Array(orderGraph.maxId() + 1), false);
-                const newNodesPerEdge: Map<string, Array<LevelNode>> = new Map();
-                newOrderNodes.forEach((orderNode: OrderNode) => {
-                    if (visited[orderNode.id]) {
-                        return; // start and end node already set
-                    }
-                    let tmpOrderNode = orderNode;
-                    const nodes = [orderNode.reference];
-                    while (newOrderNodes.has(tmpOrderNode) && orderGraph.inEdges(tmpOrderNode.id).length > 0) {
-                        tmpOrderNode = orderGraph.node(orderGraph.inEdges(tmpOrderNode.id)[0].src);
-                        if (newOrderNodes.has(tmpOrderNode)) {
-                            nodes.push(tmpOrderNode.reference);
-                            visited[orderNode.id] = true;
-                        }
-                    }
-                    const startNode = tmpOrderNode;
-                    _.reverse(nodes);
-                    tmpOrderNode = orderNode;
-                    while (newOrderNodes.has(tmpOrderNode) && orderGraph.outEdges(tmpOrderNode.id).length > 0) {
-                        tmpOrderNode = orderGraph.node(orderGraph.outEdges(tmpOrderNode.id)[0].dst);
-                        if (newOrderNodes.has(tmpOrderNode)) {
-                            nodes.push(tmpOrderNode.reference);
-                            visited[orderNode.id] = true;
-                        }
-                    }
-                    const endNode = tmpOrderNode;
-                    const key = startNode.id + "_" + endNode.id;
-                    newNodesPerEdge.set(key, nodes);
-                });
-
-                levelGraph.invalidateRankOrder();
-                const ranks = levelGraph.ranks();
-
-                // remove from layout graph edges that were removed in order graph
-                _.forEach(levelGraph.edges(), levelEdge => {
-                    const orderSrcNodeId = nodeMap.get(levelEdge.src);
-                    const orderDstNodeId = nodeMap.get(levelEdge.dst);
-                    if (orderGraph.edgeBetween(orderSrcNodeId, orderDstNodeId) === undefined) {
-                        levelGraph.removeEdge(levelEdge.id);
-                        const srcLayoutNode = levelGraph.node(levelEdge.src).layoutNode;
-                        const dstLayoutNode = levelGraph.node(levelEdge.dst).layoutNode;
-                        const key = orderSrcNodeId + "_" + orderDstNodeId;
-                        _.forEach(subgraph.edgesBetween(srcLayoutNode.id, dstLayoutNode.id), (layoutEdge: LayoutEdge, e) => {
-                            if (layoutEdge.isReplica) {
-                                return;
-                            }
-                            let newNodes = _.clone(newNodesPerEdge.get(key));
-                            const dstConnector = layoutEdge.dstConnector;
-                            if (e > 0) {
-                                let clonedNewNodes = [];
-                                // create a copy of all new nodes because each edge needs its own virtual nodes
-                                _.forEach(newNodes, (levelNode: LevelNode) => {
-                                    // virtual node was created by orderGraph.order() => add this node to layout graph
-                                    const newLayoutNode = new LayoutNode({width: 0, height: 0}, 0, true);
-                                    //newLayoutNode.setLabel(levelNode.label());
-                                    newLayoutNode.rank = levelNode.layoutNode.rank;
-                                    subgraph.addNode(newLayoutNode, null);
-                                    const newLevelNode = levelGraph.addLayoutNode(newLayoutNode);
-                                    const rank = ranks[newLayoutNode.rank - subgraph.minRank];
-                                    for (let pos = levelNode.position; pos < rank.length; ++pos) {
-                                        rank[pos].position++;
-                                    }
-                                    rank.splice(levelNode.position - 1, 0, newLevelNode);
-                                    newLevelNode.position = levelNode.position - 1;
-                                    clonedNewNodes.push(newLevelNode);
-                                });
-                                newNodes = clonedNewNodes;
-                            }
-                            newNodes.push(orderGraph.node(orderDstNodeId).reference);
-                            subgraph.removeEdge(layoutEdge.id);
-                            layoutEdge.dst = newNodes[0].layoutNode.id;
-                            layoutEdge.dstConnector = null;
-                            subgraph.addEdge(layoutEdge, layoutEdge.id);
-                            levelGraph.addLayoutEdge(layoutEdge);
-                            for (let n = 1; n < newNodes.length; ++n) {
-                                const tmpSrcLayoutNodeId = newNodes[n - 1].layoutNode.id;
-                                const tmpDstLayoutNodeId = newNodes[n].layoutNode.id;
-                                const tmpDstConnector = ((n === newNodes.length - 1) ? dstConnector : null);
-                                const newLayoutEdge = new LayoutEdge(tmpSrcLayoutNodeId, tmpDstLayoutNodeId, null, tmpDstConnector);
-                                subgraph.addEdge(newLayoutEdge, null);
-                                levelGraph.addLayoutEdge(newLayoutEdge);
-                            }
-                        });
-                    }
-                });
-            }
-
-            this._updateLevelNodeRanks(graph);
-
-            /**
-             * STEP 3: ORDER CONNECTORS
-             */
-
-            // order connectors
-            const connectorOrderGraph = this._createConnectorGraph(graph, false, false, shuffle && !this._options["preorderConnectors"]);
+    public async doOrder(graph: LayoutGraph, shuffle: boolean = false): Promise<void> {
+        Timer.start(["doLayout", "orderRanks", "doOrder"]);
+        /**
+         * STEP 1 (OPTIONAL): ORDER NODES BASED ON CONNECTORS
+         * In this step, scope insides and outsides are handled in the same order graph.
+         * If there are nested scopes, they are flattened.
+         */
+        if (this._options["preorderConnectors"]) {
+            // order
+            const connectorOrderGraph = this._createConnectorGraph(graph, true, shuffle);
             await connectorOrderGraph.order({
+                orderGroups: true,
                 resolveConflicts: false,
-                shuffles: this._options["shuffleGlobal"] ? 0 : this._options["shuffles"],
+                shuffles: this._options["shuffleGlobal"] ? 0 : this._options["numShuffles"]
             });
 
             // copy order information from order graph to layout graph
             _.forEach(connectorOrderGraph.groups(), (orderGroup: OrderGroup) => {
                 const levelNode = orderGroup.reference;
                 if (levelNode !== null) {
-                    const layoutNode = levelNode.layoutNode;
-                    const connectors = {"IN": [], "OUT": []};
-                    _.forEach(orderGroup.orderedNodes(), (orderNode: OrderNode) => {
-                        if (orderNode.reference !== null) {
-                            const connector = orderNode.reference;
-                            connectors[connector.type].push(connector);
-                            if (connector.isScoped) {
-                                connectors["OUT"].push(connector.counterpart);
-                            }
-                        }
-                    });
-                    if (connectors["IN"].length > 0 || connectors["OUT"].length > 0) {
-                        if (connectors["IN"].length > 0 && layoutNode.inConnectorBundles.length > 0) {
-                            this._bundleConnectors(connectors["IN"], connectors["OUT"], layoutNode.inConnectorBundles);
-                        }
-                        if (connectors["OUT"].length > 0 && layoutNode.outConnectorBundles.length > 0) {
-                            this._bundleConnectors(connectors["OUT"], connectors["IN"], layoutNode.outConnectorBundles);
-                        }
-                        if (connectors["IN"].length > 0) {
-                            layoutNode.inConnectors = connectors["IN"];
-                        }
-                        if (connectors["OUT"].length > 0) {
-                            layoutNode.outConnectors = connectors["OUT"];
-                        }
+                    levelNode.position = orderGroup.position;
+                    let tmpNode = levelNode;
+                    while (tmpNode.layoutNode.graph.entryNode !== null) {
+                        tmpNode = tmpNode.layoutNode.graph.parentNode.levelNodes[tmpNode.rank - tmpNode.layoutNode.graph.parentNode.rank];
+                        tmpNode.position = levelNode.position;
                     }
                 }
             });
-            Timer.stop(["doLayout", "orderRanks", "doOrder"]);
-        };
+        }
 
-        if (!this._options["shuffleGlobal"]) {
-            await doOrder(graph);
-        } else {
-            const graphCopy = graph.cloneForOrdering();
-            Timer.start(["doLayout", "orderRanks", "cloneGraph"]);
-            Timer.stop(["doLayout", "orderRanks", "cloneGraph"]);
-            await doOrder(graphCopy);
-            let minCrossings = await this._countCrossings(graphCopy);
-            let bestGraphCopy = graphCopy;
-            for (let i = 0; i < this._options["shuffles"]; ++i) {
-                if (minCrossings === 0) {
-                    break;
-                }
-                Timer.start(["doLayout", "orderRanks", "cloneGraph"]);
-                const graphCopy = graph.cloneForOrdering();
-                Timer.stop(["doLayout", "orderRanks", "cloneGraph"]);
-                await doOrder(graphCopy, true);
-                let numCrossings = await this._countCrossings(graphCopy);
-                if (numCrossings < minCrossings) {
-                    minCrossings = numCrossings;
-                    bestGraphCopy = graphCopy;
-                }
+        /**
+         * STEP 2: ORDER NODES (OPTIONAL) & RESOLVE CONFLICTS
+         * This is done strictly hierarchically.
+         * Child graphs are represented as a chain over multiple ranks in their parent.
+         */
+
+        const nodeMap: Map<number, number> = new Map(); // map from level node to corresponding order node
+
+        // child graphs are visited before their parents (guaranteed by forEachRight)
+        const allGraphs = graph.allGraphs();
+        for (let i = allGraphs.length - 1; i >= 0; --i) {
+            const subgraph = allGraphs[i];
+            this._addVirtualNodes(subgraph, true);
+
+            const levelGraph = subgraph.levelGraph();
+            levelGraph.invalidateRankOrder();
+
+            // init graph and ranks
+            const orderGraph = new OrderGraph(this._wasm);
+            const orderGroups = new Array(subgraph.numRanks);
+            for (let r = subgraph.minRank; r < subgraph.minRank + subgraph.numRanks; ++r) {
+                const orderRank = new OrderRank(r);
+                orderGraph.addRank(orderRank);
+                orderGroups[r] = new OrderGroup(null);
+                orderRank.addGroup(orderGroups[r]);
             }
 
-            Timer.start(["doLayout", "orderRanks", "copyBack"]);
-            bestGraphCopy.copyInto(graph);
-            Timer.stop(["doLayout", "orderRanks", "copyBack"]);
+            // add nodes
+            let levelNodes = _.clone(levelGraph.nodes());
+            if (shuffle && !this._options["preorderConnectors"]) {
+                Shuffle.shuffle(levelNodes);
+            }
+            _.forEach(levelNodes, (levelNode: LevelNode) => {
+                const orderNode = new OrderNode(levelNode, levelNode.layoutNode.isVirtual || levelNode.layoutNode.isBundle, levelNode.layoutNode.rankSpan > 1, levelNode.layoutNode.label());
+                orderGroups[levelNode.rank].addNode(orderNode, levelNode.id);
+                nodeMap.set(levelNode.id, orderNode.id);
+                if (this._options["preorderConnectors"]) {
+                    orderNode.position = levelNode.position;
+                }
+            });
+
+            // add edges
+            // for each pair of nodes, sum up the weights of edges in-between
+            _.forEach(levelGraph.edges(), (edge: Edge<any, any>) => {
+                const existingEdge = orderGraph.edgeBetween(edge.src, edge.dst);
+                if (existingEdge === undefined) {
+                    orderGraph.addEdge(new Edge(edge.src, edge.dst, edge.weight));
+                } else {
+                    existingEdge.weight += edge.weight;
+                }
+            });
+
+            if (DEBUG) {
+                Assert.assertAll(orderGraph.edges(), edge => {
+                    const srcNode = edge.graph.node(edge.src);
+                    const dstNode = edge.graph.node(edge.dst);
+                    return (srcNode.group.rank.rank + 1 === dstNode.group.rank.rank);
+                }, "order graph edge not between neighboring ranks");
+            }
+
+            // do order
+            await orderGraph.order({
+                debug: false/*subgraph.numNodes() === 189*/,
+                countInitial: this._options["preorderConnectors"],
+                shuffles: this._options["shuffleGlobal"] ? 0 : (this._options["preorderConnectors"] ? 0 : this._options["numShuffles"]),
+            });
+
+            // copy node order into layout graph
+            const newOrderNodes: Set<OrderNode> = new Set();
+
+            _.forEach(orderGraph.nodes(), (orderNode: OrderNode) => {
+                let levelNode: LevelNode = orderNode.reference;
+                if (levelNode === null) {
+                    // virtual node was created by orderGraph.order() => add this node to layout graph
+                    const newLayoutNode = new LayoutNode({width: 0, height: 0}, 0, true);
+                    //newLayoutNode.setLabel(orderNode.label());
+                    newLayoutNode.rank = orderNode.rank;
+                    subgraph.addNode(newLayoutNode, null);
+                    newOrderNodes.add(orderNode);
+                    levelNode = levelGraph.addLayoutNode(newLayoutNode);
+                    orderNode.reference = levelNode;
+                } else {
+                    if (levelNode.isFirst) {
+                        levelNode.layoutNode.updateRank(orderNode.rank);//levelNode.layoutNode.rank + orderNode.rank - orderNode.initialRank;
+                    }
+                }
+                subgraph.numRanks = Math.max(subgraph.numRanks, levelNode.rank - subgraph.minRank + 1);
+                levelNode.position = orderNode.position;
+            });
+
+            let tmpSubgraph = subgraph;
+            while (tmpSubgraph.parentNode !== null) {
+                const parent = tmpSubgraph.parentNode;
+                const prevRankSpan = parent.rankSpan;
+                const newRankSpan = Math.max(prevRankSpan, tmpSubgraph.numRanks);
+                const diff = newRankSpan - prevRankSpan;
+                if (diff !== 0) {
+                    const levelGraph = parent.graph.levelGraph();
+                    parent.rankSpan = newRankSpan;
+
+                    /**
+                     * UPDATE LEVEL NODES REPRESENTATION IN PARENT
+                     */
+                    let positions = _.map(parent.levelNodes, "position");
+                    positions.length = newRankSpan;
+                    _.fill(positions, positions[prevRankSpan - 1], prevRankSpan);
+                    const lastLevelNode = _.last(parent.levelNodes);
+                    // add new nodes
+                    const newNodes = [];
+                    for (let r = 0; r < diff; ++r) {
+                        const newNode = new LevelNode(parent, lastLevelNode.rank + r, 0);
+                        levelGraph.addNode(newNode);
+                        newNodes.push(newNode);
+                    }
+                    parent.levelNodes.length--;
+                    Array.prototype.push.apply(parent.levelNodes, newNodes);
+                    parent.levelNodes.push(lastLevelNode);
+                    lastLevelNode.rank += diff;
+                    // redirect last edge
+                    const lastEdge = levelGraph.inEdges(lastLevelNode.id)[0];
+                    levelGraph.redirectEdge(lastEdge.id, _.last(newNodes).id, lastLevelNode.id);
+                    // update positions
+                    _.forEach(parent.levelNodes, (levelNode: LevelNode, r: number) => {
+                        levelNode.position = positions[r];
+                    });
+                    // add edges between new nodes
+                    for (let r = prevRankSpan - 2; r < newRankSpan - 2; ++r) {
+                        levelGraph.addEdge(new Edge(parent.levelNodes[r].id, parent.levelNodes[r + 1].id, Number.POSITIVE_INFINITY));
+                    }
+                    /////////////////////////////////////////////////////
+
+                    _.forEach(parent.graph.bfs(parent.id), (node: LayoutNode) => {
+                        if (node !== parent) {
+                            node.offsetRank(diff);
+                        }
+                        node.graph.numRanks = Math.max(node.graph.numRanks, node.rank + node.rankSpan - node.graph.minRank);
+                    });
+                }
+                tmpSubgraph = parent.graph;
+            }
+
+            // find for all new nodes the dominating and dominated non-new node
+            const visited = _.fill(new Array(orderGraph.maxId() + 1), false);
+            const newNodesPerEdge: Map<string, Array<LevelNode>> = new Map();
+            newOrderNodes.forEach((orderNode: OrderNode) => {
+                if (visited[orderNode.id]) {
+                    return; // start and end node already set
+                }
+                let tmpOrderNode = orderNode;
+                const nodes = [orderNode.reference];
+                while (newOrderNodes.has(tmpOrderNode) && orderGraph.inEdges(tmpOrderNode.id).length > 0) {
+                    tmpOrderNode = orderGraph.node(orderGraph.inEdges(tmpOrderNode.id)[0].src);
+                    if (newOrderNodes.has(tmpOrderNode)) {
+                        nodes.push(tmpOrderNode.reference);
+                        visited[orderNode.id] = true;
+                    }
+                }
+                const startNode = tmpOrderNode;
+                _.reverse(nodes);
+                tmpOrderNode = orderNode;
+                while (newOrderNodes.has(tmpOrderNode) && orderGraph.outEdges(tmpOrderNode.id).length > 0) {
+                    tmpOrderNode = orderGraph.node(orderGraph.outEdges(tmpOrderNode.id)[0].dst);
+                    if (newOrderNodes.has(tmpOrderNode)) {
+                        nodes.push(tmpOrderNode.reference);
+                        visited[orderNode.id] = true;
+                    }
+                }
+                const endNode = tmpOrderNode;
+                const key = startNode.id + "_" + endNode.id;
+                newNodesPerEdge.set(key, nodes);
+            });
+
+            levelGraph.invalidateRankOrder();
+            const ranks = levelGraph.ranks();
+
+            // remove from layout graph edges that were removed in order graph
+            _.forEach(levelGraph.edges(), levelEdge => {
+                const orderSrcNodeId = nodeMap.get(levelEdge.src);
+                const orderDstNodeId = nodeMap.get(levelEdge.dst);
+                if (orderGraph.edgeBetween(orderSrcNodeId, orderDstNodeId) === undefined) {
+                    levelGraph.removeEdge(levelEdge.id);
+                    const srcLayoutNode = levelGraph.node(levelEdge.src).layoutNode;
+                    const dstLayoutNode = levelGraph.node(levelEdge.dst).layoutNode;
+                    const key = orderSrcNodeId + "_" + orderDstNodeId;
+                    _.forEach(subgraph.edgesBetween(srcLayoutNode.id, dstLayoutNode.id), (layoutEdge: LayoutEdge, e) => {
+                        if (layoutEdge.isReplica) {
+                            return;
+                        }
+                        let newNodes = _.clone(newNodesPerEdge.get(key));
+                        const dstConnector = layoutEdge.dstConnector;
+                        if (e > 0) {
+                            let clonedNewNodes = [];
+                            // create a copy of all new nodes because each edge needs its own virtual nodes
+                            _.forEach(newNodes, (levelNode: LevelNode) => {
+                                // virtual node was created by orderGraph.order() => add this node to layout graph
+                                const newLayoutNode = new LayoutNode({width: 0, height: 0}, 0, true);
+                                //newLayoutNode.setLabel(levelNode.label());
+                                newLayoutNode.rank = levelNode.layoutNode.rank;
+                                subgraph.addNode(newLayoutNode, null);
+                                const newLevelNode = levelGraph.addLayoutNode(newLayoutNode);
+                                const rank = ranks[newLayoutNode.rank - subgraph.minRank];
+                                for (let pos = levelNode.position; pos < rank.length; ++pos) {
+                                    rank[pos].position++;
+                                }
+                                rank.splice(levelNode.position - 1, 0, newLevelNode);
+                                newLevelNode.position = levelNode.position - 1;
+                                clonedNewNodes.push(newLevelNode);
+                            });
+                            newNodes = clonedNewNodes;
+                        }
+                        newNodes.push(orderGraph.node(orderDstNodeId).reference);
+                        subgraph.removeEdge(layoutEdge.id);
+                        layoutEdge.dst = newNodes[0].layoutNode.id;
+                        layoutEdge.dstConnector = null;
+                        subgraph.addEdge(layoutEdge, layoutEdge.id);
+                        levelGraph.addLayoutEdge(layoutEdge);
+                        for (let n = 1; n < newNodes.length; ++n) {
+                            const tmpSrcLayoutNodeId = newNodes[n - 1].layoutNode.id;
+                            const tmpDstLayoutNodeId = newNodes[n].layoutNode.id;
+                            const tmpDstConnector = ((n === newNodes.length - 1) ? dstConnector : null);
+                            const newLayoutEdge = new LayoutEdge(tmpSrcLayoutNodeId, tmpDstLayoutNodeId, null, tmpDstConnector);
+                            subgraph.addEdge(newLayoutEdge, null);
+                            levelGraph.addLayoutEdge(newLayoutEdge);
+                        }
+                    });
+                }
+            });
+        }
+
+        this._updateLevelNodeRanks(graph);
+
+        /**
+         * STEP 3: ORDER CONNECTORS
+         */
+
+            // order connectors
+        const connectorOrderGraph = this._createConnectorGraph(graph, false, false, shuffle && !this._options["preorderConnectors"]);
+        await connectorOrderGraph.order({
+            resolveConflicts: false,
+            shuffles: this._options["shuffleGlobal"] ? 0 : this._options["numShuffles"],
+        });
+
+        // copy order information from order graph to layout graph
+        _.forEach(connectorOrderGraph.groups(), (orderGroup: OrderGroup) => {
+            const levelNode = orderGroup.reference;
+            if (levelNode !== null) {
+                const layoutNode = levelNode.layoutNode;
+                const connectors = {"IN": [], "OUT": []};
+                _.forEach(orderGroup.orderedNodes(), (orderNode: OrderNode) => {
+                    if (orderNode.reference !== null) {
+                        const connector = orderNode.reference;
+                        connectors[connector.type].push(connector);
+                        if (connector.isScoped) {
+                            connectors["OUT"].push(connector.counterpart);
+                        }
+                    }
+                });
+                if (connectors["IN"].length > 0 || connectors["OUT"].length > 0) {
+                    if (connectors["IN"].length > 0 && layoutNode.inConnectorBundles.length > 0) {
+                        this._bundleConnectors(connectors["IN"], connectors["OUT"], layoutNode.inConnectorBundles);
+                    }
+                    if (connectors["OUT"].length > 0 && layoutNode.outConnectorBundles.length > 0) {
+                        this._bundleConnectors(connectors["OUT"], connectors["IN"], layoutNode.outConnectorBundles);
+                    }
+                    if (connectors["IN"].length > 0) {
+                        layoutNode.inConnectors = connectors["IN"];
+                    }
+                    if (connectors["OUT"].length > 0) {
+                        layoutNode.outConnectors = connectors["OUT"];
+                    }
+                }
+            }
+        });
+        Timer.stop(["doLayout", "orderRanks", "doOrder"]);
+    }
+
+    private async _orderAndCount(graph: LayoutGraph): Promise<number> {
+        const graphCopy = graph.cloneForOrdering();
+        await this.doOrder(graphCopy);
+        return await this.countCrossings(graphCopy);
+    }
+
+    private async _orderRanks(graph: LayoutGraph): Promise<void> {
+        if (!this._options["shuffleGlobal"] || this._options["numShuffles"] === 0) {
+            await this.doOrder(graph);
+        } else {
+            if (!this._options["bundle"] && this._options["webWorkers"]) {
+                const allGraphs = graph.allGraphs();
+                const numNodesTotal = _.sum(_.map(allGraphs, subgraph => subgraph.numNodes()));
+                const numInConnectorsTotal = _.sum(_.map(allGraphs, subgraph => _.sum(_.map(subgraph.nodes(), node => node.numInConnectors()))))
+                const numOutConnectorsTotal = _.sum(_.map(allGraphs, subgraph => _.sum(_.map(subgraph.nodes(), node => node.numOutConnectors()))))
+                const numEdgesTotal = _.sum(_.map(allGraphs, subgraph => subgraph.numEdges()));
+                // DATA PASSED TO WORKER
+                // metadata: level, parentNodeId, #nodes, #in-connectors, #out-connectors, #edges, minRank, numRanks
+                // nodes: id, rank, rankSpan, isVirtual, isScopeNode
+                // inConnectors: nodeId, counterPartId
+                // outConnectors: nodeId, counterPartId
+                // edges: id, srcId, dstId, srcConnectorId, dstConnectorId, weight
+                const sizeMetadata = 8 * allGraphs.length;
+                const sizeNodes = 5 * numNodesTotal;
+                const sizeInConnectors = numInConnectorsTotal;
+                const sizeOutConnectors = 2 * numOutConnectorsTotal;
+                const sizeEdges = 8 * numEdgesTotal;
+                let metadata, parents, nodes, edges, inConnectors, outConnectors;
+                if (typeof(SharedArrayBuffer) !== "undefined") {
+                    const numPerGraphSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * sizeMetadata);
+                    metadata = new Int32Array(numPerGraphSab);
+                    const nodesSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * sizeNodes);
+                    nodes = new Int32Array(nodesSab);
+                    const inConnectorsSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * sizeInConnectors);
+                    inConnectors = new Int32Array(inConnectorsSab);
+                    const outConnectorsSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * sizeOutConnectors);
+                    outConnectors = new Int32Array(outConnectorsSab);
+                    const edgesSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * sizeEdges);
+                    edges = new Int32Array(edgesSab);
+                } else {
+                    metadata = new Array(sizeMetadata);
+                    nodes = new Array(sizeNodes);
+                    inConnectors = new Array(sizeInConnectors);
+                    outConnectors = new Array(sizeOutConnectors);
+                    edges = new Array(sizeEdges);
+                }
+                let n = 0;
+                let i = 0;
+                let o = 0;
+                let e = 0;
+                _.forEach(allGraphs, (subgraph: LayoutGraph, g: number) => {
+                    const graphNodes = subgraph.nodes();
+                    let numInConnectors = 0;
+                    let numOutConnectors = 0;
+                    _.forEach(graphNodes, (node: LayoutNode) => {
+                        _.forEach(node.inConnectors, (connector: LayoutConnector) => {
+                            inConnectors[i++] = connector.node.id;
+                            numInConnectors++;
+                        });
+                        _.forEach(node.outConnectors, (connector: LayoutConnector) => {
+                            outConnectors[o++] = connector.node.id;
+                            outConnectors[o++] = (connector.isScoped ? connector.node.connectorIndex("IN", connector.counterpart.name) : -1);
+                            numOutConnectors++;
+                        });
+                    });
+                    const graphEdges = subgraph.edges();
+                    metadata[8 * g] = (subgraph.parentNode === null ? 0 : subgraph.parentNode.parents().length + 1);
+                    metadata[8 * g + 1] = (subgraph.parentNode === null ? -1 : subgraph.parentNode.id);
+                    metadata[8 * g + 2] = graphNodes.length;
+                    metadata[8 * g + 3] = numInConnectors;
+                    metadata[8 * g + 4] = numOutConnectors;
+                    metadata[8 * g + 5] = graphEdges.length;
+                    metadata[8 * g + 6] = subgraph.minRank;
+                    metadata[8 * g + 7] = subgraph.numRanks;
+                    _.forEach(graphNodes, (node: LayoutNode) => {
+                        nodes[n++] = node.id;
+                        nodes[n++] = node.rank;
+                        nodes[n++] = node.rankSpan;
+                        nodes[n++] = node.isVirtual;
+                        nodes[n++] = node.isScopeNode;
+                    });
+                    _.forEach(graphEdges, (edge: LayoutEdge) => {
+                        edges[e++] = edge.id; // id
+                        edges[e++] = edge.src; // srcNodeId
+                        edges[e++] = edge.dst; // dstNodeId
+                        let srcNode = subgraph.node(edge.src);
+                        let dstNode = subgraph.node(edge.dst);
+                        if (srcNode.isScopeNode) {
+                            srcNode = srcNode.childGraphs[0].exitNode;
+                        }
+                        if (dstNode.isScopeNode) {
+                            dstNode = dstNode.childGraphs[0].entryNode;
+                        }
+                        edges[e++] = srcNode.connectorIndex("OUT", edge.srcConnector) // srcConnectorId
+                        edges[e++] = dstNode.connectorIndex("IN", edge.dstConnector) // dstConnectorId
+                        edges[e++] = (edge.weight === Number.POSITIVE_INFINITY ? -1 : edge.weight); // weight
+                    });
+                });
+
+                const promises = [this._orderAndCount(graph)];
+                for (let s = 0; s < this._options["numShuffles"]; ++s) {
+                    promises.push(this._pool.exec("orderRanks", [s + 1, allGraphs.length, metadata, nodes, inConnectors, outConnectors, edges, this._options["webAssembly"]]));
+                }
+                const results = await Promise.all(promises);
+                let minCrossings = results[0];
+                let minIndex = 0;
+                _.forEach(results, (result: number, index: number) => {
+                    if (result < minCrossings) {
+                        minCrossings = result;
+                        minIndex = index;
+                    }
+                });
+                seedrandom(minIndex, {global: true});
+                await this.doOrder(graph, minIndex > 0);
+            } else {
+                const graphCopy = graph.cloneForOrdering();
+                await this.doOrder(graphCopy);
+                let minCrossings = await this.countCrossings(graphCopy);
+                let bestGraphCopy = graphCopy;
+                for (let i = 0; i < this._options["numShuffles"]; ++i) {
+                    if (minCrossings === 0) {
+                        break;
+                    }
+                    const graphCopy = graph.cloneForOrdering();
+                    await this.doOrder(graphCopy, true);
+                    let numCrossings = await this.countCrossings(graphCopy);
+                    if (numCrossings < minCrossings) {
+                        minCrossings = numCrossings;
+                        bestGraphCopy = graphCopy;
+                    }
+                }
+                bestGraphCopy.copyInto(graph);
+            }
         }
     }
 
@@ -1117,7 +1223,7 @@ export default class SugiyamaLayouter extends Layouter {
         const ranks = levelGraph.ranks();
 
         let xAssignments: Array<Array<number>>;
-        if (levelGraph.numNodes() > 10000) {
+        if (this._options["webWorkers"] && levelGraph.numNodes() > 10000) {
             let numNodesPerRank, levelNodes, levelEdges;
             if (typeof(SharedArrayBuffer) !== "undefined") {
                 const numNodesPerRankSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * ranks.length);
