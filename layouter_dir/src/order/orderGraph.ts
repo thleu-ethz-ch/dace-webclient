@@ -1,4 +1,5 @@
 import {DEBUG} from "../util/constants";
+import {inPlaceSort} from "fast-sort";
 import * as _ from "lodash";
 import Assert from "../util/assert";
 import Component from "../graph/component";
@@ -10,9 +11,6 @@ import OrderRank from "./orderRank";
 import Timer from "../util/timer";
 import Shuffle from "../util/shuffle";
 import Wasm from "../wasm/wasm";
-import fastReorder from "./fastReorder";
-import {inPlaceSort} from "fast-sort";
-import sign = PIXI.utils.sign;
 
 interface Neighbor {
     end: number;
@@ -1254,10 +1252,6 @@ export default class OrderGraph {
             }
             if (options["shuffles"] === 0) {
                 if (this._wasm !== null && options["resolveConflicts"]) {
-                    //fastReorder(order, positions, crossings, neighborsUp, weightsUp, neighborsDown, weightsDown);
-
-                    //console.log("NUMNODES", graph.nodes().length);
-                    //if (graph.nodes().length === 40721) {
                     await this._wasm.reorder(order, neighbors[0], graph._nodeGraph.maxId(), numEdgesPerRank);
                     for (let r = 0; r < ranks.length; ++r) {
                         _.forEach(order[r], (nodeId: number, pos: number) => {
@@ -1267,8 +1261,6 @@ export default class OrderGraph {
                     for (let r = 1; r < ranks.length; ++r) {
                         crossings[r] = countCrossings(order[r], r, 0);
                     }
-                    //}
-                    //reorder();
                 } else {
                     reorder();
                 }

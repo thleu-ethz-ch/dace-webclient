@@ -1,7 +1,6 @@
 importScripts("../dist/layoutLib.js");
 
 const _ = layoutLib.lodash;
-let graph;
 
 function alignMedian(numRanks, numNodesPerRank, levelGraphNodes, numEdges, levelGraphEdges, neighbors, preference, targetEdgeLength) {
     const levelGraph = new layoutLib.levelGraph.LevelGraph();
@@ -179,7 +178,7 @@ function returnGraph() {
 
 }
 
-async function orderRanks(seed, numGraphs, metadata, nodes, inConnectors, outConnectors, edges) {
+async function orderRanks(seed, numGraphs, metadata, nodes, inConnectors, outConnectors, edges, webAssembly) {
     layoutLib.seedrandom(seed, {global: true});
     const graph = new layoutLib.layoutGraph.LayoutGraph();
     const parentPerLevel = [graph];
@@ -250,14 +249,9 @@ async function orderRanks(seed, numGraphs, metadata, nodes, inConnectors, outCon
             subgraph.addEdge(edge, edgeId);
         }
     }
-    const layouter = new layoutLib.layouter.SugiyamaLayouter({webAssembly: false, webWorkers: false});
+    const layouter = new layoutLib.layouter.SugiyamaLayouter({webAssembly: webAssembly, webWorkers: false});
     await layouter.doOrder(graph, true);
-    return layouter.countCrossings(graph);
-}
-
-function test(name) {
-    console.log("hello", name);
-    return name;
+    return await layouter.countCrossings(graph);
 }
 
 layoutLib.util.WorkerPool.registerWorker();

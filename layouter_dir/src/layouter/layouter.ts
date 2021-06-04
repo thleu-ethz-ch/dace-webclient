@@ -1,7 +1,6 @@
 import {CONNECTOR_SIZE, CONNECTOR_SPACING, DEBUG} from "../util/constants";
 import * as _ from "lodash";
 import * as seedrandom from "seedrandom";
-import * as workerpool from "workerpool";
 import Assert from "../util/assert";
 import Component from "../graph/component";
 import LayoutBundle from "../layoutGraph/layoutBundle";
@@ -27,7 +26,7 @@ export default abstract class Layouter {
             withLabels: false,
             bundle: false,
             optimizeAngles: false,
-            numShuffles: navigator.hardwareConcurrency / 2,
+            numShuffles: 16,
             shuffleGlobal: true,
             weightBends: 0.2,
             weightCrossings: 1,
@@ -37,8 +36,7 @@ export default abstract class Layouter {
             webWorkers: true,
         });
         if (this._options["webWorkers"]) {
-            //this._pool = workerpool.pool("worker/worker.js", {minWorkers: 4});
-            this._pool = new WorkerPool("worker/worker.js", Math.max(this._options["numShuffles"], 4));
+            this._pool = new WorkerPool("worker/worker.js", Math.min(Math.max(this._options["numShuffles"], 4), navigator.hardwareConcurrency));
         }
         if (this._options["webAssembly"]) {
             this._wasm = new Wasm();

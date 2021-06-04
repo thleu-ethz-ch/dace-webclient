@@ -305,8 +305,8 @@ extern "C" {
 
         float multiplicator = (float)maxWeight * maxEdgesPerRank + 1;
 
-        int improveCounter = 2;
         int minCrossings = __INT32_MAX__;
+        int improveCounter = 2;
         while (improveCounter > 0) {
             improveCounter--;
             int firstRank = (boolDirection ? 1 : (numRanks - 2));
@@ -357,7 +357,6 @@ extern "C" {
                         }
                     }
                 }
-                
             }
             boolDirection = !boolDirection;
             signDirection *= -1;

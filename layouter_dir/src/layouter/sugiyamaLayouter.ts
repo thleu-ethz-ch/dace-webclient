@@ -1,4 +1,5 @@
 import {CONNECTOR_SIZE, CONNECTOR_SPACING, DEBUG} from "../util/constants";
+import {inPlaceSort} from "fast-sort";
 import * as _ from "lodash";
 import * as seedrandom from "seedrandom";
 import Assert from "../util/assert";
@@ -24,36 +25,12 @@ import Segment from "../geometry/segment";
 import Shuffle from "../util/shuffle";
 import Timer from "../util/timer";
 import Vector from "../geometry/vector";
-import {inPlaceSort} from "fast-sort";
 
 export default class SugiyamaLayouter extends Layouter {
     protected async doLayout(graph: LayoutGraph): Promise<void> {
         if (graph.numNodes() === 0) {
             return;
         }
-
-        /*const start1 = Date.now();
-        const test = await Promise.all([
-            this._pool.exec("test", []),
-            this._pool.exec("test", []),
-            this._pool.exec("test", []),
-            this._pool.exec("test", []),
-        ]);
-        const stop1 = Date.now();
-        console.log("FIRST CALL: ", (stop1 - start1), "ms");
-
-        const start = Date.now();
-        for (let i = 0; i < 1000; ++i) {
-            const test = await Promise.all([
-                this._pool.exec("test", []),
-                this._pool.exec("test", []),
-                this._pool.exec("test", []),
-                this._pool.exec("test", []),
-            ]);
-        }
-
-        const stop = Date.now();
-        console.log("SUBSEQUENT CALLS: ", (stop - start) / 1000, "ms");*/
 
         Timer.start(["doLayout"]);
 
