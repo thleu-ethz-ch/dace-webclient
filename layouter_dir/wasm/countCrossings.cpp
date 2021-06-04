@@ -92,10 +92,13 @@ extern "C" {
         return countCrossingsRank(numNodes, numNodesNorth, edgePointer - countingEdges, countingTree, countingEdges);
     }
 
-    int totalCrossings(int numRanks, int* numNodesPerRank, int** orderPerRank, int* numUpEdgesPerNode, Neighbor** upEdgesPerNode, int* positions, int* countingTree, Edge* countingEdges) {
+    int totalCrossings(int numRanks, int* numNodesPerRank, int** orderPerRank, int* numUpEdgesPerNode, Neighbor** upEdgesPerNode, int* positions, int* crossings, int* countingTree, Edge* countingEdges) {
         int sum = 0;
         for (int r = 1; r < numRanks; ++r) {
-            sum += countCrossings(r, numNodesPerRank[r], orderPerRank[r], numUpEdgesPerNode, upEdgesPerNode, numNodesPerRank[r - 1], positions, countingTree, countingEdges);
+            if (crossings[r] == 1000000000) {
+                crossings[r] = countCrossings(r, numNodesPerRank[r], orderPerRank[r], numUpEdgesPerNode, upEdgesPerNode, numNodesPerRank[r - 1], positions, countingTree, countingEdges);
+            }
+            sum += crossings[r];
         }
         return sum;
     }
@@ -146,8 +149,7 @@ extern "C" {
             newCrossingsSouth = countCrossings(r, numNodes, newOrder, numEdgesPerNodePerDir[boolDirection], edgesPerNodePerDir[boolDirection], numNodesPerRank[r + signDirection], positions, countingTree, countingEdges);
         }
         bool fewerCrossingsNorth = newCrossingsNorth < prevCrossingsNorth;
-        bool fewerOrEqualCrossingsTotal = (newCrossingsNorth + newCrossingsSouth) <= (prevCrossingsNorth + prevCrossingsSouth);
-        if (fewerCrossingsNorth && fewerOrEqualCrossingsTotal) {
+        if (fewerCrossingsNorth) {
             crossings[r + crossingOffsetNorth] = newCrossingsNorth;
             if (r != lastRank) {
                 crossings[r + crossingOffsetSouth] = newCrossingsSouth;
@@ -303,8 +305,8 @@ extern "C" {
 
         float multiplicator = (float)maxWeight * maxEdgesPerRank + 1;
 
-        int minCrossings = totalCrossings(numRanks, numNodesPerRank, orderPerRank, numEdgesPerNodePerDir[0], edgesPerNodePerDir[0], positions, countingTree, countingEdges);
         int improveCounter = 2;
+        int minCrossings = __INT32_MAX__;
         while (improveCounter > 0) {
             improveCounter--;
             int firstRank = (boolDirection ? 1 : (numRanks - 2));
@@ -361,7 +363,7 @@ extern "C" {
             signDirection *= -1;
             crossingOffsetNorth = !boolDirection;
             crossingOffsetSouth = boolDirection;
-            int newCrossings = totalCrossings(numRanks, numNodesPerRank, orderPerRank, numEdgesPerNodePerDir[0], edgesPerNodePerDir[0], positions, countingTree, countingEdges);
+            int newCrossings = totalCrossings(numRanks, numNodesPerRank, orderPerRank, numEdgesPerNodePerDir[0], edgesPerNodePerDir[0], positions, crossings, countingTree, countingEdges);
             if (newCrossings < minCrossings) {
                 minCrossings = newCrossings;
                 improveCounter = 2;
@@ -370,9 +372,9 @@ extern "C" {
         #if !defined(WASM)
         int numCrossings = 0;
         for (int r = 1; r < numRanks; ++r) {
-            numCrossings += countCrossings(r, numNodesPerRank[r], orderPerRank[r], numEdgesPerNodePerDir[0], edgesPerNodePerDir[0], numNodesPerRank[r - 1], positions, countingTree, countingEdges);
+            numCrossings += crossings[r];
         }
-        printf("crossings: %d\n", numCrossings);
+        //printf("crossings: %d\n", numCrossings);
         #endif // WASM
         
         // write back
