@@ -15,13 +15,13 @@ export default class MagneticSpringLayouter extends RecursiveLayouter {
         super();
         this._options = _.defaults(options, this._options, {
             numIterations: 0,
-            stepSize: 0.1,
+            stepSize: 1,
             weightSpring: 1,
             weightRepulsive: 1,
             weightMagnetic: 1,
             magneticStrength: 1,
-            distanceExponent: 0.5,
-            angleExponent: 2,
+            distanceExponent: 1,
+            angleExponent: 1,
         });
     }
 
@@ -133,6 +133,13 @@ export default class MagneticSpringLayouter extends RecursiveLayouter {
             const dstBorder = boxIntersection(dstCenter.clone(), srcCenter.clone(), dstBox);
             return dstBorder.sub(srcBorder);
         }
+
+        function edgeDistanceVector(srcNode: LayoutNode, dstNode: LayoutNode) {
+            const src = srcNode.boundingBox().bottomCenter();
+            const dst = dstNode.boundingBox().topCenter();
+            return dst.sub(src);
+        }
+
         const fieldVector = new Vector(0, 1);
 
         for (let iteration = 0; iteration < this._options.numIterations; ++iteration) {
@@ -142,7 +149,7 @@ export default class MagneticSpringLayouter extends RecursiveLayouter {
             _.forEach(graph.nodes(), (node: LayoutNode) => {
                 neighbors[node.id].forEach((neighbor: LayoutNode) => {
                     // spring force
-                    const edgeVector = distanceVector(node, neighbor);
+                    const edgeVector = edgeDistanceVector(node, neighbor);
                     const strength = Math.log(edgeVector.length() / this._options.targetEdgeLength);
                     const springForce = edgeVector.clone().normalize().multiplyScalar(strength * this._options.weightSpring);
                     forces[node.id].add(springForce);
@@ -152,12 +159,25 @@ export default class MagneticSpringLayouter extends RecursiveLayouter {
                         console.log(neighbor.label(), "spring induced by", node.label(), springForce.invert());
                     }*/
                     // magnetic force
+                    if (edgeVector.x === 0 && edgeVector.y > 0) {
+                        return;
+                    }
+                    let magneticDirection = new Vector(1 / edgeVector.x, 1 / edgeVector.y);
+                    if (edgeVector.y < 0) {
+                        magneticDirection.y *= -1;
+                    } else {
+                        magneticDirection.x *= -1;
+                    }
+                    if (edgeVector.x === 0) {
+                        magneticDirection = fieldVector.clone();
+                    }
                     const angleFactor = Math.pow(edgeVector.absoluteAngleTo(fieldVector), this._options.angleExponent);
                     const distanceFactor = Math.pow(edgeVector.length(), this._options.distanceExponent);
-                    const magneticForce = fieldVector.clone().multiplyScalar(this._options.magneticStrength * angleFactor * distanceFactor * this._options.weightMagnetic);
+                    const magneticForce = magneticDirection.clone().multiplyScalar(this._options.magneticStrength * angleFactor * distanceFactor * this._options.weightMagnetic);
                     forces[neighbor.id].add(magneticForce);
                     forces[node.id].add(magneticForce.clone().invert());
                     /*if (iteration === this._options.numIterations - 1) {
+                        console.log("angleFactor", angleFactor, "distanceFactor", distanceFactor);
                         console.log(neighbor.label(), "magnetic induced by", node.label(), magneticForce);
                         console.log(node.label(), "magnetic induced by", neighbor.label(), magneticForce.invert());
                     }*/
@@ -166,9 +186,8 @@ export default class MagneticSpringLayouter extends RecursiveLayouter {
                     // repulsive force
                     const edgeVector = distanceVector(node, nonNeighbor);
                     const length = edgeVector.length();
-                    const relativeLength = length / this._options.targetEdgeLength;
-                    const strength = 1 / (relativeLength * relativeLength);
-                    const repulsiveForce = edgeVector.clone().normalize().multiplyScalar(-1 * strength * this._options.weightRepulsive);
+                    const strength = 1 / (length * length)
+                    const repulsiveForce = edgeVector.clone().normalize().multiplyScalar(strength * this._options.weightRepulsive);
                     forces[nonNeighbor.id].add(repulsiveForce);
                     /*if (iteration === this._options.numIterations - 1) {
                         console.log(nonNeighbor.label(), "repulsive induced by", node.label(), repulsiveForce);
