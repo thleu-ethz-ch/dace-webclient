@@ -28,7 +28,7 @@ export default abstract class RecursiveLayouter extends Layouter {
                     childGraph.translateElements(node.padding - childGraphBox.x, node.padding - childGraphBox.y);
 
                     // make entry and exit nodes match parent width
-                    if (childGraph.entryNode !== null) {
+                    /*if (childGraph.entryNode !== null) {
                         const childNodeBox = childGraph.entryNode.boundingBox();
                         childGraph.entryNode.setWidth(childGraphBox.width);
                         childGraph.entryNode.translate(-childNodeBox.x, 0);
@@ -37,7 +37,7 @@ export default abstract class RecursiveLayouter extends Layouter {
                         const childNodeBox = childGraph.exitNode.boundingBox();
                         childGraph.exitNode.setWidth(childGraphBox.width);
                         childGraph.exitNode.translate(-childNodeBox.x, 0);
-                    }
+                    }*/
                 }
                 childGraph.translateElements(x, 0);
                 x += childGraphBox.width + this._options["targetEdgeLength"];

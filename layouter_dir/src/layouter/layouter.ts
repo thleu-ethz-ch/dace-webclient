@@ -32,11 +32,12 @@ export default abstract class Layouter {
             weightCrossings: 1,
             weightLengths: 0.1,
             preorderConnectors: true,
-            webAssembly: true,
-            webWorkers: true,
+            webAssembly: false,
+            webWorkers: false,
+            maxWorkers: navigator.hardwareConcurrency - 2,
         });
         if (this._options["webWorkers"]) {
-            this._pool = new WorkerPool("worker/worker.js", Math.min(Math.max(this._options["numShuffles"], 4), navigator.hardwareConcurrency));
+            this._pool = new WorkerPool("worker/worker.js", Math.min(Math.max(this._options["numShuffles"], 4), this._options["maxWorkers"]));
         }
         if (this._options["webAssembly"]) {
             this._wasm = new Wasm();

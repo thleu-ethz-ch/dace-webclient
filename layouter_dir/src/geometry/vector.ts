@@ -42,6 +42,10 @@ export default class Vector {
         return this.multiplyScalar(y / this.y);
     }
 
+    setLength(length: number): Vector {
+        return this.multiplyScalar(length / this.length());
+    }
+
     angleTo(otherVector: Vector): number {
         return otherVector.angle() - this.angle();
     }

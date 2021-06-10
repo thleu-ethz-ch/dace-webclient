@@ -1,6 +1,8 @@
 import * as _ from "lodash";
 import Box from "./box";
 import Vector from "./vector";
+import {DEBUG} from "../util/constants";
+import Assert from "../util/assert";
 
 export default class Segment {
     readonly start: Vector;

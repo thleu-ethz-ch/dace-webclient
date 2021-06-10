@@ -30,11 +30,25 @@
     <script src="./dist/renderLib.js"></script>
     <script>
         window.addEventListener("load", function () {
-            const options = {preorderConnectors: true, optimizeAngles: false, bundle: false, webWorkers: true, webAssembly: false};
-            const layouter = new renderLib.layouter.SugiyamaLayouter(options);
             const renderer = new renderLib.Renderer(document.body, document.getElementById("coordinateBox"));
             const graph = (new URLSearchParams(window.location.search)).get('graph') || "symm";
-            renderer.show(layouter, graph);
+
+            const render = (iterations) => {
+                const layouter = new renderLib.layouter.MagneticSpringLayouter({numIterations: iterations});
+                renderer.show(layouter, graph);
+            };
+            let step = (new URLSearchParams(window.location.search)).get('step') || 0;
+            render(step);
+            document.addEventListener("keyup", function(e) {
+                if (e.which === 37) {
+                    step = Math.max(step - 1, 0);
+                    render(step);
+                }
+                if (e.which === 39) {
+                    step++;
+                    render(step);
+                }
+            }, false);
         });
     </script>
 </head>
