@@ -190,7 +190,8 @@ export default class MagneticSpringLayouter extends RecursiveLayouter {
                     // repulsive force
                     const edgeVector = distanceVector(node, nonNeighbor);
                     const length = edgeVector.length();
-                    const strength = 1 / (length * length)
+                    const relativeLength = 2 * length / this._options.targetEdgeLength;
+                    const strength = 1 / (relativeLength * relativeLength)
                     const repulsiveForce = edgeVector.clone().normalize().multiplyScalar(strength * this._options.weightRepulsive);
                     forces[nonNeighbor.id].add(repulsiveForce);
                     /*if (iteration === this._options.numIterations - 1) {
