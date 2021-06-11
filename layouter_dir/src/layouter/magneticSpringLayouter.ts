@@ -1,14 +1,13 @@
+import {DEBUG, EPSILON} from "../util/constants";
 import * as _ from "lodash";
+import Assert from "../util/assert";
+import Box from "../geometry/box";
 import LayoutEdge from "../layoutGraph/layoutEdge";
 import LayoutGraph from "../layoutGraph/layoutGraph";
 import LayoutNode from "../layoutGraph/layoutNode";
 import RecursiveLayouter from "./recursiveLayouter";
-import Vector from "../geometry/vector";
 import Shuffle from "../util/shuffle";
-import Box from "../geometry/box";
-import {DEBUG} from "../util/constants";
-import Assert from "../util/assert";
-import premultiplyTintToRgba = PIXI.utils.premultiplyTintToRgba;
+import Vector from "../geometry/vector";
 
 export default class MagneticSpringLayouter extends RecursiveLayouter {
     constructor(options: object = {}) {
@@ -22,11 +21,12 @@ export default class MagneticSpringLayouter extends RecursiveLayouter {
             magneticStrength: 1,
             distanceExponent: 1,
             angleExponent: 1,
+            decay: 0.999,
         });
     }
 
     layoutSizedGraph(graph: LayoutGraph) {
-        //console.log(graph);
+        console.log(graph);
         switch (graph.nodes().length) {
             case 1:
                 // just one node => place it anywhere
@@ -129,9 +129,13 @@ export default class MagneticSpringLayouter extends RecursiveLayouter {
             if (srcBox.intersects(dstBox)) {
                 return dstCenter.clone().sub(srcCenter).setLength(0.001);
             }
-            const srcBorder = boxIntersection(srcCenter.clone(), dstCenter.clone(), srcBox);
+            /*const srcBorder = boxIntersection(srcCenter.clone(), dstCenter.clone(), srcBox);
             const dstBorder = boxIntersection(dstCenter.clone(), srcCenter.clone(), dstBox);
-            return dstBorder.sub(srcBorder);
+            return dstBorder.sub(srcBorder);*/
+            const srcToDst = dstCenter.sub(srcCenter);
+            const x = Math.max(0, Math.abs(srcToDst.x) - (srcNode.width + dstNode.width) / 2);
+            const y = Math.max(0, Math.abs(srcToDst.y) - (srcNode.height + dstNode.height) / 2);
+            return srcToDst.setLength((new Vector(x, y)).length());
         }
 
         function edgeDistanceVector(srcNode: LayoutNode, dstNode: LayoutNode) {
@@ -195,16 +199,20 @@ export default class MagneticSpringLayouter extends RecursiveLayouter {
                 });
             });
             // apply forces altogether after calculating them
+            let maxOffset = 0;
             _.forEach(graph.nodes(), (node: LayoutNode) => {
                 const offset = forces[node.id].multiplyScalar(this._options.stepSize);
                 if (offset.length() > this._options.targetEdgeLength) {
-                    offset.setLength(this._options.targetEdgeLength)
+                    offset.setLength(this._options.targetEdgeLength);
                 }
-                /*if (iteration === this._options.numIterations - 1) {
-                    console.log("node", node.label(), "translate", offset);
-                }*/
+                offset.multiplyScalar(Math.pow(this._options.decay, iteration))
+                maxOffset = Math.max(maxOffset, offset.length());
                 node.translate(offset.x, offset.y);
             });
+            if (maxOffset < EPSILON) {
+                console.log("reached equilibrium after " + (iteration + 1) + " iterations");
+                break;
+            }
         }
 
         // place edges
