@@ -34,7 +34,7 @@
             const graph = (new URLSearchParams(window.location.search)).get('graph') || "symm";
 
             const render = (iterations) => {
-                const layouter = new renderLib.layouter.HybridLayouter({numIterations: iterations});
+                const layouter = new renderLib.layouter.MagneticSpringLayouter({numIterations: iterations});
                 renderer.show(layouter, graph);
             };
             let step = (new URLSearchParams(window.location.search)).get('step') || 1000;

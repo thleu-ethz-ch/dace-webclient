@@ -34,18 +34,20 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     public childGraphs: Array<LayoutGraph> = [];
 
     public readonly padding: number;
+    public readonly connectorPadding: number;
     public readonly isBundle: boolean;
 
     private readonly _inConnectors: Map<string, LayoutConnector> = new Map();
     private readonly _outConnectors: Map<string, LayoutConnector> = new Map();
 
-    constructor(size: Size = null, padding: number = 0, isVirtual: boolean = false, isBundle: boolean = false, addConnectors: boolean = true) {
+    constructor(size: Size = null, padding: number = 0, connectorPadding: number = 0, isVirtual: boolean = false, isBundle: boolean = false, addConnectors: boolean = true) {
         super();
         if (size !== null) {
             this.width = size.width;
             this.height = size.height;
         }
         this.padding = padding;
+        this.connectorPadding = connectorPadding;
         this.isVirtual = isVirtual;
         this.isBundle = isBundle;
         if (addConnectors && (isVirtual || isBundle)) {

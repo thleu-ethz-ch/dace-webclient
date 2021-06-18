@@ -1,5 +1,5 @@
-import {CONNECTOR_SIZE, CONNECTOR_SPACING, DEBUG} from "../util/constants";
-import {inPlaceSort} from "fast-sort";
+import {CONNECTOR_SIZE, CONNECTOR_SPACING, DEBUG, EPSILON} from "../util/constants";
+import {inPlaceSort, sort} from "fast-sort";
 import * as _ from "lodash";
 import * as seedrandom from "seedrandom";
 import Assert from "../util/assert";
@@ -26,7 +26,23 @@ import Shuffle from "../util/shuffle";
 import Timer from "../util/timer";
 import Vector from "../geometry/vector";
 
-export default class SugiyamaLayouter extends Layouter {
+export default class HybridLayouter extends Layouter {
+    constructor(options: object = {}) {
+        super();
+        this._options = _.defaults(options, this._options, {
+            numIterations: 1000,
+            stepSize: 1,
+            weightSpring: 0,
+            weightRepulsive: 1,
+            weightRepulsiveNode: 1,
+            weightMagnetic: 1,
+            magneticStrength: 1,
+            distanceExponent: 1,
+            angleExponent: 1,
+            decay: 1,
+        });
+    }
+
     protected async doLayout(graph: LayoutGraph): Promise<void> {
         if (graph.numNodes() === 0) {
             return;
@@ -49,23 +65,14 @@ export default class SugiyamaLayouter extends Layouter {
         this._addVirtualNodes(graph);
         Timer.stop(["doLayout", "addVirtualNodes"]);
 
-        // STEP 4: ORDER RANKS
-        Timer.start(["doLayout", "orderRanks"]);
-        await this._orderRanks(graph);
-        Timer.stop(["doLayout", "orderRanks"]);
+        // STEP 4: ASSIGN Y COORDINATES (NODES & CONNECTORS)
+        const [rankTops, rankBottoms] = await this._assignYCoordinates(graph);
 
-        // STEP 5: ASSIGN COORDINATES
-        const segmentsPerRank = [];
-        const crossingsPerRank = [];
+        // STEP 5: ASSIGN X COORDINATES (NODES & CONNECTORS)
+        await this._assignXCoordinates(graph);
 
-        Timer.start(["doLayout", "assignCoordinates"]);
-        await this._assignCoordinates(graph, segmentsPerRank, crossingsPerRank);
-        Timer.stop(["doLayout", "assignCoordinates"]);
-
-        // STEP 6 (OPTIONAL): OPTIMIZE ANGLES
-        if (this._options["optimizeAngles"]) {
-            this._optimizeAngles(graph, segmentsPerRank, crossingsPerRank);
-        }
+        // STEP 6: PLACE EDGES
+        await this._placeEdges(graph, rankTops, rankBottoms);
 
         // STEP 7: RESTORE CYCLES
         Timer.start(["doLayout", "restoreCycles"]);
@@ -96,7 +103,7 @@ export default class SugiyamaLayouter extends Layouter {
                     edge.srcConnector = "bottomIn";
                     edge.dstConnector = "topOut";
                     if (!_.some(subgraph.outEdges(newDst.id), edge => edge.srcConnector === null)) {
-                         newDst.removeConnector("OUT", null);
+                        newDst.removeConnector("OUT", null);
                     }
                     if (!_.some(subgraph.inEdges(newSrc.id), edge => edge.dstConnector === null)) {
                         newSrc.removeConnector("IN", null);
@@ -381,7 +388,6 @@ export default class SugiyamaLayouter extends Layouter {
     }
 
     public async doOrder(graph: LayoutGraph, shuffle: boolean = false): Promise<void> {
-        Timer.start(["doLayout", "orderRanks", "doOrder"]);
         /**
          * STEP 1 (OPTIONAL): ORDER NODES BASED ON CONNECTORS
          * In this step, scope insides and outsides are handled in the same order graph.
@@ -391,9 +397,9 @@ export default class SugiyamaLayouter extends Layouter {
             // order
             const connectorOrderGraph = this._createConnectorGraph(graph, true, shuffle);
             await connectorOrderGraph.order({
+                method: "springs",
                 orderGroups: true,
                 resolveConflicts: false,
-                shuffles: this._options["shuffleGlobal"] ? 0 : this._options["numShuffles"]
             });
 
             // copy order information from order graph to layout graph
@@ -683,7 +689,6 @@ export default class SugiyamaLayouter extends Layouter {
                 }
             }
         });
-        Timer.stop(["doLayout", "orderRanks", "doOrder"]);
     }
 
     private async _orderAndCount(graph: LayoutGraph): Promise<number> {
@@ -714,7 +719,7 @@ export default class SugiyamaLayouter extends Layouter {
                 const sizeOutConnectors = 2 * numOutConnectorsTotal;
                 const sizeEdges = 8 * numEdgesTotal;
                 let metadata, parents, nodes, edges, inConnectors, outConnectors;
-                if (typeof(SharedArrayBuffer) !== "undefined") {
+                if (typeof (SharedArrayBuffer) !== "undefined") {
                     const numPerGraphSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * sizeMetadata);
                     metadata = new Int32Array(numPerGraphSab);
                     const nodesSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * sizeNodes);
@@ -883,12 +888,9 @@ export default class SugiyamaLayouter extends Layouter {
     /**
      * Assigns coordinates to the nodes, the connectors and the edges.
      * @param graph
-     * @param segmentsPerRank
-     * @param crossingsPerRank
      * @private
      */
-    private async _assignCoordinates(graph: LayoutGraph, segmentsPerRank: Array<Array<Segment>>, crossingsPerRank: Array<Array<[Segment, Segment]>>): Promise<void> {
-        // assign y
+    private async _assignYCoordinates(graph: LayoutGraph): Promise<[Array<number>, Array<number>]> {
         const rankTops = _.fill(new Array(graph.numRanks + 1), Number.POSITIVE_INFINITY);
         const rankBottoms = _.fill(new Array(graph.numRanks), Number.NEGATIVE_INFINITY);
 
@@ -896,8 +898,6 @@ export default class SugiyamaLayouter extends Layouter {
 
         rankTops[0] = 0;
         for (let r = 0; r < globalRanks.length; ++r) {
-            crossingsPerRank[r] = [];
-            segmentsPerRank[r] = [];
             let maxBottom = 0;
             _.forEach(globalRanks[r], (node: LayoutNode) => {
                 node.y = rankTops[r];
@@ -908,10 +908,20 @@ export default class SugiyamaLayouter extends Layouter {
                 });
                 node.updateSize({width: 2 * node.padding, height: 2 * node.padding});
                 let height = node.height;
-                if (_.some(node.inConnectors, connector => !connector.isTemporary)) {
+                let hasRealInConnector = false;
+                _.forEach(node.inConnectors, (connector: LayoutConnector) => {
+                    connector.y = node.y;
+                    hasRealInConnector ||= (!connector.isTemporary);
+                });
+                if (hasRealInConnector) {
                     node.y += CONNECTOR_SIZE / 2;
                 }
-                if (_.some(node.outConnectors, connector => !connector.isTemporary)) {
+                let hasRealOutConnector = false;
+                _.forEach(node.outConnectors, (connector: LayoutConnector) => {
+                    connector.y = node.y + height - (!connector.isTemporary ? (CONNECTOR_SIZE / 2) : 0);
+                    hasRealOutConnector ||= (!connector.isTemporary);
+                });
+                if (hasRealOutConnector) {
                     height += CONNECTOR_SIZE / 2;
                 }
                 _.forEach(node.parents(), (parent: LayoutNode) => {
@@ -927,43 +937,9 @@ export default class SugiyamaLayouter extends Layouter {
             rankBottoms[r] = maxBottom;
             rankTops[r + 1] = maxBottom + this._options["targetEdgeLength"];
         }
-
-        // assign x and set size; assign edge and connector coordinates
-        const placeSubgraph = async (subgraph: LayoutGraph, offset: number): Promise<void> => {
-            Timer.start(["doLayout", "assignCoordinates", "placeSubgraph"]);
-
-            // place all subgraphs in order to know their size
-            const nodes = subgraph.nodes();
-            for (let n = 0; n < nodes.length; ++n) {
-                let childOffset = 0;
-                for (let c = 0; c < nodes[n].childGraphs.length; ++c) {
-                    const childGraph = nodes[n].childGraphs[c];
-                    if (childGraph.numNodes() > 0) {
-                        await placeSubgraph(childGraph, childOffset);
-                        childOffset += childGraph.boundingBox().width + this._options["targetEdgeLength"];
-                    }
-                }
-            }
-
-            // assign x
-            await this._assignX(subgraph, offset + (subgraph.parentNode !== null ? subgraph.parentNode.padding : 0));
-
-            // place self-loops
-            _.forEach(subgraph.nodes(), (node: LayoutNode) => {
-                if (node.selfLoop !== null) {
-                    node.selfLoop.points = [
-                        new Vector(node.x + node.width + node.padding - this._options["targetEdgeLength"], node.y + node.height - 10),
-                        new Vector(node.x + node.width + node.padding, node.y + node.height - 10),
-                        new Vector(node.x + node.width + node.padding, node.y + 10),
-                        new Vector(node.x + node.width + node.padding - this._options["targetEdgeLength"], node.y + 10),
-                    ];
-                }
-            });
-
-            // set parent bounding box on last component
+        _.forEachRight(graph.allGraphs(), (subgraph: LayoutGraph) => {
             const parent = subgraph.parentNode;
             if (parent !== null && subgraph === _.last(parent.childGraphs)) {
-                let width = 0;
                 let height = 0;
                 let boundingBox;
                 _.forEach(parent.childGraphs, (childGraph: LayoutGraph) => {
@@ -971,36 +947,365 @@ export default class SugiyamaLayouter extends Layouter {
                     if (_.some(parent.outConnectors, connector => !connector.isTemporary)) {
                         boundingBox.height -= CONNECTOR_SIZE / 2;
                     }
-                    width += boundingBox.width + this._options["targetEdgeLength"];
                     height = Math.max(height, boundingBox.height);
                 });
-                width += 2 * parent.padding - this._options["targetEdgeLength"];
-                if (parent.selfLoop !== null) {
-                    width += this._options["targetEdgeLength"];
-                }
                 height += 2 * subgraph.parentNode.padding;
-                parent.updateSize({width: width, height: height});
-                if (parent.isScopeNode) {
-                    const left = boundingBox.x;
-                    subgraph.entryNode.setWidth(boundingBox.width);
-                    subgraph.entryNode.setPosition(new Vector(left, subgraph.entryNode.y));
-                    subgraph.exitNode.setWidth(boundingBox.width);
-                    subgraph.exitNode.setPosition(new Vector(left, subgraph.exitNode.y));
-                }
+                parent.updateSize({width: 0, height: height});
+            }
+        });
+        _.forEach(graph.allNodes(), (node: LayoutNode) => {
+            _.forEach(node.outConnectors, (connector: LayoutConnector) => {
+                connector.y = node.y + node.height - (!connector.isTemporary ? (CONNECTOR_SIZE / 2) : 0);
+            });
+        });
+        return [rankTops, rankBottoms];
+    }
+
+    private async _assignXCoordinates(graph: LayoutGraph): Promise<void> {
+        const assignXCoordinatesSubgraph = (subgraph: LayoutGraph, offset: number = 0, doPlace: boolean = true, subgraphs = [], connectors = []) => {
+            subgraphs.push(subgraph);
+            const ranks = subgraph.levelGraph().ranks();
+            _.forEach(ranks, (rank: Array<LevelNode>, r: number) => {
+                let x = offset;
+                _.forEach(rank, (node: LevelNode) => {
+                    const layoutNode = node.layoutNode;
+                    layoutNode.x = x;
+                    if (node.isFirst) {
+                        let connectorsWidth = _.sum(_.map(layoutNode.inConnectors, "width")) + (layoutNode.inConnectors.length - 1) * CONNECTOR_SIZE;
+                        let connectorX = layoutNode.x + (node.width - connectorsWidth) / 2;
+                        _.forEach(layoutNode.inConnectors, (connector: LayoutConnector, c: number) => {
+                            connector.x = connectorX;
+                            connectors.push(connector);
+                            connectorX += connector.width + CONNECTOR_SPACING;
+                        });
+                    }
+                    if (node.isLast) {
+                        let connectorsWidth = _.sum(_.map(layoutNode.outConnectors, "width")) + (layoutNode.outConnectors.length - 1) * CONNECTOR_SIZE;
+                        let connectorX = layoutNode.x + (node.width - connectorsWidth) / 2;
+                        _.forEach(layoutNode.outConnectors, (connector: LayoutConnector, c: number) => {
+                            connector.x = connectorX;
+                            connectors.push(connector);
+                            connectorX += connector.width + CONNECTOR_SPACING;
+                        });
+                        if (layoutNode.isScopeNode) {
+                            assignXCoordinatesSubgraph(layoutNode.childGraphs[0], layoutNode.x, false, subgraphs, connectors);
+                        } else {
+                            let childX = layoutNode.padding;
+                            _.forEach(layoutNode.childGraphs, (subgraph: LayoutGraph) => {
+                                assignXCoordinatesSubgraph(subgraph, childX);
+                                childX += subgraph.boundingBox(false).width + this._options["targetEdgeLength"];
+                            });
+                        }
+                    }
+                    x += layoutNode.width + this._options["targetEdgeLength"];
+                });
+            });
+
+            const edgeDistanceVector = (srcConnector: LayoutConnector, dstConnector: LayoutConnector) => {
+                return dstConnector.boundingBox().topCenter().sub(srcConnector.boundingBox().bottomCenter());
             }
 
-            Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "placeConnectors"]);
-            // place connectors
-            _.forEach(subgraph.nodes(), (node: LayoutNode) => {
-                this._placeConnectors(node, rankTops, rankBottoms);
-            });
-            Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "placeConnectors"]);
+            if (doPlace) {
+                const nodeMap = new Map();
+                const connectorMap = new Map();
+                const neighbors = new Array(connectors.length);
+                _.forEach(connectors, (connector: LayoutConnector, c: number) => {
+                    neighbors[c] = [];
+                    connectorMap.set(connector, c);
+                    let nodeConnectors = nodeMap.get(connector.node);
+                    if (nodeConnectors === undefined) {
+                        nodeConnectors = [[], []];
+                        nodeMap.set(connector.node, nodeConnectors);
+                    }
+                    nodeConnectors[connector.type === "IN" ? 0 : 1].push(connector);
+                });
+                const nodesPerRank = new Map();
+                _.forEach(subgraphs, (subgraph: LayoutGraph) => {
+                    _.forEach(subgraph.edges(), (edge: LayoutEdge) => {
+                        let srcNode = subgraph.node(edge.src);
+                        if (srcNode.isScopeNode) {
+                            srcNode = srcNode.childGraphs[0].exitNode;
+                        }
+                        let srcConnector = srcNode.connector("OUT", edge.srcConnector);
+                        let dstNode = subgraph.node(edge.dst);
+                        if (dstNode.isScopeNode) {
+                            dstNode = dstNode.childGraphs[0].entryNode;
+                        }
+                        const dstConnector = dstNode.connector("IN", edge.dstConnector);
+                        neighbors[connectorMap.get(srcConnector)].push(connectorMap.get(dstConnector));
+                    });
+                    _.forEach(subgraph.levelGraph().nodes(),(levelNode: LevelNode) => {
+                        let nodes = nodesPerRank.get(levelNode.rank);
+                        if (nodes === undefined) {
+                            nodes = [];
+                            nodesPerRank.set(levelNode.rank, nodes);
+                        }
+                        if (!nodeMap.has(levelNode.layoutNode)) {
+                            return;
+                        }
+                        nodes.push(levelNode.layoutNode);
+                    });
+                });
+                const fieldVector = new Vector(0, 1);
+                const forces = new Map();
 
-            /**
-             * PLACE EDGES
-             * (self-loops handled above)
-             */
+                // set node border positions
+                const nodeBorders = new Map();
+                nodeMap.forEach((connectors: [Array<LayoutConnector>, Array<LayoutConnector>], node: LayoutNode) => {
+                    const nodeBorderLeft = node.x + node.connectorPadding;
+                    const nodeBorderRight = node.x + node.width - node.connectorPadding;
+                    nodeBorders.set(node, [nodeBorderLeft, nodeBorderRight]);
+                });
 
+                for (let iteration = 0; iteration < this._options.numIterations; ++iteration) {
+                    _.forEach(connectors, (connector: LayoutConnector, c: number) => {
+                        forces.set(connector, new Vector());
+                    });
+                    _.forEach(connectors, (connector: LayoutConnector, c: number) => {
+                        _.forEach(neighbors[c], (neighborC: number) => {
+                            // spring force
+                            const edgeVector = edgeDistanceVector(connector, connectors[neighborC]);
+                            const strength = Math.log(edgeVector.length() / this._options.targetEdgeLength);
+                            const springForce = edgeVector.clone().normalize().multiplyScalar(strength * this._options.weightSpring);
+                            /*if (iteration === this._options.numIterations - 1) {
+                                console.log("spring force on " + connectors[c].name + " induced by " + connectors[neighborC].name, springForce);
+                                console.log("spring force on " + connectors[neighborC].name + " induced by " + connectors[c].name, springForce.clone().invert());
+                            }*/
+                            forces.get(connectors[c]).add(springForce);
+                            forces.get(connectors[neighborC]).add(springForce.clone().invert());
+                            // magnetic force
+                            if (edgeVector.x === 0 && edgeVector.y > 0) {
+                                return;
+                            }
+                            let magneticDirection = new Vector(1 / edgeVector.x, 1 / edgeVector.y);
+                            if (edgeVector.y < 0) {
+                                magneticDirection.y *= -1;
+                            } else {
+                                magneticDirection.x *= -1;
+                            }
+                            if (edgeVector.x === 0) {
+                                magneticDirection = fieldVector.clone();
+                            }
+                            const angleFactor = Math.pow(edgeVector.absoluteAngleTo(fieldVector), this._options.angleExponent);
+                            const distanceFactor = Math.pow(edgeVector.length(), this._options.distanceExponent);
+                            const magneticForce = magneticDirection.clone().multiplyScalar(this._options.magneticStrength * angleFactor * distanceFactor * this._options.weightMagnetic);
+                            /*if (iteration === this._options.numIterations - 1) {
+                                console.log("magnetic force on " + connectors[neighborC].name + " induced by " + connectors[c].name, magneticForce);
+                                console.log("magnetic force on " + connectors[c].name + " induced by " + connectors[neighborC].name, magneticForce.clone().invert());
+                            }*/
+                            forces.get(connectors[neighborC]).add(magneticForce);
+                            forces.get(connectors[c]).add(magneticForce.clone().invert());
+                        });
+                    });
+                    nodeMap.forEach((connectors: [Array<LayoutConnector>, Array<LayoutConnector>], node: LayoutNode) => {
+                        for (let type = 0; type < 2; ++type) {
+                            //inPlaceSort(connectors[type]).asc(c => c.x);
+                            for (let i = 0; i < connectors[type].length; ++i) {
+                                const connectorI = connectors[type][i];
+                                for (let j = i + 1; j < connectors[type].length; ++j) {
+                                    const connectorJ = connectors[type][j];
+                                    let edgeVectorX = Math.max(Math.abs((connectorI.x + connectorI.width / 2) - (connectorJ.x + connectorJ.width / 2)) - connectorI.width / 2 - connectorJ.width / 2, 0.01);
+                                    if (connectorI.x > connectorJ.x) {
+                                        edgeVectorX *= -1;
+                                    }
+                                    const edgeVector = new Vector(edgeVectorX, 0);
+                                    const length = edgeVector.length();
+                                    const relativeLength = 2 * length / CONNECTOR_SPACING;
+                                    const strength = 1 / (relativeLength * relativeLength);
+                                    const repulsiveForce = edgeVector.clone().normalize().multiplyScalar(strength * this._options.weightRepulsive);
+                                    if (repulsiveForce.length() > CONNECTOR_SPACING / 2) {
+                                        repulsiveForce.setLength(CONNECTOR_SPACING / 2);
+                                    }
+                                    /*if (iteration === this._options.numIterations - 1) {
+                                        console.log("repulsive force on " + connectorJ.name + " induced by " + connectorI.name, repulsiveForce);
+                                        console.log("repulsive force on " + connectorI.name + " induced by " + connectorJ.name, repulsiveForce.clone().invert());
+                                    }*/
+                                    repulsiveForce.multiplyScalar(iteration / this._options.numIterations);
+                                    //if (iteration > this._options.numIterations / 2) {
+                                        forces.get(connectorJ).add(repulsiveForce);
+                                        forces.get(connectorI).add(repulsiveForce.clone().invert());
+                                    //}
+                                }
+                            }
+                        }
+                    });
+                    // node walls
+                    nodeMap.forEach((connectors: [Array<LayoutConnector>, Array<LayoutConnector>], node: LayoutNode) => {
+                        for (let i = 0; i < 2; ++i) {
+                            _.forEach(connectors[i], (connector: LayoutConnector) => {
+                                const [nodeBorderLeft, nodeBorderRight] = nodeBorders.get(node);
+                                const connectorLeft = connector.x;
+                                const lengthLeft = connectorLeft - nodeBorderLeft;
+                                const strengthLeft = 1 / (lengthLeft * lengthLeft);
+                                let forceLeft = strengthLeft * this._options.weightRepulsive;
+                                if ((forceLeft > CONNECTOR_SPACING) || (connectorLeft < nodeBorderLeft)) {
+                                    forceLeft = CONNECTOR_SPACING;
+                                }
+                                forces.get(connector).add(new Vector(forceLeft, 0));
+                                /*if (iteration === this._options.numIterations - 1) {
+                                    console.log("left wall force on " + connector.name, forceLeft, connectorLeft, nodeBorderLeft);
+                                }*/
+                                const connectorRight = connector.x + connector.width;
+                                const lengthRight = nodeBorderRight - connectorRight;
+                                const strengthRight = 1 / (lengthRight * lengthRight);
+                                let forceRight = strengthRight * this._options.weightRepulsive;
+                                if ((forceRight > CONNECTOR_SPACING) || (connectorRight > nodeBorderRight)) {
+                                    forceRight = CONNECTOR_SPACING;
+                                }
+                                forces.get(connector).add(new Vector(-forceRight, 0));
+                                /*if (iteration === this._options.numIterations - 1) {
+                                    console.log("right wall force on " + connector.name, -forceRight);
+                                }*/
+                            });
+                        }
+                    });
+                    nodesPerRank.forEach((nodes: Array<LayoutNode>) => {
+                        for (let i = 0; i < nodes.length; ++i) {
+                            const nodeI = nodes[i];
+                            for (let j = i + 1; j < nodes.length; ++j) {
+                                const nodeJ = nodes[j];
+                                let edgeVectorX = Math.max(Math.abs((nodeI.x + nodeI.width / 2) - (nodeJ.x + nodeJ.width / 2)) - nodeI.width / 2 - nodeJ.width / 2, 1);
+                                if (nodeI.x > nodeJ.x) {
+                                    edgeVectorX *= -1;
+                                }
+                                const edgeVector = new Vector(edgeVectorX, 0);
+                                const length = edgeVector.length();
+                                const relativeLength = 2 * length / this._options.targetEdgeLength;
+                                const strength = 1 / (relativeLength * relativeLength);
+                                const repulsiveForce = edgeVector.clone().normalize().multiplyScalar(strength * this._options.weightRepulsiveNode);
+                                if (repulsiveForce.length() > this._options.targetEdgeLength / 2) {
+                                    repulsiveForce.setLength(this._options.targetEdgeLength / 2);
+                                }
+                                repulsiveForce.multiplyScalar(iteration / this._options.numIterations);
+                                //if (iteration > this._options.numIterations / 2) {
+                                    for (let type = 0; type < 2; ++type) {
+                                        _.forEach(nodeMap.get(nodeJ)[type], (connector: LayoutConnector) => {
+                                            forces.get(connector).add(repulsiveForce);
+                                            //console.log("node repulsive force on " + connector.name + " induced by " + nodeI.label(), repulsiveForce);
+                                        });
+                                        _.forEach(nodeMap.get(nodeI)[type], (connector: LayoutConnector) => {
+                                            forces.get(connector).add(repulsiveForce.clone().invert());
+                                            //console.log("node repulsive force on " + connector.name + " induced by " + nodeJ.label(), repulsiveForce.clone().invert());
+                                        });
+                                    }
+                                //}
+                            }
+                        }
+                    });
+                    let maxOffset = 0;
+                    _.forEach(connectors, (connector: LayoutConnector) => {
+                        const offset = forces.get(connector).clone().multiplyScalar(this._options.stepSize);
+                        maxOffset = Math.max(maxOffset, Math.abs(offset.x));
+                        offset.multiplyScalar(Math.pow(this._options.decay, iteration))
+                        /*if (iteration === this._options.numIterations - 1) {
+                            console.log("force on " + connector.name, offset);
+                        }*/
+                        connector.translate(offset.x, 0);
+                    });
+
+                    // enforce scoped connectors being below each other
+                    _.forEach(connectors, (connector: LayoutConnector) => {
+                        if (connector.isScoped && connector.type === "IN") {
+                            const mean = (connector.x + connector.counterpart.x) / 2;
+                            connector.x = mean;
+                            connector.counterpart.x = mean;
+                        }
+                    });
+
+                    // move nodes
+                    nodeMap.forEach((connectors: [Array<LayoutConnector>, Array<LayoutConnector>], node: LayoutNode) => {
+                        let sum = 0;
+                        let num = 0;
+                        for (let i = 0; i < 2; ++i) {
+                            _.forEach(connectors[i], (connector: LayoutConnector) => {
+                                sum += connector.x + connector.width / 2;
+                                num++;
+                            });
+                        }
+                        const mean = sum / num;
+                        const newX = mean - (node.width / 2);
+                        if (node.childGraphs.length > 0 && !node.isScopeNode) {
+                            node.updatePosition(new Vector(newX, node.y));
+                        } else {
+                            node.x = newX;
+                        }
+                        const nodeBorderLeft = node.x + node.connectorPadding;
+                        const nodeBorderRight = node.x + node.width - node.connectorPadding;
+                        nodeBorders.set(node, [nodeBorderLeft, nodeBorderRight]);
+                    });
+
+                    if (maxOffset < EPSILON) {
+                        console.log("reached equilibrium after " + (iteration + 1) + " iterations", subgraph.numNodes());
+                        break;
+                    }
+                }
+
+                // place scoped connectors
+                _.forEach(connectors, (connector: LayoutConnector) => {
+                    if (connector.isScoped) {
+                        //connector.counterpart.x = connector.x;
+                    }
+                });
+
+                // move leftmost node to x = offset
+                let minX = Number.POSITIVE_INFINITY;
+                nodeMap.forEach((connectors: [Array<LayoutConnector>, Array<LayoutConnector>], node: LayoutNode) => {
+                    minX = Math.min(minX, node.x);
+                });
+                if (minX !== Number.POSITIVE_INFINITY) {
+                    const diff = offset - minX;
+                    _.forEach(subgraph.nodes(), (node: LayoutNode) => {
+                        node.translate(diff, 0);
+                    });
+                }
+
+                _.forEachRight(subgraphs, (subgraph: LayoutGraph) => {
+                    // place self-loops
+                    _.forEach(subgraph.nodes(), (node: LayoutNode) => {
+                        if (node.selfLoop !== null) {
+                            node.selfLoop.points = [
+                                new Vector(node.x + node.width + node.padding - this._options["targetEdgeLength"], node.y + node.height - 10),
+                                new Vector(node.x + node.width + node.padding, node.y + node.height - 10),
+                                new Vector(node.x + node.width + node.padding, node.y + 10),
+                                new Vector(node.x + node.width + node.padding - this._options["targetEdgeLength"], node.y + 10),
+                            ];
+                        }
+                    });
+
+                    // set parent bounding box on last component
+                    const parent = subgraph.parentNode;
+                    if (parent !== null && subgraph === _.last(parent.childGraphs)) {
+                        let width = 0;
+                        let boundingBox;
+                        _.forEach(parent.childGraphs, (childGraph: LayoutGraph, i: number) => {
+                            boundingBox = childGraph.boundingBox(false);
+                            width += boundingBox.width + this._options["targetEdgeLength"];
+                            if (i === 0) {
+                                parent.x = boundingBox.x - parent.padding;
+                            }
+                        });
+                        width += 2 * parent.padding - this._options["targetEdgeLength"];
+                        if (parent.selfLoop !== null) {
+                            width += this._options["targetEdgeLength"];
+                        }
+                        parent.updateSize({width: width, height: 0});
+                        /*if (parent.isScopeNode) {
+                            const left = boundingBox.x;
+                            subgraph.entryNode.setWidth(boundingBox.width);
+                            subgraph.entryNode.setPosition(new Vector(left, subgraph.entryNode.y));
+                            subgraph.exitNode.setWidth(boundingBox.width);
+                            subgraph.exitNode.setPosition(new Vector(left, subgraph.exitNode.y));
+                        }*/
+                    }
+                });
+
+            }
+        };
+        assignXCoordinatesSubgraph(graph);
+    }
+
+    private async _placeEdges(graph: LayoutGraph, rankTops: Array<number>, rankBottoms: Array<number>): Promise<void> {
+        _.forEach(graph.allGraphs(), (subgraph: LayoutGraph) => {
             const getInPoint = (node: LayoutNode, edge: LayoutEdge): Vector => {
                 node = (node.isScopeNode ? node.childGraphs[0].entryNode : node);
                 const dstConnector = node.connector("IN", edge.dstConnector);
@@ -1025,9 +1330,7 @@ export default class SugiyamaLayouter extends Layouter {
                 return proxyPoint;
             };
 
-            Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges"]);
             // mark nodes that do not need proxies
-            Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges", "markNoProxies"]);
             const noInProxyNodes = new Set();
             const noOutProxyNodes = new Set();
             _.forEach(subgraph.levelGraph().ranks(), (rank: Array<LevelNode>) => {
@@ -1081,7 +1384,6 @@ export default class SugiyamaLayouter extends Layouter {
                     }
                 });
             });
-            Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges", "markNoProxies"]);
 
             _.forEach(subgraph.edges(), (edge: LayoutEdge) => {
                 if (edge.isReplica) {
@@ -1159,7 +1461,6 @@ export default class SugiyamaLayouter extends Layouter {
                 }
             });
 
-            Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges", "removeVirtual"]);
             _.forEach(_.clone(subgraph.nodes()), (node: LayoutNode) => {
                 // remove virtual nodes and edges
                 if (node.isVirtual) {
@@ -1177,279 +1478,7 @@ export default class SugiyamaLayouter extends Layouter {
                     node.setWidth(node.width - this._options["targetEdgeLength"]);
                 }
             });
-            Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges", "removeVirtual"]);
-
-            Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges"]);
-
-            // mark crossings for later angle optimization
-            if (this._options["optimizeAngles"]) {
-                this._markCrossings(subgraph, segmentsPerRank, crossingsPerRank, rankTops, rankBottoms);
-            }
-
-            Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph"]);
-        }
-
-        await placeSubgraph(graph, 0);
-    }
-
-    private async _assignX(subgraph: LayoutGraph, offset = 0) {
-        Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX"]);
-        Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian"]);
-        const levelGraph = subgraph.levelGraph();
-        levelGraph.invalidateRankOrder();
-        const ranks = levelGraph.ranks();
-
-        let xAssignments: Array<Array<number>>;
-        if (this._options["webWorkers"] && levelGraph.numNodes() > 10000) {
-            let numNodesPerRank, levelNodes, levelEdges;
-            if (typeof(SharedArrayBuffer) !== "undefined") {
-                const numNodesPerRankSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * ranks.length);
-                numNodesPerRank = new Int32Array(numNodesPerRankSab);
-                const levelNodesSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 4 * levelGraph.numNodes());
-                levelNodes = new Int32Array(levelNodesSab);
-                const levelEdgesSab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 3 * levelGraph.numEdges());
-                levelEdges = new Int32Array(levelEdgesSab);
-            } else {
-                numNodesPerRank = new Array(ranks.length);
-                levelNodes = new Array(levelGraph.numNodes());
-                levelEdges = new Array(levelGraph.numEdges());
-            }
-            let n = 0;
-            _.forEach(ranks, (rank: Array<LevelNode>, r: number) => {
-                numNodesPerRank[r] = rank.length;
-                _.forEach(rank, (node: LevelNode) => {
-                    levelNodes[n++] = node.id;
-                    levelNodes[n++] = node.layoutNode.width;
-                    levelNodes[n++] = node.isFirst;
-                    levelNodes[n++] = node.isLast;
-                });
-            });
-            let e = 0;
-            _.forEach(levelGraph.edges(), (edge: Edge<any, any>) => {
-                levelEdges[e++] = edge.src;
-                levelEdges[e++] = edge.dst;
-                levelEdges[e++] = edge.weight;
-            });
-
-            xAssignments = await Promise.all([
-                this._pool.exec("alignMedian", [ranks.length, numNodesPerRank, levelNodes, levelGraph.numEdges(), levelEdges, "UP", "LEFT", this._options["targetEdgeLength"]]),
-                this._pool.exec("alignMedian", [ranks.length, numNodesPerRank, levelNodes, levelGraph.numEdges(), levelEdges, "UP", "RIGHT", this._options["targetEdgeLength"]]),
-                this._pool.exec("alignMedian", [ranks.length, numNodesPerRank, levelNodes, levelGraph.numEdges(), levelEdges, "DOWN", "LEFT", this._options["targetEdgeLength"]]),
-                this._pool.exec("alignMedian", [ranks.length, numNodesPerRank, levelNodes, levelGraph.numEdges(), levelEdges, "DOWN", "RIGHT", this._options["targetEdgeLength"]]),
-            ]);
-        } else {
-            xAssignments = ([
-                this._alignMedian(levelGraph, "UP", "LEFT"),
-                this._alignMedian(levelGraph, "UP", "RIGHT"),
-                this._alignMedian(levelGraph, "DOWN", "LEFT"),
-                this._alignMedian(levelGraph, "DOWN", "RIGHT"),
-            ]);
-        }
-
-        Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian"]);
-
-        // align left-most and right-most nodes
-        Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "merge"]);
-        let minMaxX = Number.POSITIVE_INFINITY;
-        _.forEach(xAssignments, (xAssignment: Array<number>) => {
-            minMaxX = Math.min(minMaxX, _.max(xAssignment));
         });
-        _.forEach([1, 3], (i: number) => {
-            const xAssignment = xAssignments[i];
-            const maxX = _.max(xAssignment);
-            if (maxX === minMaxX) {
-                return; // no need to adjust this graph
-            }
-            const diff = minMaxX - maxX;
-            for (let i = 0; i < xAssignment.length; ++i) {
-                xAssignment[i] += diff;
-            }
-        });
-
-        let minX = Number.POSITIVE_INFINITY;
-        _.forEach(levelGraph.nodes(), (node: LevelNode) => {
-            if (node.isFirst) {
-                const xs = _.map(xAssignments, xAssignment => xAssignment[node.id]);
-                inPlaceSort(xs).asc();
-                let x = (xs[1] + xs[2]) / 2;
-                //x = xs[0]; // comment sort and uncomment this line to see 1 of the 4 merged layouts
-                x -= node.layoutNode.width / 2;
-                minX = Math.min(minX, x);
-                node.x = offset + x;
-            }
-        });
-        const diff = 0 - minX;
-        _.forEach(levelGraph.nodes(), (node: LevelNode) => {
-            if (node.isFirst) {
-                node.x += diff;
-                node.layoutNode.updatePosition(new Vector(node.x, node.layoutNode.y));
-            }
-        });
-        Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "merge"]);
-
-        Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX"]);
-    }
-
-    private _alignMedian(levelGraph: LevelGraph, neighbors: "UP" | "DOWN", preference: "LEFT" | "RIGHT"): Array<number> {
-        const ranks = levelGraph.ranks();
-        const firstRank = (neighbors === "UP" ? 1 : (ranks.length - 2));
-        const lastRank = (neighbors === "UP" ? (ranks.length - 1) : 0);
-        const verticalDir = (neighbors === "UP" ? 1 : -1);
-        const neighborOutMethod = (neighbors === "UP" ? "outEdges" : "inEdges");
-        const neighborInMethod = (neighbors === "UP" ? "inEdges" : "outEdges");
-        const numNeighborInMethod = (neighbors === "UP" ? "numInEdges" : "numOutEdges");
-        const neighborEdgeInAttr = (neighbors === "UP" ? "dst" : "src");
-
-        const blockPerNode = new Array(levelGraph.maxId() + 1);
-        const nodesPerBlock = new Array(levelGraph.maxId() + 1);
-        const blockWidths = new Array(levelGraph.maxId() + 1);
-        const blockGraph = new RankGraph();
-        const auxBlockGraph = new Graph();
-
-        const r = firstRank - verticalDir;
-        let blockId = 0;
-        for (let n = 0; n < ranks[r].length; ++n) {
-            blockGraph.addNode(new RankNode(blockId.toString()));
-            auxBlockGraph.addNode(new Node(blockId.toString()), blockId);
-            blockPerNode[ranks[r][n].id] = blockId;
-            nodesPerBlock[blockId] = [ranks[r][n].id];
-            blockWidths[blockId] = ranks[r][n].layoutNode.width;
-            blockId++;
-        }
-        for (let n = 1; n < ranks[r].length; ++n) {
-            const edgeLength = (ranks[r][n - 1].layoutNode.width + ranks[r][n].width) / 2 + this._options["targetEdgeLength"];
-            blockGraph.addEdge(new Edge(blockPerNode[ranks[r][n - 1].id], blockPerNode[ranks[r][n].id], edgeLength));
-        }
-        for (let r = firstRank; r - verticalDir !== lastRank; r += verticalDir) {
-            // create sorted list of neighbors
-            const neighbors: Array<Array<number>> = new Array(ranks[r].length);
-            const neighborsUsable: Array<Array<boolean>> = new Array(ranks[r].length);
-            _.forEach(ranks[r], (node: LevelNode, n) => {
-                neighbors[n] = [];
-                neighborsUsable[n] = [];
-            });
-            _.forEach(ranks[r - verticalDir], (neighbor: LevelNode, n) => {
-                _.forEach(levelGraph[neighborOutMethod](neighbor.id), (edge: Edge<any, any>) => {
-                    const node = levelGraph.node(edge[neighborEdgeInAttr]);
-                    neighbors[node.position].push(n);
-                });
-            });
-            Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "markConflicts"]);
-
-            // mark segments that cross a heavy segment as non-usable
-            let heavyLeft = -1;
-            let n = 0;
-            for (let tmpN = 0; tmpN < ranks[r].length; ++tmpN) {
-                const hasHeavy = _.some(levelGraph[neighborInMethod](ranks[r][tmpN].id), edge => edge.weight === Number.POSITIVE_INFINITY);
-                if (tmpN === ranks[r].length - 1 || hasHeavy) {
-                    let heavyRight = ranks[r - verticalDir].length;
-                    if (hasHeavy) {
-                        heavyRight = neighbors[tmpN][0];
-                    }
-                    while (n <= tmpN) {
-                        _.forEach(neighbors[n], (neighborPos: number, neighborIndex: number) => {
-                            neighborsUsable[n][neighborIndex] = neighborPos >= heavyLeft && neighborPos <= heavyRight;
-                        });
-                        n++;
-                    }
-                    heavyLeft = heavyRight;
-                }
-            }
-            Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "markConflicts"]);
-
-            Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "findNeighbor"]);
-
-            let maxNeighborTaken = (preference === "LEFT" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
-            const compare = (preference === "LEFT" ? ((a, b) => a < b) : ((a, b) => a > b));
-            const nMin = (preference === "LEFT" ? 0 : ranks[r].length - 1);
-            const nMax = (preference === "LEFT" ? ranks[r].length - 1 : 0);
-            const horizontalDir = (preference === "LEFT" ? 1 : -1);
-            for (let n = nMin; n - horizontalDir !== nMax; n += horizontalDir) {
-                let neighbor = null;
-                if (neighbors[n].length > 0) {
-                    const leftMedian = Math.floor((neighbors[n].length - 1) / 2);
-                    const rightMedian = Math.floor((neighbors[n].length) / 2);
-                    const tryOrder = (preference === "LEFT" ? [leftMedian, rightMedian] : [rightMedian, leftMedian]);
-                    _.forEach(tryOrder, (neighborIndex: number) => {
-                        if (neighbor !== null) {
-                            return; // already found
-                        }
-                        if (neighborsUsable[n][neighborIndex] && compare(maxNeighborTaken, neighbors[n][neighborIndex])) {
-                            neighbor = ranks[r - verticalDir][neighbors[n][neighborIndex]];
-                            maxNeighborTaken = neighbors[n][neighborIndex];
-                        }
-                    });
-                }
-                if (neighbor === null) {
-                    blockGraph.addNode(new RankNode(blockId.toString()));
-                    auxBlockGraph.addNode(new Node(blockId.toString()), blockId);
-                    blockPerNode[ranks[r][n].id] = blockId;
-                    nodesPerBlock[blockId] = [ranks[r][n].id];
-                    blockWidths[blockId] = ranks[r][n].layoutNode.width;
-                    blockId++;
-                } else {
-                    const blockId = blockPerNode[neighbor.id];
-                    blockPerNode[ranks[r][n].id] = blockId;
-                    nodesPerBlock[blockId].push(ranks[r][n].id);
-                    blockWidths[blockId] = Math.max(blockWidths[blockId], ranks[r][n].layoutNode.width);
-                }
-            }
-            for (let n = 1; n < ranks[r].length; ++n) {
-                const edgeLength = (ranks[r][n - 1].layoutNode.width + ranks[r][n].layoutNode.width) / 2 + this._options["targetEdgeLength"];
-                blockGraph.addEdge(new Edge(blockPerNode[ranks[r][n - 1].id], blockPerNode[ranks[r][n].id], edgeLength));
-            }
-            Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "findNeighbor"]);
-        }
-
-        const xAssignment = new Array(levelGraph.maxId() + 1);
-
-        // compact
-        Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "rank"]);
-        blockGraph.rank();
-        _.forEach(levelGraph.nodes(), (node: LevelNode) => {
-            xAssignment[node.id] = blockGraph.node(blockPerNode[node.id]).rank;
-        });
-        Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "rank"]);
-
-        // move blocks that are only connected on the right side as far right as possible
-        Timer.start(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "moveRight"]);
-
-        _.forEach(levelGraph.edges(), edge => {
-            if (blockPerNode[edge.src] !== blockPerNode[edge.dst]) {
-                auxBlockGraph.addEdge(new Edge(blockPerNode[edge.src], blockPerNode[edge.dst]));
-            }
-        });
-        _.forEach(auxBlockGraph.nodes(), block => {
-            const blockId = block.id;
-            const nodeX = xAssignment[nodesPerBlock[blockId][0]] + blockWidths[blockId] / 2;
-            let hasLeftEdge = false;
-            let hasRightEdge = false;
-            _.forEach(auxBlockGraph.neighbors(blockId), neighbor => {
-                const neighborX = xAssignment[nodesPerBlock[neighbor.id][0]] - blockWidths[neighbor.id] / 2;
-                if (nodeX < neighborX) {
-                    hasRightEdge = true;
-                } else {
-                    hasLeftEdge = true;
-                }
-            });
-            if (hasRightEdge && !hasLeftEdge) {
-                // figure how much the block can be moved
-                let minRightEdgeLength = Number.POSITIVE_INFINITY;
-                _.forEach(blockGraph.outEdges(blockId), outEdge => {
-                    const neighborX = xAssignment[nodesPerBlock[outEdge.dst][0]] - blockWidths[outEdge.dst] / 2;
-                    minRightEdgeLength = Math.min(minRightEdgeLength, neighborX - nodeX);
-                });
-                // move it
-                if (minRightEdgeLength > this._options["targetEdgeLength"]) {
-                    const offset = minRightEdgeLength - this._options["targetEdgeLength"];
-                    _.forEach(nodesPerBlock[blockId], nodeId => {
-                        xAssignment[nodeId] += offset;
-                    });
-                }
-            }
-        });
-        Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "moveRight"]);
-        return xAssignment;
     }
 
     private _restoreCycles(graph: LayoutGraph): void {

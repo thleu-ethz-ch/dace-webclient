@@ -195,7 +195,7 @@ export default class LayoutGraph extends Graph<LayoutNode, LayoutEdge> {
             graphCopy.minRank = subgraph.minRank;
             graphCopy.numRanks = subgraph.numRanks;
             _.forEach(subgraph.nodes(), node => {
-                const nodeCopy = new LayoutNode(node.size(), node.padding, node.isVirtual, node.isBundle, false);
+                const nodeCopy = new LayoutNode(node.size(), node.padding, node.connectorPadding, node.isVirtual, node.isBundle, false);
                 nodeCopy.rank = node.rank;
                 nodeCopy.rankSpan = node.rankSpan
                 nodeCopy.isScopeNode = node.isScopeNode;

@@ -14,6 +14,8 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>> {
     public order: Array<number> = [];
     public position: number = 0;
     public rank: OrderRank;
+    public x: number;
+    public y: number;
     public index: number = 0; // the index within the rank, used as an id, other than position this does not change
 
     constructor(reference: any, label: string = null) {
@@ -37,7 +39,16 @@ export default class OrderGroup extends Node<Graph<any, any>, Edge<any, any>> {
         const nodes = _.map(this.nodes, (node: OrderNode, n: number) => {
             return [n, node.position];
         });
-        this.order = _.map(inPlaceSort(nodes).asc(node => node[1]), "0");
+        inPlaceSort(nodes).asc(node => node[1]);
+        this.order = _.map(nodes, "0");
+    }
+
+    orderNodesByX(): void {
+        const nodes = _.map(this.nodes, (node: OrderNode, n: number) => {
+            return [n, node.x];
+        });
+        inPlaceSort(nodes).asc(node => node[1]);
+        this.order = _.map(nodes, "0");
     }
 
     orderedNodes(): Array<OrderNode> {

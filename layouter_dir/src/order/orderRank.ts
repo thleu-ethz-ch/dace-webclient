@@ -25,6 +25,14 @@ export default class OrderRank extends Node<any, any>
         this.order = _.map(groups, "0");
     }
 
+    orderGroupsByX(): void {
+        const groups = _.map(this.groups, (group: OrderGroup, n: number) => {
+            return [n, group.x];
+        });
+        inPlaceSort(groups).asc(group => group[1])
+        this.order = _.map(groups, "0");
+    }
+
     orderedGroups(): Array<OrderGroup> {
         const groups = [];
         if (this.order.length !== this.groups.length) {

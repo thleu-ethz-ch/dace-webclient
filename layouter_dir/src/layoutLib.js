@@ -29,6 +29,7 @@ module.exports = {
         DagreLayouter: require('./layouter/dagreLayouter').default,
         MagneticSpringLayouter: require('./layouter/magneticSpringLayouter').default,
         SugiyamaLayouter: require('./layouter/sugiyamaLayouter').default,
+        HybridLayouter: require('./layouter/hybridLayouter').default,
     },
     util: {
         WorkerPool: require('./util/workerPool').default,

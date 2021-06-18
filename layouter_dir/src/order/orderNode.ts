@@ -7,6 +7,8 @@ export default class OrderNode extends Node<any, any>
     public group: OrderGroup;
     public position: number = 0;
     public rank: number = 0;
+    public x: number;
+    public y: number;
     public readonly isVirtual: boolean;
     public readonly isIntranode: boolean;
 
