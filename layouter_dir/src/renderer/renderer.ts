@@ -30,6 +30,10 @@ import Timer from "../util/timer";
 import UpwardTrapezoid from "../shapes/upwardTrapezoid";
 import Vector from "../geometry/vector";
 import LayoutGraph from "../layoutGraph/layoutGraph";
+import SdfgState from "../renderGraph/sdfgState";
+import InterstateEdge from "../renderGraph/interstateEdge";
+import MapExit from "../renderGraph/mapExit";
+import MapEntry from "../renderGraph/mapEntry";
 
 export default class Renderer {
     private readonly _app;
@@ -112,6 +116,18 @@ export default class Renderer {
 
                 Timer.printTimes();
 
+                this.render(graph);
+            });
+        });
+    }
+
+    showDag(layouter: Layouter, name: string): void {
+        Loader.loadDag(name).then((graph: RenderGraph) => {
+            // set node sizes
+            _.forEach(graph.allNodes(), (node: RenderNode) => {
+                node.updateSize(this._labelSize(node));
+            });
+            layouter.layout(graph).then((layout: LayoutGraph) => {
                 this.render(graph);
             });
         });
@@ -235,7 +251,7 @@ export default class Renderer {
                 y += groupNode.childPadding;
                 let groupHeight = 0;
                 _.forEach(group.nodes, (nodeObj: any) => {
-                    const node = new GenericNode("GenericNode", nodeObj.label.toString() || "", nodeObj.isVirtual ? 0xCCCCCC : 0x000000); // might use nodeObj.id.toString() instead of nodeObj.label
+                    const node = new GenericNode("GenericNode", nodeObj.label.toString() || "", nodeObj.isVirtual ? Color.fromNumber(0xCCCCCC) : Color.BLACK); // might use nodeObj.id.toString() instead of nodeObj.label
                     groupGraph.addNode(node, parseInt(nodeObj.id));
                     nodeMap.set(node.id, node);
                     node.x = x;
@@ -355,7 +371,7 @@ export default class Renderer {
         switch (node.type()) {
             case "AccessNode":
             case "GenericNode":
-                shapes.push(new Ellipse(node, node.x, node.y, node.width, node.height, 0xFFFFFF, node.color || 0x000000));
+                shapes.push(new Ellipse(node, node.x, node.y, node.width, node.height, Color.WHITE, node.color || Color.BLACK));
                 shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
                 break;
             case "LibraryNode":
@@ -396,13 +412,20 @@ export default class Renderer {
         }
 
         // add connector shapes
+        const backgroundColorUnscoped = Color.fromNumber(0xf0fdff);
+        const backgroundColorScoped = Color.fromNumber(0xc1dfe6).fade(0.56);
+        const borderColorUnscoped = Color.BLACK;
+        const borderColorScoped = Color.BLACK.fade(0.56);
         _.forEach(node.inConnectors, (connector: RenderConnector) => {
-            shapes.push(new Ellipse(connector, connector.x, connector.y, connector.width, connector.height));
+            const backgroundColor = (connector.name.startsWith('IN_') ? backgroundColorScoped : backgroundColorUnscoped);
+            const borderColor = (connector.name.startsWith('IN_') ? borderColorScoped : borderColorUnscoped);
+            shapes.push(new Ellipse(connector, connector.x, connector.y, connector.width, connector.height, backgroundColor, borderColor));
         });
         _.forEach(node.outConnectors, (connector: RenderConnector) => {
-            shapes.push(new Ellipse(connector, connector.x, connector.y, connector.width, connector.height));
+            const backgroundColor = (connector.name.startsWith('OUT_') ? backgroundColorScoped : backgroundColorUnscoped);
+            const borderColor = (connector.name.startsWith('OUT_') ? borderColorScoped : borderColorUnscoped);
+            shapes.push(new Ellipse(connector, connector.x, connector.y, connector.width, connector.height, backgroundColor, borderColor));
         });
-
         return shapes;
     }
 

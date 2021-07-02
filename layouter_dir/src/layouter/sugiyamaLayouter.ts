@@ -27,6 +27,13 @@ import Timer from "../util/timer";
 import Vector from "../geometry/vector";
 
 export default class SugiyamaLayouter extends Layouter {
+    constructor(options: object = {}) {
+        super();
+        this._options = _.defaults(options, this._options, {
+            compactRanks: true,
+        });
+    }
+
     protected async doLayout(graph: LayoutGraph): Promise<void> {
         if (graph.numNodes() === 0) {
             return;
@@ -121,36 +128,68 @@ export default class SugiyamaLayouter extends Layouter {
 
             const rankGraph = new RankGraph();
             _.forEach(subgraph.nodes(), node => {
-                rankGraph.addNode(new RankNode(/*node.label()*/), node.id);
+                rankGraph.addNode(new RankNode(node.label()), node.id);
             });
             _.forEach(subgraph.edges(), edge => {
                 rankGraph.addEdge(new Edge(edge.src, edge.dst, subgraph.node(edge.src).rankSpan));
             });
             rankGraph.rank();
 
+            /*rankGraph.node(0).rank = 1;
+            rankGraph.node(1).rank = 2;
+            rankGraph.node(2).rank = 2;
+            rankGraph.node(3).rank = 0;
+            rankGraph.node(4).rank = 1;*/
+
             _.forEach(subgraph.nodes(), node => {
                 node.rank = rankGraph.node(node.id).rank;
                 subgraph.numRanks = Math.max(subgraph.numRanks, node.rank + node.rankSpan);
             });
 
-            if (subgraph.parentNode !== null) {
+            if (subgraph.parentNode !== null && this._options.compactRanks) {
                 subgraph.parentNode.rankSpan = Math.max(subgraph.parentNode.rankSpan, subgraph.numRanks);
             }
         };
         assignRanksForSubgraph(graph);
 
         // transform ranking from local to global
-        const makeRanksAbsolute = (subgraph: LayoutGraph, offset: number) => {
+        const makeRanksAbsoluteCompact = (subgraph: LayoutGraph, offset: number) => {
             subgraph.minRank = offset;
             _.forEach(subgraph.nodes(), (node: LayoutNode) => {
                 _.forEach(node.childGraphs, (childGraph: LayoutGraph) => {
-                    makeRanksAbsolute(childGraph, offset + node.rank);
+                    makeRanksAbsoluteCompact(childGraph, offset + node.rank);
                 });
                 node.rank += offset;
                 subgraph.numRanks = Math.max(subgraph.numRanks, node.rank + node.rankSpan - subgraph.minRank);
             });
         }
-        makeRanksAbsolute(graph, 0);
+        const makeRanksAbsolute = (subgraph: LayoutGraph, offset: number) => {
+            subgraph.minRank = offset;
+            let newRanks = 0;
+            //const ranks = new Array(subgraph.numRanks)
+            _.forEach(subgraph.levelGraph().ranks(), (rank: Array<LevelNode>) => {
+                let maxChild = 1;
+                _.forEach(rank, (levelNode: LevelNode) => {
+                    const node = levelNode.layoutNode;
+                    node.rank += newRanks;
+                    _.forEach(node.childGraphs, (childGraph: LayoutGraph) => {
+                        makeRanksAbsolute(childGraph, offset + node.rank);
+                        node.rankSpan = Math.max(node.rankSpan, childGraph.numRanks);
+                        maxChild = Math.max(maxChild, node.rankSpan);
+                    });
+                    node.rank += offset;
+                    subgraph.numRanks = Math.max(subgraph.numRanks, node.rank + node.rankSpan - subgraph.minRank);
+                });
+                newRanks += maxChild - 1;
+            });
+            subgraph.setLevelGraph(null); // reset level graph
+        }
+
+        if (this._options.compactRanks) {
+            makeRanksAbsoluteCompact(graph, 0);
+        } else {
+            makeRanksAbsolute(graph, 0);
+        }
     }
 
     private _addVirtualNodes(graph: LayoutGraph, addToLevelGraph: boolean = false): void {

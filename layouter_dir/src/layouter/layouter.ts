@@ -34,7 +34,7 @@ export default abstract class Layouter {
             preorderConnectors: true,
             webAssembly: false,
             webWorkers: false,
-            maxWorkers: navigator.hardwareConcurrency - 2,
+            maxWorkers: (typeof(navigator) !== "undefined" ? (navigator.hardwareConcurrency - 2) : 0),
         });
         if (this._options["webWorkers"]) {
             this._pool = new WorkerPool("worker/worker.js", Math.min(Math.max(this._options["numShuffles"], 4), this._options["maxWorkers"]));

@@ -161,6 +161,10 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         return this._nodes.length - 1;
     }
 
+    maxEdgeId(): number {
+        return this._edges.length - 1;
+    }
+
     numEdges(): number {
         this._updateEdgesDense();
         return this._edgesDense.length;
@@ -257,24 +261,22 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
 
     removeCycles(): Array<EdgeT> {
         const invertedEdges = [];
-        const remainingNodes = new Set();
         const predecessors = new Array(this._nodes.length);
         const queue = [];
+        const visited = _.fill(new Array(this.maxId() + 1), false);
         let queuePointer = 0;
         _.forEach(this.nodes(), (node: NodeT) => {
             const numInEdges = this.inEdges(node.id).length;
             predecessors[node.id] = numInEdges;
             if (numInEdges === 0) {
                 queue.push(node);
-            } else {
-                remainingNodes.add(node.id);
             }
         });
-        while (remainingNodes.size > 0) {
+        _.forEach(this.nodes(), (nextNode: NodeT) => {
             // toposort
             while (queuePointer < queue.length) {
                 const node = queue[queuePointer++];
-                remainingNodes.delete(node.id);
+                visited[node.id] = true;
                 _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
                     predecessors[edge.dst]--;
                     if (predecessors[edge.dst] === 0) {
@@ -284,21 +286,17 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
             }
 
             // no nodes without in-edges => either finished or halting before cycle
-
-            if (remainingNodes.size > 0) {
-                const nextNodeId = remainingNodes.values().next().value;
-                const nextNode = this.node(nextNodeId); // first remaining node
+            if (!visited[nextNode.id]) {
                 _.forEach(this.inEdges(nextNode.id), (inEdge: EdgeT) => {
-                    if (remainingNodes.has(inEdge.src)) {
+                    if (!visited[inEdge.src]) {
                         predecessors[inEdge.src]++;
                         this.invertEdge(inEdge.id);
                         invertedEdges.push(this._edges[inEdge.id]);
                     }
                 });
-                remainingNodes.delete(nextNode.id);
                 queue.push(nextNode);
             }
-        }
+        });
 
         return invertedEdges;
     }

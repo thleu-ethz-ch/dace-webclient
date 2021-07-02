@@ -13,62 +13,61 @@ export default class RankGraph extends Graph<RankNode, Edge<any, any>> {
             Assert.assert(!this.hasCycle(), "rank graph has cycle");
         }
 
-        // do toposort and allocate each node with one of its ancestor sources
-        const rankPerNode: Array<Map<number, number>> = new Array(this.maxId() + 1);
-        for (let n = 0; n < rankPerNode.length; ++n) {
-            rankPerNode[n] = new Map();
-        }
         const sources = this.sources();
-        let s = 0;
         let source = sources[0];
-        const unrankedNeighbors = new Set();
-        while (s < sources.length) {
-            let minDiff = (s === 0 ? 0 : Number.POSITIVE_INFINITY);
+        const upwardBorderEdgesQueue = [];  
+        let upwardBorderEdgesQueuePointer = 0;
+        const visitedDownwards = _.fill(new Array(this.maxId() + 1), false);
+        const visitedUpwards = _.fill(new Array(this.maxId() + 1), false);
+        const visitedEdges = _.fill(new Array(this.maxEdgeId() + 1), false);
+        const tmpRankPerNode = _.fill(new Array(this.maxId() + 1), 0);
 
+        for (let s = 0; s < sources.length; ++s) {
+            let minDiff = (s === 0 ? 0 : Number.POSITIVE_INFINITY);
             const sourceComponent = new Component(this);
+            const borderEdges = [];
 
             // bfs starting at source
-            const visited = _.fill(new Array(this.maxId() + 1), false);
-            const wasRankedBefore = _.fill(new Array(this.maxId() + 1), false);
+            // this is for finding the set of nodes reachable from the source
             let queue = [];
             let queuePointer = 0;
             queue.push(source);
-            visited[source.id] = true;
+            visitedDownwards[source.id] = true;
             while (queuePointer < queue.length) {
                 const node = queue[queuePointer++];
                 sourceComponent.addNode(node.id);
                 if (node.rank === null) {
                     _.forEach(this.outEdges(node.id), outEdge => {
-                        if (!visited[outEdge.dst]) {
+                        if (!visitedDownwards[outEdge.dst]) {
                             queue.push(this.node(outEdge.dst));
-                            visited[outEdge.dst] = true;
+                            visitedDownwards[outEdge.dst] = true;
+                        } else if (this.node(outEdge.dst).rank !== null) {
+                            borderEdges.push(outEdge);
                         }
+                        visitedEdges[outEdge.id] = true;
                     });
-                } else {
-                    wasRankedBefore[node.id] = true;
                 }
             }
 
             if (DEBUG) {
-                Assert.assertImplies(s > 0, _.some(sourceComponent.nodes(), node => node.rank !== null), "no common sink");
+                Assert.assertImplies(s > 0, borderEdges.length > 0, "no common sink");
             }
 
             sourceComponent.induceEdges();
 
-            const rankPerNode = _.fill(new Array(this.maxId() + 1), 0);
             _.forEach(sourceComponent.toposort(), (node: RankNode) => {
-                if (node.rank !== null) {
-                    minDiff = Math.min(minDiff, node.rank - rankPerNode[node.id]);
-                } else {
-                    node.rank = rankPerNode[node.id];
-                    _.forEach(this.outEdges(node.id), outEdge => {
-                        let nextRank = node.rank + outEdge.weight;
-                        if (outEdge.weight === Infinity) {
-                            throw new Error("INFINITE WQEIGHT");
-                        }
-                        rankPerNode[outEdge.dst] = Math.max(rankPerNode[outEdge.dst], nextRank);
-                    });
-                }
+                _.forEach(this.outEdges(node.id), outEdge => {
+                    let nextRank = tmpRankPerNode[node.id] + outEdge.weight;
+                    if (outEdge.weight === Infinity) {
+                        throw new Error("INFINITE WEIGHT");
+                    }
+                    tmpRankPerNode[outEdge.dst] = Math.max(tmpRankPerNode[outEdge.dst], nextRank);
+                });
+            });
+
+            // find difference through looking at all border edges
+            _.forEach(borderEdges, (borderEdge: Edge<any, any>) => {
+                minDiff = Math.min(minDiff, this.node(borderEdge.dst).rank - tmpRankPerNode[borderEdge.src]  - borderEdge.weight);
             });
 
             if (DEBUG) {
@@ -76,58 +75,60 @@ export default class RankGraph extends Graph<RankNode, Edge<any, any>> {
             }
 
             _.forEach(sourceComponent.nodes(), (node: RankNode) => {
-                if (!wasRankedBefore[node.id]) {
-                    node.rank += minDiff;
-                }
+                node.rank = tmpRankPerNode[node.id] + minDiff;
+                // find unranked neighbors
+                _.forEach(this.inEdges(node.id), inEdge => {
+                    if (!visitedEdges[inEdge.id]) {
+                        upwardBorderEdgesQueue.push(inEdge);
+                    }
+
+                });
             });
 
-            s++;
-            if (s < sources.length) {
-                // update unranked neighbors
-                _.forEach(sourceComponent.nodes(), (node: RankNode) => {
-                    unrankedNeighbors.delete(node);
-                    _.forEach(this.inEdges(node.id), inEdge => {
-                        const neighbor = this.node(inEdge.src)
-                        if (neighbor.rank === null) {
-                            unrankedNeighbors.add(neighbor);
+            if (s < sources.length - 1) {
+                // bfs from an arbitrary unranked neighbor upwards to find next source
+                let newSourceFound = false;
+                while (!newSourceFound) {
+                    const queue = [];
+                    let queuePointer = 0;
+                    let upwardsStartNode;
+                    do {
+                        let edge = upwardBorderEdgesQueue[upwardBorderEdgesQueuePointer++];
+                        upwardsStartNode = this.node(edge.src);
+                    } while (upwardsStartNode.rank !== null || visitedUpwards[upwardsStartNode.id]);
+                    queue.push(upwardsStartNode);
+                    while (queuePointer < queue.length) {
+                        const node = queue[queuePointer++];
+                        if (visitedUpwards[node.id]) {
+                            continue;
                         }
-                    });
-                });
-                // bfs from an arbitrary unranked neighbor upwards to find "connected" source
-                let queue = [];
-                let queuePointer = 0;
-                const visited = _.fill(new Array(this.maxId() + 1), false);
-                const upwardSource = unrankedNeighbors.keys().next().value; // first unranked neighbor
-                visited[upwardSource.id] = true;
-                queue.push(upwardSource);
-                while (queuePointer < queue.length) {
-                    const node = queue[queuePointer++];
-                    const inEdges = this.inEdges(node.id);
-                    if (inEdges.length === 0) {
-                        source = node;
-                        break;
-                    } else {
-                        _.forEach(inEdges, inEdge => {
-                            if (!visited[inEdge.src]) {
-                                queue.push(this.node(inEdge.src));
-                                visited[inEdge.src] = true;
-                            }
-                        });
+                        visitedUpwards[node.id] = true;
+                        const inEdges = this.inEdges(node.id);
+                        if (inEdges.length === 0) {
+                            newSourceFound = true;
+                            source = node;
+                            break;
+                        } else {
+                            _.forEach(inEdges, (inEdge: Edge<any, any>) => {
+                                const inNeighbor = this.node(inEdge.src);
+                                if (inNeighbor.rank === null && !visitedUpwards[inNeighbor.id]) {
+                                    queue.push(this.node(inNeighbor.id));
+                                    upwardBorderEdgesQueue.push(inEdge);
+                                }
+                            });
+                        }
                     }
                 }
             }
             if (DEBUG) {
-                Assert.assertImplies(s < sources.length, source.rank === null, "no new source found");
+                Assert.assertImplies(s < sources.length - 1, source.rank === null, "no new source found");
             }
         }
 
         let minRank = Number.POSITIVE_INFINITY;
         _.forEach(this.nodes(), (node: RankNode) => {
-            if (node.rank === Number.POSITIVE_INFINITY) {
-                throw new Error("I AM DUMB");
-            }
             if (DEBUG) {
-                Assert.assertNumber(node.rank, "rank is not a valid number");
+                Assert.assertFiniteNumber(node.rank, "rank is not a valid number");
             }
             minRank = Math.min(minRank, node.rank);
         });

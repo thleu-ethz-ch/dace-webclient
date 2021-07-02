@@ -17,15 +17,13 @@ export default class Bench {
     public static validate(loadFunction: (name: string) => Promise<RenderGraph>, layouter: Layouter, graphs: Array<string> = Bench.GRAPHS_ALL) {
         const promises = graphs.map(name => {
             return loadFunction(name).then(async (renderGraph: RenderGraph) => {
-                await layouter.layout(renderGraph).then((layout: LayoutGraph) => {
+                 return await layouter.layout(renderGraph).then((layout: LayoutGraph) => {
                     const layoutAnalysis = new LayoutAnalysis(layout, layouter.getOptionsForAnalysis());
-                    if (!layoutAnalysis.validate()) {
-                        throw new Error('Layouter returned invalid layout for graph "' + name + '".');
-                    }
+                    return layoutAnalysis.validate();
                 });
             });
         });
-        return Promise.all(promises);
+        return Serializer.serializePromises(promises);
     }
 
     public static cost(loadFunction: (name: string) => Promise<RenderGraph>, layouter: Layouter, graphs: Array<string> = Bench.GRAPHS_ALL) {

@@ -16,8 +16,8 @@ export default class Rectangle extends SimpleShape {
 
     render(container: Container): void {
         const rectangle = new Graphics();
-        rectangle.lineStyle(1, this._borderColor.hex(), this._borderColor.alpha);
-        rectangle.beginFill(this._backgroundColor.hex(), this._backgroundColor.alpha);
+        rectangle.lineStyle(1, this._borderColor.number(), this._borderColor.alpha);
+        rectangle.beginFill(this._backgroundColor.number(), this._backgroundColor.alpha);
         rectangle.drawRect(0, 0, this._width, this._height);
         rectangle.endFill();
         rectangle.x = this._x;

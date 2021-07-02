@@ -1289,13 +1289,13 @@ export default class HybridLayouter extends Layouter {
                             width += this._options["targetEdgeLength"];
                         }
                         parent.updateSize({width: width, height: 0});
-                        /*if (parent.isScopeNode) {
+                        if (parent.isScopeNode) {
                             const left = boundingBox.x;
                             subgraph.entryNode.setWidth(boundingBox.width);
                             subgraph.entryNode.setPosition(new Vector(left, subgraph.entryNode.y));
                             subgraph.exitNode.setWidth(boundingBox.width);
                             subgraph.exitNode.setPosition(new Vector(left, subgraph.exitNode.y));
-                        }*/
+                        }
                     }
                 });
 

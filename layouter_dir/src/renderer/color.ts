@@ -15,11 +15,15 @@ export default class Color {
         this.alpha = alpha;
     }
 
-    hex(): number {
+    number(): number {
         return 65536 * this.red + 256 * this.green + this.blue;
     }
 
     fade(alpha: number): Color {
         return new Color(this.red, this.green, this.blue, alpha);
+    }
+
+    static fromNumber(color: number): Color {
+        return new Color((color >> 16) % 256, (color >> 8) % 256, color % 256);
     }
 }

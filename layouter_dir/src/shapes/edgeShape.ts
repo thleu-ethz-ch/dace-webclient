@@ -31,7 +31,7 @@ export default class EdgeShape extends Shape {
 
     render(container: PIXI.Container): void {
         let line = new Graphics();
-        line.lineStyle(1, this._color.hex(), this._color.alpha);
+        line.lineStyle(1, this._color.number(), this._color.alpha);
         line.moveTo(_.head(this._points).x, _.head(this._points).y);
         _.forEach(_.tail(this._points), (point: Vector) => {
             line.lineTo(point.x, point.y);

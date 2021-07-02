@@ -8,6 +8,7 @@ import RenderConnector from "./renderConnector";
 import RenderEdge from "./renderEdge";
 import RenderGraph from "./renderGraph";
 import Size from "../geometry/size";
+import Color from "../renderer/color";
 
 export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
     public readonly childPadding: number = 0;
@@ -21,6 +22,7 @@ export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
     public inConnectors: Array<RenderConnector> = [];
     public outConnectors: Array<RenderConnector> = [];
     public scopeEntry: number = null;
+    public scopeExit: number = null;
 
     public layoutGraph: LayoutGraph = null;
     public layoutNode: LayoutNode = null;
@@ -30,11 +32,11 @@ export default abstract class RenderNode extends Node<RenderGraph, RenderEdge> {
     public width: number = 0;
     public height: number = 0;
 
-    public color: number;
+    public color: Color;
 
     protected _type: string = null;
 
-    constructor(type: string, label: string = "", color: number = 0x000000) {
+    constructor(type: string, label: string = "", color: Color = Color.BLACK) {
         super(label);
         this._type = type;
         this.color = color;

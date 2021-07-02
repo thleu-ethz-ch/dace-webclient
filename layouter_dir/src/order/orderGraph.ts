@@ -421,23 +421,6 @@ export default class OrderGraph {
                     });
                 }
 
-                if (DEBUG) {
-                    // commented out: assert that nodes that belong to the same subgraph are contiguous
-                    _.forEach(ranks, (rank, r) => {
-                        for (let g1 = 0; g1 < rank.groups.length; ++g1) {
-                            for (let g2 = g1 + 1; g2 < rank.groups.length; ++g2) {
-                                for (let level = 1; level <= Math.min(rank.groups[g1].shuffleHierarchy.length, rank.groups[g1].shuffleHierarchy.length); ++level) {
-                                    if (_.isEqual(_.slice(rank.groups[g1].shuffleHierarchy, 0, level), _.slice(rank.groups[g2].shuffleHierarchy, 0, level))) {
-                                        for (let pos = Math.min(groupPositions[g1], groupPositions[g2]) + 1; pos < Math.max(groupPositions[g1], groupPositions[g2]); ++pos) {
-                                            Assert.assertEqual(_.slice(rank.groups[g1].shuffleHierarchy, 0, level), _.slice(rank.groups[groupOrder[r][pos]].shuffleHierarchy, 0, level), "bad order " + pos);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
-                }
-
                 let boolDirection = 1;
                 let boolOppositeDirection = 0;
                 let signDirection = 1;

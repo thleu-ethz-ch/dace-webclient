@@ -16,6 +16,11 @@ export default class Assert {
         Assert.assert(predicate, message, input);
     }
 
+    static assertFiniteNumber(input: any, message: string): void {
+        const predicate = (typeof input === "number" && !isNaN(input) && input !== Number.POSITIVE_INFINITY && input !== Number.NEGATIVE_INFINITY);
+        Assert.assert(predicate, message, input);
+    }
+
     static assertImplies(premise: boolean, implication: boolean, message: string, ...objects: Array<any>): void {
         Assert.assert(!premise || implication, message, ...objects);
     }

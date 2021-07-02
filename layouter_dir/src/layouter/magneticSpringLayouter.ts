@@ -17,7 +17,7 @@ export default class MagneticSpringLayouter extends RecursiveLayouter {
             stepSize: 1,
             weightSpring: 1,
             weightRepulsive: 1,
-            weightMagnetic: 1,
+            weightMagnetic: 10,
             magneticStrength: 1,
             distanceExponent: 1,
             angleExponent: 1,
@@ -26,7 +26,7 @@ export default class MagneticSpringLayouter extends RecursiveLayouter {
     }
 
     layoutSizedGraph(graph: LayoutGraph) {
-        console.log(graph);
+        //console.log(graph);
         switch (graph.nodes().length) {
             case 1:
                 // just one node => place it anywhere
