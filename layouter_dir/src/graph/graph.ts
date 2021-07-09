@@ -263,8 +263,10 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
         const invertedEdges = [];
         const predecessors = new Array(this._nodes.length);
         const queue = [];
+        const queue2 = [];
         const visited = _.fill(new Array(this.maxId() + 1), false);
         let queuePointer = 0;
+        let queuePointer2 = 0;
         _.forEach(this.nodes(), (node: NodeT) => {
             const numInEdges = this.inEdges(node.id).length;
             predecessors[node.id] = numInEdges;
@@ -272,7 +274,7 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
                 queue.push(node);
             }
         });
-        _.forEach(this.nodes(), (nextNode: NodeT) => {
+        do {
             // toposort
             while (queuePointer < queue.length) {
                 const node = queue[queuePointer++];
@@ -281,22 +283,30 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
                     predecessors[edge.dst]--;
                     if (predecessors[edge.dst] === 0) {
                         queue.push(this.node(edge.dst));
+                    } else {
+                        queue2.push(this.node(edge.dst));
                     }
                 });
             }
 
-            // no nodes without in-edges => either finished or halting before cycle
-            if (!visited[nextNode.id]) {
-                _.forEach(this.inEdges(nextNode.id), (inEdge: EdgeT) => {
-                    if (!visited[inEdge.src]) {
-                        predecessors[inEdge.src]++;
-                        this.invertEdge(inEdge.id);
-                        invertedEdges.push(this._edges[inEdge.id]);
-                    }
-                });
-                queue.push(nextNode);
+            // break cycle
+            if (queuePointer2 < queue2.length) {
+                let nextNode;
+                do {
+                    nextNode = queue2[queuePointer2++];
+                } while (queuePointer2 < queue2.length && (visited[nextNode.id] || this.numOutEdges(nextNode.id) === 0));
+                if (!visited[nextNode.id] && this.numOutEdges(nextNode.id) > 0) {
+                    _.forEach(this.inEdges(nextNode.id), (inEdge: EdgeT) => {
+                        if (!visited[inEdge.src]) {
+                            predecessors[inEdge.src]++;
+                            this.invertEdge(inEdge.id);
+                            invertedEdges.push(this._edges[inEdge.id]);
+                        }
+                    });
+                    queue.push(nextNode);
+                }
             }
-        });
+        } while (queuePointer < queue.length || queuePointer2 < queue2.length);
 
         return invertedEdges;
     }
