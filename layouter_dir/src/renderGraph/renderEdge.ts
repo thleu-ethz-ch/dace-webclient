@@ -6,6 +6,7 @@ import RenderGraph from "./renderGraph";
 import RenderNode from "./renderNode";
 import Size from "../geometry/size";
 import Vector from "../geometry/vector";
+import Color from "../renderer/color";
 
 export default abstract class RenderEdge extends Edge<RenderGraph, RenderNode> {
     public labelFontSize: number = 10;
@@ -127,5 +128,17 @@ export default abstract class RenderEdge extends Edge<RenderGraph, RenderNode> {
 
     boundingBox(): Box {
         return new Box(this.x, this.y, this.width, this.height);
+    }
+
+    color(): Color {
+        return Color.BLACK;
+    }
+
+    lineWidth(): number {
+        return 1;
+    }
+
+    lineStyle(): "solid" | "dashed" {
+        return "solid";
     }
 };

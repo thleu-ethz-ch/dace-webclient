@@ -23,12 +23,12 @@ export default class Loader {
                     const names = line.split(' ');
                     let srcId = idMap.get(names[0]);
                     if (srcId === undefined) {
-                        srcId = graph.addNode(new GenericNode('GenericNode', names[0]));
+                        srcId = graph.addNode(new GenericNode(names[0]));
                         idMap.set(names[0], srcId);
                     }
                     let dstId = idMap.get(names[1]);
                     if (dstId === undefined) {
-                        dstId = graph.addNode(new GenericNode('GenericNode', names[1]));
+                        dstId = graph.addNode(new GenericNode(names[1]));
                         idMap.set(names[1], dstId);
                     }
                     graph.addEdge(new Memlet(srcId, dstId));

@@ -5,5 +5,8 @@ module.exports = {
         MagneticSpringLayouter: require('./layouter/magneticSpringLayouter').default,
         HybridLayouter: require('./layouter/hybridLayouter').default,
     },
-    Renderer: require('./renderer/renderer').default,
+    renderer: {
+        PixiRenderer: require('./renderer/pixiRenderer').default,
+        SvgRenderer: require('./renderer/svgRenderer').default,
+    }
 };

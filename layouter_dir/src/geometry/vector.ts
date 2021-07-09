@@ -80,6 +80,25 @@ export default class Vector {
         return this;
     }
 
+    normal(): Vector {
+        if (this.x === 0) {
+            return new Vector(Math.sign(this.y), 0)
+        }
+        if (this.y === 0) {
+            return new Vector(0, -Math.sign(this.x));
+        }
+        const normal = new Vector(1 / this.x, 1 / this.y);
+        if (Math.sign(this.x) === Math.sign(this.y)) {
+            normal.y *= -1;
+        } else {
+            normal.x *= -1;
+        }
+        if (normal.x < 0) {
+
+        }
+        return normal.normalize();
+    }
+
     add(otherVector: Vector): Vector {
         this.x += otherVector.x;
         this.y += otherVector.y;

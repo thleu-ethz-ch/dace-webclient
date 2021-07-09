@@ -1,3 +1,5 @@
+import * as _ from "lodash";
+
 export default class Color {
     public static WHITE = new Color(255, 255, 255);
     public static BLACK = new Color(0, 0, 0);
@@ -13,6 +15,12 @@ export default class Color {
         this.green = green;
         this.blue = blue;
         this.alpha = alpha;
+    }
+
+    hex(): string {
+        return "#" + _.padStart(this.red.toString(16), 2, "0")
+            + _.padStart(this.green.toString(16), 2, "0")
+            + _.padStart(this.blue.toString(16), 2, "0");
     }
 
     number(): number {

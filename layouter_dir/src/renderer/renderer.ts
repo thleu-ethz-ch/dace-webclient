@@ -34,62 +34,44 @@ import SdfgState from "../renderGraph/sdfgState";
 import InterstateEdge from "../renderGraph/interstateEdge";
 import MapExit from "../renderGraph/mapExit";
 import MapEntry from "../renderGraph/mapEntry";
+import RendererContainer from "./rendererContainer";
+import Line from "../shapes/line";
+import Circle from "../shapes/circle";
+import GenericEdge from "../renderGraph/genericEdge";
+import sub = PIXI.groupD8.sub;
 
-export default class Renderer {
-    private readonly _app;
-    private readonly _viewport;
-    private readonly _container;
+export default abstract class Renderer {
+    protected _container: RendererContainer;
+    protected _coordinateContainer: HTMLElement;
+    protected _additionalShapes: Array<Shape> = [];
 
-    constructor(domContainer, coordinateContainer = null) {
-        this._app = new PIXI.Application({
-            width: domContainer.clientWidth,
-            height: domContainer.clientHeight,
-            antialias: true,
-        });
-        this._app.renderer.backgroundColor = 0xFFFFFF;
-        domContainer.appendChild(this._app.view);
-
-        this._viewport = new Viewport({
-            screenWidth: domContainer.clientWidth,
-            screenHeight: domContainer.clientHeight,
-            worldWidth: domContainer.clientWidth,
-            worldHeight: domContainer.clientHeight,
-            interaction: this._app.renderer.plugins.interaction, // the interaction module is important for wheel to work properly when renderer.view is placed or scaled
-        });
-        this._app.stage.addChild(this._viewport);
-
-        this._container = new Container();
-        this._viewport.addChild(this._container);
-
-        const showCoordinates = (title, point) => {
-            coordinateContainer.innerHTML = title + ": " + point.x.toFixed(0) + " / " + point.y.toFixed(0);
-        }
-
-        if (coordinateContainer !== null) {
-            this._viewport.interactive = true;
-            this._viewport.on('mousemove', _.throttle((e) => {
-                const mousePos = e.data.getLocalPosition(this._viewport);
-                showCoordinates("mouse", mousePos);
-            }, 10));
-
-            showCoordinates("center", this._viewport.center);
-        }
-
-        this._viewport.drag().pinch().wheel().decelerate();
-
-        document.addEventListener("keydown", (e) => {
-            if (e.ctrlKey && e.key === "s") {
-                e.preventDefault();
-                this.savePng("screenshot.png");
-            }
-        });
+    protected constructor(coordinateContainer) {
+        this._coordinateContainer = coordinateContainer;
     }
+
+    protected _showCoordinates(title, point): void {
+        this._coordinateContainer.innerHTML = title + ": " + point.x.toFixed(0) + " / " + point.y.toFixed(0);
+    }
+
+    protected abstract _render(graph: RenderGraph, view?: any): void;
+
+    public abstract getTextSize(text: string, fontSize: number, fontFamily: string): Size;
 
     show(layouter: Layouter, name: string): void {
         Loader.load(name).then((graph: RenderGraph) => {
+            let found = 0;
+            _.forEach(graph.allNodes(), node => {
+                if (found === 6) return;
+                if (node.label() === "__call___1") {
+                    found++;
+                    graph = node.graph;
+                }
+            });
+
             // set node sizes
             _.forEach(graph.allNodes(), (node: RenderNode) => {
-                node.updateSize(this._labelSize(node));
+                node.labelSize = this._labelSize(node);
+                node.updateSize(node.labelSize);
             });
             // set edge label sizes
             _.forEach(graph.allEdges(), (edge: RenderEdge) => {
@@ -98,25 +80,24 @@ export default class Renderer {
 
             layouter.layout(graph).then((layout: LayoutGraph) => {
                 const layoutAnalysis = new LayoutAnalysis(layout);
-                /*if (layoutAnalysis.validate()) {
+                if (layoutAnalysis.validate()) {
                     console.log("Layout satisfies constraints.");
                 } else {
                     console.log("Layout violates constraints.");
-                }*/
-                //console.log("Weighted cost: " + layoutAnalysis.cost(true).toFixed(0));
+                }
+                console.log("Weighted cost: " + layoutAnalysis.cost(true).toFixed(0));
                 /*const performanceAnalysis = new PerformanceAnalysis(layouter);
                 performanceAnalysis.measure(name, 1).then(time => {
                     console.log(time + " ms");
                 });*/
 
                 // center and fit the graph in the viewport
-                //const box = graph.boundingBox();
-                //console.log("Total size: " + box.width.toFixed(0) + "x" + box.height.toFixed(0));
+                const box = graph.boundingBox();
+                console.log("Total size: " + box.width.toFixed(0) + "x" + box.height.toFixed(0));
                 console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
                 Timer.printTimes();
-
-                this.render(graph);
+                this._render(graph);
             });
         });
     }
@@ -125,10 +106,11 @@ export default class Renderer {
         Loader.loadDag(name).then((graph: RenderGraph) => {
             // set node sizes
             _.forEach(graph.allNodes(), (node: RenderNode) => {
-                node.updateSize(this._labelSize(node));
+                node.labelSize = this._labelSize(node);
+                node.updateSize(node.labelSize);
             });
             layouter.layout(graph).then((layout: LayoutGraph) => {
-                this.render(graph);
+                this._render(graph);
             });
         });
     }
@@ -144,49 +126,25 @@ export default class Renderer {
             const x0 = GRID * line[1];
             const x1 = GRID * line[2];
             for (let x = x0; x < x1; x += 3) {
-                const circle = new PIXI.Graphics();
-                circle.beginFill(0x999999);
-                circle.drawCircle(x, y, 1);
-                circle.endFill();
+                const circle = new Circle(null, x, y, 1, Color.fromNumber(0x999999));
                 this._container.addChild(circle);
             }
         });
         _.forEach(heavyEdges, (edge: [[number, number], [number, number], number?]) => {
-            const line = new PIXI.Graphics();
-            line.lineStyle(3, edge[2] || 0);
-            line.moveTo(GRID * edge[0][0], GRID * edge[0][1]);
-            line.lineTo(GRID * edge[1][0], GRID * edge[1][1]);
+            const line = new Line(null, GRID * edge[0][0], GRID * edge[0][1], GRID * edge[1][0], GRID * edge[1][1], 3, Color.fromNumber(edge[2] || 0));
             this._container.addChild(line);
         });
         _.forEach(lightEdges, (edge: [[number, number], [number, number], number?]) => {
-            const line = new PIXI.Graphics();
-            line.lineStyle(1, edge[2] || 0);
-            line.moveTo(GRID * edge[0][0], GRID * edge[0][1]);
-            line.lineTo(GRID * edge[1][0], GRID * edge[1][1]);
+            const line = new Line(null, GRID * edge[0][0], GRID * edge[0][1], GRID * edge[1][0], GRID * edge[1][1], 1, Color.fromNumber(edge[2] || 0));
             this._container.addChild(line);
         });
         _.forEach(nodes, (node: [number, number, number?]) => {
-            const circle = new PIXI.Graphics();
-            circle.beginFill(node[2] || 0);
-            circle.drawCircle(GRID * node[0], GRID * node[1], NODE / 2);
-            circle.endFill();
+            const circle = new Circle(null, GRID * node[0], GRID * node[1], NODE / 2, Color.fromNumber(node[2] || 0));
             this._container.addChild(circle);
         });
     }
 
-    /**
-     * Adapted from https://www.html5gamedevs.com/topic/31190-saving-pixi-content-to-image/.
-     */
-    savePng(fileName): void {
-        this._app.renderer.extract.canvas(this._viewport.children[0]).toBlob(function (b) {
-            const a = document.createElement('a');
-            document.body.append(a);
-            a.download = fileName;
-            a.href = URL.createObjectURL(b);
-            a.click();
-            a.remove();
-        }, 'image/png');
-    }
+
 
     renderLive(): void {
         let prevStoredGraph = null;
@@ -221,7 +179,7 @@ export default class Renderer {
                 const renderGraph = new RenderGraph();
                 addSubgraph(renderGraph, JSON.parse(storedGraph));
                 layouter.layout(renderGraph);
-                this.render(renderGraph);
+                this._render(renderGraph);
             }
             setTimeout(doRender, 3000);
         };
@@ -232,7 +190,6 @@ export default class Renderer {
         const renderGraph = new RenderGraph();
         let y = 0;
         const stepObj = JSON.parse(window.localStorage.getItem("orderGraph"))[step];
-        console.log(stepObj);
         const nodeMap = new Map();
         const groupsPerRank = [];
         const widths = [];
@@ -251,14 +208,14 @@ export default class Renderer {
                 y += groupNode.childPadding;
                 let groupHeight = 0;
                 _.forEach(group.nodes, (nodeObj: any) => {
-                    const node = new GenericNode("GenericNode", nodeObj.label.toString() || "", nodeObj.isVirtual ? Color.fromNumber(0xCCCCCC) : Color.BLACK); // might use nodeObj.id.toString() instead of nodeObj.label
+                    const node = new GenericNode(nodeObj.label.toString() || "", Color.WHITE, nodeObj.isVirtual ? Color.fromNumber(0xCCCCCC) : Color.BLACK); // might use nodeObj.id.toString() instead of nodeObj.label
                     groupGraph.addNode(node, parseInt(nodeObj.id));
                     nodeMap.set(node.id, node);
                     node.x = x;
                     node.y = y;
-                    const size = this._labelSize(node);
-                    node.width = size.width;
-                    node.height = size.height;
+                    node.labelSize = this._labelSize(node);
+                    node.width = node.labelSize.width;
+                    node.height = node.labelSize.height;
                     x += node.width + 30;
                     groupHeight = Math.max(groupHeight, node.height);
                 });
@@ -273,7 +230,7 @@ export default class Renderer {
             });
             x -= 50;
             widths.push(x);
-            y += 50;
+            y += 200;
             groupsPerRank.push(groups);
         });
         const maxWidth = _.max(widths);
@@ -286,7 +243,6 @@ export default class Renderer {
                 });
             });
         });
-        this.render(renderGraph, resetView ? "auto" : null);
         _.forEach(stepObj.edges, (edgeObj: any) => {
             const srcNode = nodeMap.get(edgeObj.src);
             if (srcNode === undefined) {
@@ -295,42 +251,18 @@ export default class Renderer {
             const srcPos = srcNode.boundingBox().bottomCenter();
             const dstNode = nodeMap.get(edgeObj.dst);
             const dstPos = dstNode.boundingBox().topCenter();
-            const line = new Graphics();
             const weight = (edgeObj.weight === "INFINITY" ? Number.POSITIVE_INFINITY : parseInt(edgeObj.weight));
-            line.lineStyle(Math.min(weight, 4));
-            line.moveTo(srcPos.x, srcPos.y);
-            line.lineTo(dstPos.x, dstPos.y);
-            this._container.addChild(line);
+            const lineWidth = Math.min(weight, 4);
+            const line = new Line(null, srcPos.x, srcPos.y, dstPos.x, dstPos.y, lineWidth);
+            this._additionalShapes.push(line);
         });
+        this._render(renderGraph, resetView ? "auto" : null);
     }
 
-    /**
-     * Shows a graph in the designated container.
-     * @param graph Graph with layout information for all nodes and edges (x, y, width, height).
-     * @param view = {centerX: number, centerY: number, zoom: number}
-     */
-    render(graph: RenderGraph, view: any = "auto"): void {
-        this._container.removeChildren();
 
-        if (view !== null) {
-            if (view === "auto") {
-                const box = graph.boundingBox();
-                this._viewport.moveCenter((box.width - this._viewport.width) / 2, (box.height - this._viewport.width) / 2);
-                this._viewport.setZoom(Math.min(1, this._viewport.worldWidth / box.width, this._viewport.worldHeight / box.height), true);
-            } else {
-                this._viewport.moveCenter(view.centerX, view.centerY);
-                this._viewport.setZoom(view.zoom, true);
-            }
-        }
-
-        const shapes = this._getShapesForGraph(graph);
-        _.forEach(shapes, (shape: Shape) => {
-            shape.render(this._container);
-        });
-    }
 
     private _labelSize(node: RenderNode): Size {
-        const textBox = (new Text(0, 0, node.label(), node.labelFontSize)).boundingBox();
+        const textBox = (new Text(this, 0, 0, node.label(), node.labelFontSize)).boundingBox();
         return {
             width: textBox.width + 2 * node.labelPaddingX,
             height: textBox.height + 2 * node.labelPaddingY,
@@ -338,14 +270,14 @@ export default class Renderer {
     }
 
     private _edgeLabelSize(edge: RenderEdge): Size {
-        return (new Text(0, 0, edge.label(), edge.labelFontSize)).boundingBox().size();
+        return (new Text(this, 0, 0, edge.label(), edge.labelFontSize)).boundingBox().size();
     }
 
     /**
      * Adds an offset to center the label within the node (if necessary).
      */
     private _labelPosition(node: RenderNode): Vector {
-        const labelSize = this._labelSize(node);
+        const labelSize = node.labelSize;
         const labelBox = new Box(
             node.x + node.labelPaddingX,
             node.y + node.labelPaddingY,
@@ -355,7 +287,7 @@ export default class Renderer {
         return labelBox.centerIn(node.boundingBox()).topLeft();
     }
 
-    private _getShapesForGraph(graph: RenderGraph): Array<Shape> {
+    protected _getShapesForGraph(graph: RenderGraph): Array<Shape> {
         const shapes = [];
         _.forEach(graph.nodes(), (node: RenderNode) => {
             _.forEach(this._getShapesForNode(node), shape => shapes.push(shape));
@@ -371,12 +303,12 @@ export default class Renderer {
         switch (node.type()) {
             case "AccessNode":
             case "GenericNode":
-                shapes.push(new Ellipse(node, node.x, node.y, node.width, node.height, Color.WHITE, node.color || Color.BLACK));
-                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
+                shapes.push(new Ellipse(node, node.x, node.y, node.width, node.height, node.backgroundColor || Color.BLACK, node.borderColor || Color.BLACK));
+                shapes.push(new Text(this, this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
                 break;
             case "LibraryNode":
                 shapes.push(new FoldedCornerRectangle(this, node.x, node.y, node.width, node.height));
-                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()))
+                shapes.push(new Text(this, this._labelPosition(node).x, this._labelPosition(node).y, node.label()))
                 break;
             case "NestedSDFG":
                 shapes.push(new Rectangle(node, node.x, node.y, node.width, node.height));
@@ -384,24 +316,24 @@ export default class Renderer {
             case "SDFGState":
                 const color = new Color(0xDE, 0xEB, 0xF7);
                 shapes.push(new Rectangle(node, node.x, node.y, node.width, node.height, color, color));
-                shapes.push(new Text(node.x + 5, node.y + 5, node.label()));
+                shapes.push(new Text(this, node.x + 5, node.y + 5, node.label()));
                 break;
             case "Tasklet":
                 shapes.push(new Octagon(node, node.x, node.y, node.width, node.height));
-                shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
+                shapes.push(new Text(this, this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
                 break;
             case "GenericContainerNode":
                 shapes.push(new Rectangle(node, node.x, node.y, node.width, node.height));
-                shapes.push(new Text(node.x + 5, node.y + 5, node.label()));
+                shapes.push(new Text(this, node.x + 5, node.y + 5, node.label()));
                 break;
         }
         if (node.type().endsWith("Entry")) {
             shapes.push(new UpwardTrapezoid(node, node.x, node.y, node.width, node.height));
-            shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
+            shapes.push(new Text(this, this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
         }
         if (node.type().endsWith("Exit")) {
             shapes.push(new DownwardTrapezoid(node, node.x, node.y, node.width, node.height));
-            shapes.push(new Text(this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
+            shapes.push(new Text(this, this._labelPosition(node).x, this._labelPosition(node).y, node.label()));
         }
 
         // add child graph shapes
@@ -430,14 +362,13 @@ export default class Renderer {
     }
 
     private _getShapesForEdge(edge: RenderEdge): Array<Shape> {
-        const color = (edge instanceof Memlet ? Color.BLACK : new Color(0xBE, 0xCB, 0xD7));
-        const shapes: Array<Shape> = [new EdgeShape(edge, _.clone(edge.points), color)];
+        const shapes: Array<Shape> = [new EdgeShape(edge, _.clone(edge.points), edge.color(), edge.lineWidth(), edge.lineStyle())];
         if (edge.labelX) {
             const labelSize = this._edgeLabelSize(edge);
             const labelBackground = new Rectangle(null, edge.labelX - 3, edge.labelY - 3, labelSize.width + 6, labelSize.height + 6, Color.WHITE.fade(0.8), Color.TRANSPARENT);
             labelBackground.zIndex = 2;
-            shapes.push(labelBackground);
-            shapes.push(new Text(edge.labelX, edge.labelY, edge.label(), edge.labelFontSize, 0x666666));
+            //shapes.push(labelBackground);
+            shapes.push(new Text(this, edge.labelX, edge.labelY, edge.label(), edge.labelFontSize, Color.fromNumber(0x666666)));
         }
         return shapes;
     }

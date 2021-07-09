@@ -1,12 +1,12 @@
-import Polygon from "./polygon";
+import AbstractPolygon from "./abstractPolygon";
 
-export default class UpwardTrapezoid extends Polygon {
+export default class UpwardTrapezoid extends AbstractPolygon {
     getPath(): Array<number> {
         return [
-            this._x, this._y + this._height,
-            this._x + this._width, this._y + this._height,
-            this._x + this._width - this._height, this._y,
-            this._x + this._height, this._y,
+            this.x, this.y + this.height,
+            this.x + this.width, this.y + this.height,
+            this.x + this.width - this.height, this.y,
+            this.x + this.height, this.y,
         ];
     }
 }

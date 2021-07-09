@@ -1,27 +1,21 @@
 import * as PIXI from "pixi.js";
 import Shape from "./shape";
 import SimpleShape from "./simpleShape";
+import Renderer from "../renderer/renderer";
+import Color from "../renderer/color";
 
 export default class Text extends SimpleShape {
-    private readonly _text;
-    private readonly _fontStyle;
+    public text: string;
+    public color: Color;
+    public fontSize: number;
+    public fontFamily: string;
 
-    constructor(x: number, y: number, text, fontSize = 12, color = 0x000000) {
-        const fontStyle = new PIXI.TextStyle({fontFamily: 'Arial', fontSize: fontSize, fill: color});
-        const metrics = PIXI.TextMetrics.measureText(text, fontStyle);
-        super(null, x, y, metrics.width, metrics.height);
-        this._text = text;
-        this._fontStyle = fontStyle;
-    }
-
-    render(group): void {
-        const pixiText = new PIXI.Text(this._text, this._fontStyle);
-        pixiText.x = this._x;
-        pixiText.y = this._y;
-        group.addChild(pixiText);
-    }
-
-    clone(): Shape {
-        return new Text(this._x, this._y, this._text, this._fontStyle.fontSize, this._fontStyle.fill);
+    constructor(renderer: Renderer, x: number, y: number, text, fontSize = 12, color: Color = Color.BLACK, fontFamily: string = 'Arial') {
+        const size = renderer.getTextSize(text, fontSize, fontFamily);
+        super(null, x, y, size.width, size.height);
+        this.text = text;
+        this.color = color;
+        this.fontSize = fontSize;
+        this.fontFamily = fontFamily;
     }
 }

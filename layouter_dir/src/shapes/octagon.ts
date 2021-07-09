@@ -1,17 +1,17 @@
-import Polygon from "./polygon";
+import AbstractPolygon from "./abstractPolygon";
 
-export default class Octagon extends Polygon {
+export default class Octagon extends AbstractPolygon {
     getPath(): Array<number> {
-        const octSeg = this._height / 3.0;
+        const octSeg = this.height / 3.0;
         return [
-            this._x, this._y + octSeg,
-            this._x + octSeg, this._y,
-            this._x + this._width - octSeg, this._y,
-            this._x + this._width, this._y + octSeg,
-            this._x + this._width, this._y + 2 * octSeg,
-            this._x + this._width - octSeg, this._y + this._height,
-            this._x + octSeg, this._y + this._height,
-            this._x, this._y + 2 * octSeg,
+            this.x, this.y + octSeg,
+            this.x + octSeg, this.y,
+            this.x + this.width - octSeg, this.y,
+            this.x + this.width, this.y + octSeg,
+            this.x + this.width, this.y + 2 * octSeg,
+            this.x + this.width - octSeg, this.y + this.height,
+            this.x + octSeg, this.y + this.height,
+            this.x, this.y + 2 * octSeg,
         ];
     }
 }

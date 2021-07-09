@@ -7,12 +7,16 @@ import Shape from "./shape";
 
 export default class EdgeShape extends Shape {
     private _points: Array<Vector>;
-    private _color: Color;
+    public color: Color;
+    public lineWidth: number;
+    public lineStyle: "solid" | "dashed";
 
-    constructor(reference: object, points: Array<Vector>, color: Color = new Color(0, 0, 0)) {
+    constructor(reference: object, points: Array<Vector>, color: Color = Color.BLACK, lineWidth: number = 1, lineStyle: "solid" | "dashed" = "solid") {
         super(reference, 0, 0);
         this._points = _.cloneDeep(points);
-        this._color = color;
+        this.color = color;
+        this.lineWidth = lineWidth;
+        this.lineStyle = lineStyle;
     }
 
     boundingBox(): Box {
@@ -27,35 +31,6 @@ export default class EdgeShape extends Shape {
             maxY = Math.max(maxY, point.y);
         });
         return new Box(minX, minY, maxX - minX, maxY - minY);
-    }
-
-    render(container: PIXI.Container): void {
-        let line = new Graphics();
-        line.lineStyle(1, this._color.number(), this._color.alpha);
-        line.moveTo(_.head(this._points).x, _.head(this._points).y);
-        _.forEach(_.tail(this._points), (point: Vector) => {
-            line.lineTo(point.x, point.y);
-        });
-        // draw arrow head
-        const end = new Vector(_.last(this._points).x, _.last(this._points).y);
-        const dir = end.clone().sub(this._points[this._points.length - 2]);
-        const angle = dir.angle();
-        const point1 = (new Vector(end.x - 5, end.y + 3)).rotateAround(end, angle);
-        line.lineTo(point1.x, point1.y);
-        line.moveTo(end.x, end.y);
-        const point2 = (new Vector(end.x - 5, end.y - 3)).rotateAround(end, angle);
-        line.lineTo(point2.x, point2.y);
-        line.zIndex = -1;
-        container.addChild(line);
-    }
-
-    clone(): Shape {
-        const clone = <EdgeShape>super.clone();
-        clone.clear();
-        _.forEach(this._points, (point) => {
-            clone.addPoint(_.clone(point));
-        });
-        return clone;
     }
 
     clear(): void {

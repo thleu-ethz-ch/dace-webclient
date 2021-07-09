@@ -2,7 +2,7 @@ import * as PIXI from "pixi.js";
 import SimpleShape from "./simpleShape";
 import Color from "../renderer/color";
 
-export default class Ellipse extends SimpleShape {
+export default abstract class AbstractPolygon extends SimpleShape {
     public backgroundColor: Color;
     public borderColor: Color;
 
@@ -11,4 +11,6 @@ export default class Ellipse extends SimpleShape {
         this.backgroundColor = backgroundColor;
         this.borderColor = borderColor;
     }
+
+    abstract getPath(): Array<number>;
 }
