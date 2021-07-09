@@ -59,15 +59,6 @@ export default abstract class Renderer {
 
     show(layouter: Layouter, name: string): void {
         Loader.load(name).then((graph: RenderGraph) => {
-            let found = 0;
-            _.forEach(graph.allNodes(), node => {
-                if (found === 6) return;
-                if (node.label() === "__call___1") {
-                    found++;
-                    graph = node.graph;
-                }
-            });
-
             // set node sizes
             _.forEach(graph.allNodes(), (node: RenderNode) => {
                 node.labelSize = this._labelSize(node);

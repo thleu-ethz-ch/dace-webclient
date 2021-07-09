@@ -170,7 +170,7 @@ export default class OrderGraph {
         if (this._nodeGraph.numNodes() === 0) {
             return;
         }
-        //Timer.start(["doLayout", "orderRanks", "doOrder", "order"]);
+        Timer.start(["doLayout", "orderRanks", "doOrder", "order"]);
         options = _.defaults(options, {
             method: "barycenter",
             debug: false,
@@ -195,6 +195,16 @@ export default class OrderGraph {
         };
 
         const doOrder = async (graph: OrderGraph) => {
+            let interestingComponent = false;
+            if (options["resolveConflicts"]) {
+                let stored = false;
+                _.forEach(graph.nodes(), orderNode => {
+                    if (orderNode.reference.layoutNode.label() === "__call___1") {
+                        interestingComponent = true;
+                    }
+                });
+            }
+
 
             const assertNeighborCoherence = (r: number = null) => {
                 if (r === null) {
@@ -223,7 +233,7 @@ export default class OrderGraph {
                 }, "edge not between neighboring ranks");
             }
 
-            //Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder"]);
+            Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder"]);
             //Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "setup"]);
 
             const numRanks = graph._rankGraph.numNodes();
@@ -621,6 +631,92 @@ export default class OrderGraph {
                 //Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "reorder"]);
             };
 
+            /*const getConflict = (type: "HEAVYHEAVY" | "HEAVYLIGHT", r: number, skipIfZero: boolean = false): [number, number ,number, number, number] => {
+                if (skipIfZero && crossings[r] === 0) {
+                    // there is no conflict in this rank
+                    return null;
+                }
+                const segmentStarts = [];
+                const segmentEnds = [];
+                for (let n = 0; n < Math.max(order[r - 1].length); ++n) {
+                    segmentStarts[n] = [];
+                }
+                for (let n = 0; n < Math.max(order[r].length); ++n) {
+                    segmentEnds[n] = [];
+                }
+                for (let n = 0; n < order[r].length; ++n) {
+                    const nodeId = order[r][n];
+                    const posSouth = positions[nodeId];
+                    for (let neighbor = 0; neighbor < neighbors[0][nodeId].length; ++neighbor) {
+                        const posNorth = positions[neighbors[0][nodeId][neighbor].end];
+                        const heavy = (neighbors[0][nodeId][neighbor].weight === Number.POSITIVE_INFINITY);
+                        if (type === "HEAVYHEAVY" && !heavy) {
+                            continue;
+                        }
+                        const intranode = (heavy && graph.node(nodeId).isVirtual);
+                        if (type === "HEAVYLIGHT" && heavy && !intranode) {
+                            continue;
+                        }
+                        const segment = [posNorth, posSouth, heavy];
+                        if (segmentStarts[posNorth] === undefined) {
+                            console.log(neighbors);
+                            console.log(nodeId, neighbors[0][nodeId], neighbor, posNorth, segmentStarts.length);
+                        }
+                        segmentStarts[posNorth].push(segment);
+                        segmentEnds[posSouth].push(segment);
+                    }
+                }
+                const openSegments: Set<[number, number, boolean]> = new Set();
+                for (let n = 0; n < Math.max(order[r].length, order[r - 1].length); ++n) {
+                    _.forEach(segmentStarts[n], (segment: [number, number, boolean]) => {
+                        const [posNorth, posSouth] = segment;
+                        if (posNorth >= posSouth) {
+                            openSegments.delete(segment);
+                        }
+                    });
+                    _.forEach(segmentEnds[n], (segment: [number, number, boolean]) => {
+                        const [posNorth, posSouth] = segment;
+                        if (posNorth < posSouth) { // equality handled in loop above
+                            openSegments.delete(segment);
+                        }
+                    });
+                    const newSegments = [];
+                    _.forEach(segmentStarts[n], (segment: [number, number, boolean]) => {
+                        const [posNorth, posSouth] = segment;
+                        if (posNorth <= posSouth) {
+                            newSegments.push(segment);
+                        }
+                    });
+                    _.forEach(segmentEnds[n], (segment: [number, number, boolean]) => {
+                        const [posNorth, posSouth] = segment;
+                        if (posNorth > posSouth) { // equality handled in loop above
+                            newSegments.push(segment);
+                        }
+                    });
+                    for (let newSegment of newSegments) {
+                        const [posNorth, posSouth, heavy] = newSegment;
+                        let newDir = Math.sign(posSouth - posNorth);
+                        for (let openSegment of openSegments) {
+                            const [openPosNorth, openPosSouth, openHeavy] = openSegment;
+                            // dir is
+                            let openDir = Math.sign(openPosSouth - openPosNorth);
+                            if ((newDir !== openDir) || (newDir === 1 && posSouth < openPosSouth) || (posNorth < openPosNorth)) {
+                                // segments have different direction or new segment is more vertical
+                                if (openHeavy) {
+                                    return [r, openPosNorth, openPosSouth, posNorth, posSouth];
+                                } else if (heavy) {
+                                    return [r, posNorth, posSouth, openPosNorth, openPosSouth];
+                                }
+                            }
+                        }
+                        if (newDir !== 0) {
+                            openSegments.add(newSegment);
+                        }
+                    }
+                }
+                return null;
+            }*/
+
             const getConflict = (type: "HEAVYHEAVY" | "HEAVYLIGHT", r: number, skipIfZero: boolean = false): [number, number ,number, number, number] => {
                 if (skipIfZero && crossings[r] === 0) {
                     // there is no conflict in this rank
@@ -716,7 +812,7 @@ export default class OrderGraph {
                 if (DEBUG) {
                     Assert.assertAll(_.range(ranks.length), r => groupOrder[r].length === 1, "conflict resolution with more than one group per rank");
                 }
-                //Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve"]);
+                Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve"]);
 
                 for (let r = 0; r < order.length; ++r) {
                     _.forEach(ranks[r].groups[0].nodes, (node: OrderNode) => {
@@ -725,7 +821,7 @@ export default class OrderGraph {
                     });
                 }
 
-                const resolveConflict = (isHeavyHevay: boolean, conflict: [number, number, number, number, number]) => {
+                const resolveConflict = (isHeavyHeavy: boolean, conflict: [number, number, number, number, number]) => {
                     //Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve", "resolveConflict"]);
 
                     //Timer.start(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve", "resolveConflict", "faststuff"]);
@@ -790,8 +886,8 @@ export default class OrderGraph {
                             const newEdge = new Edge(srcNode.id, dstNode.id, weight);
                             const newEdgeId = this.addEdge(newEdge);
                             graph.addEdge(newEdge, newEdgeId);
-                            neighbors[0][dstNode.id].push(srcNode.id);
-                            neighbors[1][srcNode.id].push(dstNode.id);
+                            neighbors[0][dstNode.id].push({end: srcNode.id, weight: weight});
+                            neighbors[1][srcNode.id].push({end: dstNode.id, weight: weight});
                         };
 
                         const removeEdge = (srcNode: OrderNode, dstNode: OrderNode) => {
@@ -1162,7 +1258,7 @@ export default class OrderGraph {
                         //Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve", "resolveConflict", "resolveX"]);
                     };
 
-                    if (isHeavyHevay) {
+                    if (isHeavyHeavy) {
                         resolveHeavyHeavy();
                     } else {
                         crossingEdge = graph.edgeBetween(crossingNorthNode.id, crossingSouthNode.id);
@@ -1225,7 +1321,7 @@ export default class OrderGraph {
                     Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYLIGHT", r) === null, "heavy-light conflict after resolution");
                 }
 
-                //Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve"]);
+                Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve"]);
             }
 
             if (options["orderGroups"]) {
@@ -1309,6 +1405,13 @@ export default class OrderGraph {
                 resolveConflicts();
                 options["debug"] = false;
                 reorder(false, false, 0, true);
+                if (DEBUG) {
+                    Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after reorder with preventConflict");
+                    Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYLIGHT", r) === null, "heavy-light conflict after reorder with preventConflict");
+                }
+                if (interestingComponent) {
+                    storeLocal();
+                }
             }
 
             // transform component ranks to absolute ranks
@@ -1332,7 +1435,7 @@ export default class OrderGraph {
 
             const numCrossings = _.sum(crossings);
 
-            //Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder"]);
+            Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder"]);
 
             return numCrossings;
         }
@@ -1397,7 +1500,7 @@ export default class OrderGraph {
                 numCrossings += await doOrder(componentGraph);
             }
         }
-        //Timer.stop(["doLayout", "orderRanks", "doOrder", "order"]);
+        Timer.stop(["doLayout", "orderRanks", "doOrder", "order"]);
 
         return numCrossings;
     }
