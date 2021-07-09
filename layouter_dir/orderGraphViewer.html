@@ -31,7 +31,7 @@
     <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
     <script>
         window.addEventListener("load", function () {
-            const renderer = new renderLib.Renderer(document.body);
+            const renderer = new renderLib.renderer.PixiRenderer(document.body);
             const steps = JSON.parse(window.localStorage.getItem("orderGraph"));
             const stepBox = document.getElementById("stepBox");
             let step = 0;

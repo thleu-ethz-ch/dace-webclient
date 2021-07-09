@@ -38,6 +38,17 @@ export default class Bench {
         return Serializer.serializePromises(promises);
     }
 
+    public static numRanks(loadFunction: (name: string) => Promise<RenderGraph>, layouter: Layouter, graphs: Array<string> = Bench.GRAPHS_ALL) {
+        const promises = graphs.map(name => {
+            return loadFunction(name).then(async (renderGraph: RenderGraph) => {
+                return await layouter.layout(renderGraph).then((layout: LayoutGraph) => {
+                    return layout.numRanks;
+                });
+            });
+        });
+        return Serializer.serializePromises(promises);
+    }
+
     public static crossings(loadFunction: (name: string) => Promise<RenderGraph>, layouter: Layouter, graphs: Array<string> = Bench.GRAPHS_ALL) {
         const promises = graphs.map(name => {
             return loadFunction(name).then(async (renderGraph: RenderGraph) => {

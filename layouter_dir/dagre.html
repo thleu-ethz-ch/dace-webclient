@@ -22,7 +22,7 @@
     <script>
         window.addEventListener("load", function () {
             const layouter = new renderLib.layouter.DagreLayouter({optimizeAngles: false, minimizeConnectorCrossings: false});
-            const renderer = new renderLib.Renderer(document.body);
+            const renderer = new renderLib.renderer.PixiRenderer(document.body);
             const graph = (new URLSearchParams(window.location.search)).get('graph') || "symm";
             renderer.show(layouter, graph);
         });
