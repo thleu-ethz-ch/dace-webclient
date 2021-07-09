@@ -112,7 +112,9 @@ export default class LayoutNode extends Node<LayoutGraph, LayoutEdge> {
     translate(x: number, y: number): void {
         this.x += x;
         this.y += y;
-        _.forEach(this.childGraphs, (childGraph: LayoutGraph) => {
+        if (this.selfLoop !== null) {
+            this.selfLoop.translate(x, y);
+        }        _.forEach(this.childGraphs, (childGraph: LayoutGraph) => {
             childGraph.translateElements(x, y);
         });
         _.forEach(this.inConnectors, (connector: LayoutConnector) => {

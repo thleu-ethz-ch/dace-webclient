@@ -15,12 +15,12 @@ export default class MagneticSpringLayouter extends RecursiveLayouter {
         this._options = _.defaults(options, this._options, {
             numIterations: 0,
             stepSize: 1,
-            weightSpring: 1,
+            weightSpring: 2,
             weightRepulsive: 1,
-            weightMagnetic: 10,
+            weightMagnetic: 0.1,
             magneticStrength: 1,
             distanceExponent: 1,
-            angleExponent: 1,
+            angleExponent: 10,
             decay: 0.999,
         });
     }

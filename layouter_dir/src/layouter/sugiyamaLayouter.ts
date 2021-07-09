@@ -31,6 +31,7 @@ export default class SugiyamaLayouter extends Layouter {
         super();
         this._options = _.defaults(options, this._options, {
             compactRanks: true,
+            spaceBetweenNodes: 30,
         });
     }
 
@@ -70,7 +71,7 @@ export default class SugiyamaLayouter extends Layouter {
         Timer.stop(["doLayout", "assignCoordinates"]);
 
         // STEP 6 (OPTIONAL): OPTIMIZE ANGLES
-        if (this._options["optimizeAngles"]) {
+        if (this._options.optimizeAngles) {
             this._optimizeAngles(graph, segmentsPerRank, crossingsPerRank);
         }
 
@@ -78,6 +79,11 @@ export default class SugiyamaLayouter extends Layouter {
         Timer.start(["doLayout", "restoreCycles"]);
         this._restoreCycles(graph);
         Timer.stop(["doLayout", "restoreCycles"]);
+
+        // OPTIONAL: PLACE EDGE LABELS
+        if (this._options.withLabels) {
+            this._placeEdgeLabels(graph);
+        }
 
         Timer.stop(["doLayout"]);
     }
@@ -964,7 +970,7 @@ export default class SugiyamaLayouter extends Layouter {
                 maxBottom = Math.max(maxBottom, node.y + height);
             });
             rankBottoms[r] = maxBottom;
-            rankTops[r + 1] = maxBottom + this._options["targetEdgeLength"];
+            rankTops[r + 1] = maxBottom + this._options.targetEdgeLength;
         }
 
         // assign x and set size; assign edge and connector coordinates
@@ -979,7 +985,7 @@ export default class SugiyamaLayouter extends Layouter {
                     const childGraph = nodes[n].childGraphs[c];
                     if (childGraph.numNodes() > 0) {
                         await placeSubgraph(childGraph, childOffset);
-                        childOffset += childGraph.boundingBox().width + this._options["targetEdgeLength"];
+                        childOffset += childGraph.boundingBox().width + this._options.spaceBetweenComponents;
                     }
                 }
             }
@@ -991,10 +997,10 @@ export default class SugiyamaLayouter extends Layouter {
             _.forEach(subgraph.nodes(), (node: LayoutNode) => {
                 if (node.selfLoop !== null) {
                     node.selfLoop.points = [
-                        new Vector(node.x + node.width + node.padding - this._options["targetEdgeLength"], node.y + node.height - 10),
-                        new Vector(node.x + node.width + node.padding, node.y + node.height - 10),
-                        new Vector(node.x + node.width + node.padding, node.y + 10),
-                        new Vector(node.x + node.width + node.padding - this._options["targetEdgeLength"], node.y + 10),
+                        new Vector(node.x + node.width - this._options.targetEdgeLength, node.y + node.height - 10),
+                        new Vector(node.x + node.width, node.y + node.height - 10),
+                        new Vector(node.x + node.width, node.y + 10),
+                        new Vector(node.x + node.width - this._options.targetEdgeLength, node.y + 10),
                     ];
                 }
             });
@@ -1010,12 +1016,12 @@ export default class SugiyamaLayouter extends Layouter {
                     if (_.some(parent.outConnectors, connector => !connector.isTemporary)) {
                         boundingBox.height -= CONNECTOR_SIZE / 2;
                     }
-                    width += boundingBox.width + this._options["targetEdgeLength"];
+                    width += boundingBox.width + this._options.spaceBetweenComponents;
                     height = Math.max(height, boundingBox.height);
                 });
-                width += 2 * parent.padding - this._options["targetEdgeLength"];
+                width += 2 * parent.padding - this._options.spaceBetweenComponents;
                 if (parent.selfLoop !== null) {
-                    width += this._options["targetEdgeLength"];
+                    width += this._options.targetEdgeLength;
                 }
                 height += 2 * subgraph.parentNode.padding;
                 parent.updateSize({width: width, height: height});
@@ -1213,7 +1219,7 @@ export default class SugiyamaLayouter extends Layouter {
 
                 // place self-loops visually outside their state
                 if (node.selfLoop !== null) {
-                    node.setWidth(node.width - this._options["targetEdgeLength"]);
+                    node.setWidth(node.width - this._options.targetEdgeLength);
                 }
             });
             Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "placeEdges", "removeVirtual"]);
@@ -1271,10 +1277,10 @@ export default class SugiyamaLayouter extends Layouter {
             });
 
             xAssignments = await Promise.all([
-                this._pool.exec("alignMedian", [ranks.length, numNodesPerRank, levelNodes, levelGraph.numEdges(), levelEdges, "UP", "LEFT", this._options["targetEdgeLength"]]),
-                this._pool.exec("alignMedian", [ranks.length, numNodesPerRank, levelNodes, levelGraph.numEdges(), levelEdges, "UP", "RIGHT", this._options["targetEdgeLength"]]),
-                this._pool.exec("alignMedian", [ranks.length, numNodesPerRank, levelNodes, levelGraph.numEdges(), levelEdges, "DOWN", "LEFT", this._options["targetEdgeLength"]]),
-                this._pool.exec("alignMedian", [ranks.length, numNodesPerRank, levelNodes, levelGraph.numEdges(), levelEdges, "DOWN", "RIGHT", this._options["targetEdgeLength"]]),
+                this._pool.exec("alignMedian", [ranks.length, numNodesPerRank, levelNodes, levelGraph.numEdges(), levelEdges, "UP", "LEFT", this._options.spaceBetweenNodes]),
+                this._pool.exec("alignMedian", [ranks.length, numNodesPerRank, levelNodes, levelGraph.numEdges(), levelEdges, "UP", "RIGHT", this._options.spaceBetweenNodes]),
+                this._pool.exec("alignMedian", [ranks.length, numNodesPerRank, levelNodes, levelGraph.numEdges(), levelEdges, "DOWN", "LEFT", this._options.spaceBetweenNodes]),
+                this._pool.exec("alignMedian", [ranks.length, numNodesPerRank, levelNodes, levelGraph.numEdges(), levelEdges, "DOWN", "RIGHT", this._options.spaceBetweenNodes]),
             ]);
         } else {
             xAssignments = ([
@@ -1356,7 +1362,7 @@ export default class SugiyamaLayouter extends Layouter {
             blockId++;
         }
         for (let n = 1; n < ranks[r].length; ++n) {
-            const edgeLength = (ranks[r][n - 1].layoutNode.width + ranks[r][n].width) / 2 + this._options["targetEdgeLength"];
+            const edgeLength = (ranks[r][n - 1].layoutNode.width + ranks[r][n].width) / 2 + this._options.spaceBetweenNodes;
             blockGraph.addEdge(new Edge(blockPerNode[ranks[r][n - 1].id], blockPerNode[ranks[r][n].id], edgeLength));
         }
         for (let r = firstRank; r - verticalDir !== lastRank; r += verticalDir) {
@@ -1434,7 +1440,7 @@ export default class SugiyamaLayouter extends Layouter {
                 }
             }
             for (let n = 1; n < ranks[r].length; ++n) {
-                const edgeLength = (ranks[r][n - 1].layoutNode.width + ranks[r][n].layoutNode.width) / 2 + this._options["targetEdgeLength"];
+                const edgeLength = (ranks[r][n - 1].layoutNode.width + ranks[r][n].layoutNode.width) / 2 + this._options.spaceBetweenNodes;
                 blockGraph.addEdge(new Edge(blockPerNode[ranks[r][n - 1].id], blockPerNode[ranks[r][n].id], edgeLength));
             }
             Timer.stop(["doLayout", "assignCoordinates", "placeSubgraph", "assignX", "alignMedian", "findNeighbor"]);
@@ -1479,8 +1485,8 @@ export default class SugiyamaLayouter extends Layouter {
                     minRightEdgeLength = Math.min(minRightEdgeLength, neighborX - nodeX);
                 });
                 // move it
-                if (minRightEdgeLength > this._options["targetEdgeLength"]) {
-                    const offset = minRightEdgeLength - this._options["targetEdgeLength"];
+                if (minRightEdgeLength > this._options.spaceBetweenNodes) {
+                    const offset = minRightEdgeLength - this._options.spaceBetweenNodes;
                     _.forEach(nodesPerBlock[blockId], nodeId => {
                         xAssignment[nodeId] += offset;
                     });
@@ -1589,12 +1595,12 @@ export default class SugiyamaLayouter extends Layouter {
         // place bundles
         _.forEach(node.inConnectorBundles, (inBundle: LayoutBundle) => {
             const top = rankTops[node.rank];
-            inBundle.y = Math.min(top, node.y - CONNECTOR_SIZE / 2 - this._options["targetEdgeLength"] / 3);
+            inBundle.y = Math.min(top, node.y - CONNECTOR_SIZE / 2 - this._options.targetEdgeLength / 3);
             inBundle.x = _.mean(_.map(inBundle.connectors, (name: string) => node.connector("IN", name).x)) + SIZE / 2;
         });
         _.forEach(node.outConnectorBundles, (outBundle: LayoutBundle) => {
             const bottom = rankBottoms[node.rank + node.rankSpan - 1];
-            outBundle.y = Math.max(bottom, node.y + node.height + CONNECTOR_SIZE / 2 + this._options["targetEdgeLength"] / 3);
+            outBundle.y = Math.max(bottom, node.y + node.height + CONNECTOR_SIZE / 2 + this._options.targetEdgeLength / 3);
             outBundle.x = _.mean(_.map(outBundle.connectors, (name: string) => node.connector("OUT", name).x)) + SIZE / 2;
         });
     }
@@ -1616,7 +1622,7 @@ export default class SugiyamaLayouter extends Layouter {
                     }
                     let end = segment.end.clone();
                     if (segment.end.y > rankTops[startRank + 1]) {
-                        end = start.clone().add(segment.vector().setY(this._options["targetEdgeLength"]));
+                        end = start.clone().add(segment.vector().setY(this._options.targetEdgeLength));
                     }
                     segment = new Segment(start, end);
                     endpointsPerRank[startRank + 1].push([segment.start, segment]);
@@ -1676,8 +1682,8 @@ export default class SugiyamaLayouter extends Layouter {
                 });
                 // golden-section search; adapted from https://en.wikipedia.org/wiki/Golden-section_search
                 const goldenRatio = (Math.sqrt(5) + 1) / 2;
-                let a = this._options["targetEdgeLength"];
-                let b = this._options["targetEdgeLength"] + maxForce;
+                let a = this._options.targetEdgeLength;
+                let b = this._options.targetEdgeLength + maxForce;
                 let f = (deltaY) => {
                     let cost = 0;
                     _.forEach(deltaXs, ([deltaXA, deltaXB]) => {
@@ -1686,7 +1692,7 @@ export default class SugiyamaLayouter extends Layouter {
                     });
                     const deltaYSquared = deltaY * deltaY;
                     _.forEach(allDeltaXsSquared, deltaXSquared => {
-                        cost += this._options["weightLengths"] * Math.sqrt(deltaYSquared + deltaXSquared) / this._options["targetEdgeLength"];
+                        cost += this._options["weightLengths"] * Math.sqrt(deltaYSquared + deltaXSquared) / this._options.targetEdgeLength;
                     });
                     return cost;
                 }
@@ -1702,7 +1708,7 @@ export default class SugiyamaLayouter extends Layouter {
                     c = b - (b - a) / goldenRatio
                     d = a + (b - a) / goldenRatio
                 }
-                forces.push([maxY, (b + a) / 2 - this._options["targetEdgeLength"]]);
+                forces.push([maxY, (b + a) / 2 - this._options.targetEdgeLength]);
             }
         });
 

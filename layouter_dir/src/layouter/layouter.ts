@@ -23,6 +23,7 @@ export default abstract class Layouter {
     constructor(options: object = {}) {
         this._options = _.defaults(options, {
             targetEdgeLength: 50,
+            spaceBetweenComponents: 50,
             withLabels: false,
             bundle: false,
             optimizeAngles: false,
@@ -445,7 +446,7 @@ export default abstract class Layouter {
             delete node.layoutNode;
         });
         _.forEach(renderGraph.allEdges(), (edge: RenderEdge) => {
-            _.assign(edge, _.pick(edge.layoutEdge, ['points']));
+            _.assign(edge, _.pick(edge.layoutEdge, ['points', 'labelX', 'labelY']));
             // duplicate bundle points to make curved edges go through them
             if (edge.layoutEdge.srcBundle !== null) {
                 edge.points.splice(1, 0, edge.points[1].clone());
@@ -461,5 +462,45 @@ export default abstract class Layouter {
         });
     }
 
+    protected _placeEdgeLabels(graph: LayoutGraph) {
+        _.forEach(graph.allEdges(), (edge: LayoutEdge) => {
+            let start, end, middlePoint;
+            if (edge.points.length % 2 === 0) {
+                start = edge.points[(edge.points.length / 2) - 1].clone();
+                end = edge.points[edge.points.length / 2].clone();
+                middlePoint = end.clone().sub(start).multiplyScalar(0.5).add(start);
+            } else {
+                const indexMiddle = (edge.points.length - 1) / 2;
+                middlePoint = edge.points[indexMiddle].clone();
+                start = edge.points[indexMiddle - 1].clone();
+                end = edge.points[indexMiddle + 1].clone();
+            }
+            const dir = end.clone().sub(start);
+            const normal = dir.normal();
+            let topLeft = middlePoint.clone().add(normal.setLength(3));
+            if (dir.x === 0) {
+                if (dir.y > 0) {
+                    // center left
+                    topLeft.y -= edge.labelSize.height / 2;
+                } else {
+                    // center right
+                    topLeft.x -= edge.labelSize.width;
+                    topLeft.y -= edge.labelSize.height / 2;
+                }
+            } else if (dir.x > 0 && dir.y > 0) {
+                // bottom left
+                topLeft.y -= edge.labelSize.height;
+            } else if (dir.x < 0 && dir.y < 0) {
+                // top right
+                topLeft.x -= edge.labelSize.width;
+            } else if (dir.x > 0) {
+                // bottom right
+                topLeft.x -= edge.labelSize.width;
+                topLeft.y -= edge.labelSize.height;
+            }
+            edge.labelX = topLeft.x;
+            edge.labelY = topLeft.y;
+        });
+    }
 
 }
