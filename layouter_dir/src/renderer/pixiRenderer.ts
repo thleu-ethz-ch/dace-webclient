@@ -11,6 +11,7 @@ import Size from "../geometry/size";
 export default class PixiRenderer extends Renderer {
     private readonly _app;
     private readonly _viewport;
+    protected _container: PixiContainer;
 
     constructor(domContainer, coordinateContainer = null) {
         super(coordinateContainer);
@@ -32,7 +33,7 @@ export default class PixiRenderer extends Renderer {
         this._app.stage.addChild(this._viewport);
 
         this._container = new PixiContainer();
-        this._viewport.addChild((<PixiContainer>this._container).pixiContainer);
+        this._viewport.addChild(this._container.pixiContainer);
 
         if (this._coordinateContainer !== null) {
             this._viewport.interactive = true;

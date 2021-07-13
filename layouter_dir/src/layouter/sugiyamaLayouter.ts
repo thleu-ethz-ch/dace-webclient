@@ -518,6 +518,7 @@ export default class SugiyamaLayouter extends Layouter {
             // do order
             await orderGraph.order({
                 debug: false/*subgraph.numNodes() === 189*/,
+                resolveX: false,
                 countInitial: this._options["preorderConnectors"],
                 shuffles: this._options["shuffleGlobal"] ? 0 : (this._options["preorderConnectors"] ? 0 : this._options["numShuffles"]),
             });
@@ -690,7 +691,7 @@ export default class SugiyamaLayouter extends Layouter {
          * STEP 3: ORDER CONNECTORS
          */
 
-            // order connectors
+        // order connectors
         const connectorOrderGraph = this._createConnectorGraph(graph, false, false, shuffle && !this._options["preorderConnectors"]);
         await connectorOrderGraph.order({
             resolveConflicts: false,

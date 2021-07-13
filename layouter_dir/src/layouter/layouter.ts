@@ -37,10 +37,10 @@ export default abstract class Layouter {
             webWorkers: false,
             maxWorkers: (typeof(navigator) !== "undefined" ? (navigator.hardwareConcurrency - 2) : 0),
         });
-        if (this._options["webWorkers"]) {
-            this._pool = new WorkerPool("worker/worker.js", Math.min(Math.max(this._options["numShuffles"], 4), this._options["maxWorkers"]));
+        if (this._options.webWorkers && this._options.maxWorkers > 0) {
+            this._pool = new WorkerPool("worker/worker.js", Math.min(Math.max(this._options.numShuffles, 4), this._options.maxWorkers));
         }
-        if (this._options["webAssembly"]) {
+        if (this._options.webAssembly) {
             this._wasm = new Wasm();
         }
     }
