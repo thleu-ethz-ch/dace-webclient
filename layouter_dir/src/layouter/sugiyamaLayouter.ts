@@ -302,6 +302,7 @@ export default class SugiyamaLayouter extends Layouter {
 
         // add nodes
         const addConnectorsForSubgraph = (subgraph: LayoutGraph, indizes: Array<number> = null) => {
+            subgraph.levelGraph().invalidateRankOrder();
             _.forEach(subgraph.levelGraph().ranks(), (rank: Array<LevelNode>, r) => {
                 let index = (indizes === null ? 0 : indizes[r]);
                 if (shuffleNodes) {
@@ -397,13 +398,7 @@ export default class SugiyamaLayouter extends Layouter {
             }
 
             let srcOrderNodeId = connectorMap.get(srcNode.connector("OUT", edge.srcConnector));
-            /*if (srcOrderNodeId === undefined) {
-                srcOrderNodeId = connectorMap.get(srcNode.connector("OUT", "bottomIn"));
-            }*/
             let dstOrderNodeId = connectorMap.get(dstNode.connector("IN", edge.dstConnector));
-            /*if (dstOrderNodeId === undefined) {
-                dstOrderNodeId = connectorMap.get(srcNode.connector("IN", "topOut"));
-            }*/
             orderGraph.addEdge(new Edge(srcOrderNodeId, dstOrderNodeId, 1));
         });
 
@@ -463,7 +458,7 @@ export default class SugiyamaLayouter extends Layouter {
 
         const nodeMap: Map<number, number> = new Map(); // map from level node to corresponding order node
 
-        // child graphs are visited before their parents (guaranteed by forEachRight)
+        // child graphs are visited before their parents
         const allGraphs = graph.allGraphs();
         for (let i = allGraphs.length - 1; i >= 0; --i) {
             const subgraph = allGraphs[i];
@@ -518,7 +513,7 @@ export default class SugiyamaLayouter extends Layouter {
             // do order
             await orderGraph.order({
                 debug: false/*subgraph.numNodes() === 189*/,
-                resolveX: false,
+                resolveX: true,
                 countInitial: this._options["preorderConnectors"],
                 shuffles: this._options["shuffleGlobal"] ? 0 : (this._options["preorderConnectors"] ? 0 : this._options["numShuffles"]),
             });

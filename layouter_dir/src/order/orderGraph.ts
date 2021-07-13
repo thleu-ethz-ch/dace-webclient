@@ -210,7 +210,7 @@ export default class OrderGraph {
 
             const assertOrderAndPositionCoherence = (r: number = null) => {
                 if (r === null) {
-                    _.forEach(_.range(numRanks), r => assertOrderAndPositionCoherence(r));
+                    _.forEach(_.range(ranks.length), r => assertOrderAndPositionCoherence(r));
                     return;
                 }
                 Assert.assertAll(order[r], (nodeId, pos) => positions[nodeId] === pos, "positions and orders do not match");
@@ -295,7 +295,7 @@ export default class OrderGraph {
                     if (r > 0) {
                         hasConflict = hasConflict || (getConflict("HEAVYHEAVY", r) !== null) || (getConflict("HEAVYLIGHT", r) !== null);
                     }
-                    if (r < numRanks - 1) {
+                    if (r < ranks.length - 1) {
                         hasConflict = hasConflict || (getConflict("HEAVYHEAVY", r + 1) !== null) || (getConflict("HEAVYLIGHT", r + 1) !== null);
                     }
                     order[r] = _.clone(originalOrder);
@@ -610,7 +610,7 @@ export default class OrderGraph {
                     }
                 }
 
-                for (let r = 0; r < numRanks; ++r) {
+                for (let r = 0; r < ranks.length; ++r) {
                     _.forEach(order[r], (nodeId: number, pos: number) => {
                         positions[nodeId] = pos;
                     });
@@ -844,23 +844,14 @@ export default class OrderGraph {
                 const addVirtualNodesForMovedNode = (node: OrderNode, pos: number) => {
                     // add virtual nodes where gaps are created
                     const sortedEdges = graph.inEdges(node.id);
-                    const initialPos = pos;
-                    if (initialPos !== null) {
-                        inPlaceSort(sortedEdges).asc(edge => positions[edge.src]);
-                    }
+                    inPlaceSort(sortedEdges).asc(edge => positions[edge.src]);
                     _.forEachRight(sortedEdges, inEdge => {
                         let srcNode = graph.node(inEdge.src);
-                        for (let r = srcNode.rank + 1; r < node.rank; ++r) {
-                            const newNode = createNode();
-                            if (initialPos === null) {
-                                pos = Math.min(order[r].length, Math.round((positions[node.id] + positions[srcNode.id]) / 2));
-                            }
-                            addNodeToRank(r, pos, newNode);
-                            removeEdge(srcNode, node);
-                            addEdge(srcNode, newNode, srcNode.isVirtual ? Number.POSITIVE_INFINITY : inEdge.weight);
-                            addEdge(newNode, node, node.isVirtual ? Number.POSITIVE_INFINITY : inEdge.weight);
-                            srcNode = newNode;
-                        }
+                        const newNode = createNode();
+                        addNodeToRank(srcNode.rank + 1, pos, newNode);
+                        removeEdge(srcNode, node);
+                        addEdge(srcNode, newNode, srcNode.isVirtual ? Number.POSITIVE_INFINITY : inEdge.weight);
+                        addEdge(newNode, node, node.isVirtual ? Number.POSITIVE_INFINITY : inEdge.weight);
                     });
                 }
 
@@ -942,16 +933,8 @@ export default class OrderGraph {
                         }
                         if ((crossingsANorth + crossingsASouth) < (crossingsBNorth + crossingsBSouth)) {
                             order[r] = tmpOrderA;
-                            crossings[r] = crossingsANorth;
-                            if (r < ranks.length - 1) {
-                                crossings[r + 1] = crossingsASouth;
-                            }
                         } else {
                             order[r] = tmpOrderB;
-                            crossings[r] = crossingsANorth;
-                            if (r < ranks.length - 1) {
-                                crossings[r + 1] = crossingsBSouth;
-                            }
                         }
                         // update positions
                         _.forEach(order[r], (nodeId: number, pos: number) => {
@@ -968,7 +951,11 @@ export default class OrderGraph {
                         if (r === ranks.length - 1) {
                             createRank();
                         }
-                        _.forEach(_.clone(order[r - 1]), (nodeId: number) => {
+                        tmpOrder.length = 0;
+                        for (let pos = 0; pos < order[r - 1].length; ++pos) {
+                            tmpOrder.push(order[r - 1][pos]);
+                        }
+                        _.forEach(tmpOrder, (nodeId: number) => {
                             if (!sink[nodeId] && !intranode[nodeId]) {
                                 moveNodeDown(graph.node(nodeId), 1, order[r].length);
                                 addVirtualNodesForMovedNode(graph.node(nodeId), posBeforeMoving[nodeId]);
@@ -1094,12 +1081,12 @@ export default class OrderGraph {
                             storeLocal();
                         }
 
-                        /*for (let tmpR = 1; tmpR < ranks.length; ++tmpR) {
-                            crossings[tmpR] = countCrossings(order[tmpR], tmpR);
-                        }*/
-                        crossings[r] = countCrossings(order[r], r);
                         if (DEBUG) {
-                            Assert.assertAll(_.range(r + 1), r => getConflict("HEAVYHEAVY", r, true) === null, "heavy-heavy conflict after y resolution");
+                            if (_.some(_.range(1, r + 1), r => getConflict("HEAVYHEAVY", r) !== null)) {
+                                console.log("problem after y resolution in rank", r);
+                                storeLocal();
+                            }
+                            Assert.assertAll(_.range(1, r + 1), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after y resolution");
                         }
                         Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve", "resolveConflict", "resolveY"]);
                     }
@@ -1154,16 +1141,12 @@ export default class OrderGraph {
                                 // potentially heavy
                                 const prev = minHeavyNodePerRank[r];
                                 minHeavyNodePerRank[r] = minFun(minHeavyNodePerRank[r], positions[node.id]);
-                                console.log("minHeavyNodePerRank[" + r + "] = " + minHeavyNodePerRank[r]);
+                                //console.log("minHeavyNodePerRank[" + r + "] = " + minHeavyNodePerRank[r]);
                                 if (minHeavyNodePerRank[r] !== prev && maxOtherNodePerRank[r] !== Number.POSITIVE_INFINITY && maxOtherNodePerRank[r] !== Number.NEGATIVE_INFINITY) {
                                     addIntermediate();
                                 }
                             }
                         };
-                        Assert.assert(typeof crossedNorthNode !== "undefined", "undefined conflict");
-                        Assert.assert(typeof crossedSouthNode !== "undefined", "undefined conflict");
-                        Assert.assert(typeof crossingNorthNode !== "undefined", "undefined conflict");
-                        Assert.assert(typeof crossingSouthNode !== "undefined", "undefined conflict");
                         addNodeToGroup(r - 1, crossedNorthNode, "GREEN");
                         addNodeToGroup(r, crossedSouthNode, "GREEN");
                         addNodeToGroup(r - 1, crossingNorthNode, "RED");
@@ -1287,18 +1270,13 @@ export default class OrderGraph {
                             _.forEach(order[r], (nodeId: number, pos: number) => {
                                 positions[nodeId] = pos;
                             });
-                            minChangedRank = Math.min(minChangedRank, r);
-                            maxChangedRank = Math.max(maxChangedRank, r + 1);
                         });
-                        for (let r = minChangedRank; r <= Math.min(maxChangedRank, ranks.length - 1); ++r) {
-                            crossings[r] = countCrossings(order[r], r);
-                        }
 
                         if (options["debug"]) {
                             storeLocal();
                         }
                         if (DEBUG) {
-                            Assert.assertAll(_.range(r + 1), r => getConflict("HEAVYHEAVY", r, true) === null, "heavy-heavy conflict after x resolution");
+                            Assert.assertAll(_.range(1,r + 1), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after x resolution");
                         }
                         Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve", "resolveConflict", "resolveX"]);
                     };
@@ -1389,6 +1367,10 @@ export default class OrderGraph {
                     Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYLIGHT", r) === null, "heavy-light conflict after resolution");
                 }
 
+                for (let tmpR = 1; tmpR < ranks.length; ++tmpR) {
+                    crossings[tmpR] = countCrossings(order[tmpR], tmpR);
+                }
+
                 Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve"]);
             }
 
@@ -1471,12 +1453,15 @@ export default class OrderGraph {
 
             if (options["resolveConflicts"]) {
                 resolveConflicts();
+                resolveConflicts();
+                Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after resolveConflicts");
+                Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYLIGHT", r) === null, "heavy-light conflict after resolveConflicts");
                 options["debug"] = false;
                 reorder(false, false, 0, true);
-                if (DEBUG) {
+                //if (DEBUG) {
                     Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after reorder with preventConflict");
                     Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYLIGHT", r) === null, "heavy-light conflict after reorder with preventConflict");
-                }
+                //}
             }
 
             // transform component ranks to absolute ranks
