@@ -69,7 +69,7 @@ export default class LevelGraph extends Graph<LevelNode, Edge<any, any>> {
                 this._ranks[node.rank - minRank].push(node);
             });
             _.forEach(this._ranks, (rank: Array<LevelNode>, r: number) => {
-                this._ranks[r] = _.sortBy(this._ranks[r], "position");
+                this._ranks[r] = _.sortBy(this._ranks[r], "position"); // stable sort
                 for (let pos = 0; pos < this._ranks[r].length; ++pos) {
                     this._ranks[r][pos].position = pos;
                 }

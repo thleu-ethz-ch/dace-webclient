@@ -59,58 +59,6 @@ export default abstract class Renderer {
 
     show(layouter: Layouter, name: string): void {
         Loader.load(name).then((graph: RenderGraph) => {
-            /*graph = new RenderGraph();
-            const accessNode00 = graph.addNode(new AccessNode("AccessNode"));
-            const mapEntry1 = graph.addNode(new MapEntry("MapEntry"));
-            const tasklet1 = graph.addNode(new Tasklet("Tasklet"));
-            const mapExit1 = graph.addNode(new MapExit("MapExit"));
-            const mapEntry2 = graph.addNode(new MapEntry("MapEntry"));
-            const mapExit2 = graph.addNode(new MapExit("MapExit"));
-            const accessNode10 = graph.addNode(new AccessNode("AccessNode"));
-            const accessNode11 = graph.addNode(new AccessNode("AccessNode"));
-            const accessNode12 = graph.addNode(new AccessNode("AccessNode"));
-            const accessNode20 = graph.addNode(new AccessNode("AccessNode"));
-            const accessNode21 = graph.addNode(new AccessNode("AccessNode"));
-            const mapEntry3 = graph.addNode(new MapEntry("MapEntry"));
-            const accessNode22 = graph.addNode(new AccessNode("AccessNode"));
-            const accessNode23 = graph.addNode(new AccessNode("AccessNode"));
-            const tasklet3 = graph.addNode(new Tasklet("Tasklet"));
-            const accessNode30 = graph.addNode(new AccessNode("AccessNode"));
-            const accessNode31 = graph.addNode(new AccessNode("AccessNode"));
-            const accessNode32 = graph.addNode(new AccessNode("AccessNode"));
-            const mapExit3 = graph.addNode(new MapExit("MapExit"));
-            const accessNode40 = graph.addNode(new AccessNode("AccessNode"));
-            const accessNode41 = graph.addNode(new AccessNode("AccessNode"));
-            const accessNode50 = graph.addNode(new AccessNode("AccessNode"));
-            const accessNode51 = graph.addNode(new AccessNode("AccessNode"));
-            graph.node(mapExit1).scopeEntry = mapEntry1;
-            graph.node(tasklet1).scopeEntry = mapEntry1;
-            graph.node(mapExit2).scopeEntry = mapEntry2;
-            graph.node(mapExit3).scopeEntry = mapEntry3;
-            graph.node(tasklet3).scopeEntry = mapEntry3;
-            graph.addEdge(new GenericEdge(accessNode00, mapEntry1));
-            graph.addEdge(new GenericEdge(accessNode00, accessNode10));
-            graph.addEdge(new GenericEdge(mapEntry1, tasklet1));
-            graph.addEdge(new GenericEdge(tasklet1, mapExit1));
-            graph.addEdge(new GenericEdge(mapExit1, mapEntry2));
-            graph.addEdge(new GenericEdge(mapEntry2, mapExit2));
-            graph.addEdge(new GenericEdge(accessNode10, accessNode20));
-            graph.addEdge(new GenericEdge(accessNode10, accessNode21));
-            graph.addEdge(new GenericEdge(accessNode11, accessNode21));
-            graph.addEdge(new GenericEdge(accessNode21, accessNode30));
-            graph.addEdge(new GenericEdge(mapEntry3, tasklet3));
-            graph.addEdge(new GenericEdge(tasklet3, mapExit3));
-            graph.addEdge(new GenericEdge(mapExit3, accessNode50));
-            graph.addEdge(new GenericEdge(mapExit3, accessNode51));
-            graph.addEdge(new GenericEdge(accessNode30, accessNode40));
-            graph.addEdge(new GenericEdge(accessNode40, accessNode51));
-            graph.addEdge(new GenericEdge(accessNode12, accessNode22));
-            graph.addEdge(new GenericEdge(accessNode22, accessNode30));
-            graph.addEdge(new GenericEdge(accessNode22, accessNode31));
-            graph.addEdge(new GenericEdge(accessNode31, accessNode41));
-            graph.addEdge(new GenericEdge(accessNode23, accessNode32));
-            graph.addEdge(new GenericEdge(accessNode32, accessNode41));*/
-
             // set node sizes
             _.forEach(graph.allNodes(), (node: RenderNode) => {
                 node.labelSize = this._labelSize(node);
@@ -122,7 +70,7 @@ export default abstract class Renderer {
             });
 
             layouter.layout(graph).then((layout: LayoutGraph) => {
-                /*const layoutAnalysis = new LayoutAnalysis(layout);
+                const layoutAnalysis = new LayoutAnalysis(layout);
                 if (layoutAnalysis.validate()) {
                     console.log("Layout satisfies constraints.");
                 } else {
@@ -135,12 +83,12 @@ export default abstract class Renderer {
                 });*/
 
                 // center and fit the graph in the viewport
-                /*const box = graph.boundingBox();
+                const box = graph.boundingBox();
                 console.log("Total size: " + box.width.toFixed(0) + "x" + box.height.toFixed(0));
-                console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());*/
+                console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
-                Timer.printTimes();
-                this._render(graph);
+                //Timer.printTimes();
+                //this._render(graph);
             });
         });
     }

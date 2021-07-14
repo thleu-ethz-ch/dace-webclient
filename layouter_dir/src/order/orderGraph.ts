@@ -195,19 +195,6 @@ export default class OrderGraph {
         };
 
         const doOrder = async (graph: OrderGraph) => {
-            const assertNeighborCoherence = (r: number = null) => {
-                if (r === null) {
-                    _.forEach(_.range(ranks.length), r => assertNeighborCoherence(r));
-                    return;
-                }
-                _.forEach(neighbors[r][1], (neighborsPerNode, nodeId) => {
-                    Assert.assertAll(neighborsPerNode, neighbor => neighbors[r + 1][0][neighbor].indexOf(nodeId) !== -1, "neighbor in rank " + (r + 1) + " is missing upNeighbor");
-                });
-                _.forEach(neighbors[r][0], (neighborsPerNode, nodeId) => {
-                    Assert.assertAll(neighborsPerNode, neighbor => neighbors[r - 1][1][neighbor].indexOf(nodeId) !== -1, "neighbor in rank " + (r - 1) + "is missing downNeighbor");
-                });
-            }
-
             const assertOrderAndPositionCoherence = (r: number = null) => {
                 if (r === null) {
                     _.forEach(_.range(ranks.length), r => assertOrderAndPositionCoherence(r));
@@ -841,21 +828,25 @@ export default class OrderGraph {
                     crossings[newR] = 0;
                 }
 
-                const addVirtualNodesForMovedNode = (node: OrderNode, pos: number) => {
+                const addVirtualNodesForMovedNode = (node: OrderNode) => {
                     // add virtual nodes where gaps are created
                     const sortedEdges = graph.inEdges(node.id);
-                    inPlaceSort(sortedEdges).asc(edge => positions[edge.src]);
-                    _.forEachRight(sortedEdges, inEdge => {
+                    inPlaceSort(sortedEdges).desc(edge => positions[edge.src]);
+                    _.forEach(sortedEdges, inEdge => {
                         let srcNode = graph.node(inEdge.src);
-                        const newNode = createNode();
-                        addNodeToRank(srcNode.rank + 1, pos, newNode);
-                        removeEdge(srcNode, node);
-                        addEdge(srcNode, newNode, srcNode.isVirtual ? Number.POSITIVE_INFINITY : inEdge.weight);
-                        addEdge(newNode, node, node.isVirtual ? Number.POSITIVE_INFINITY : inEdge.weight);
+                        if (srcNode.rank + 1 < node.rank) {
+                            const newNode = createNode();
+                            addNodeToRank(srcNode.rank + 1, posBeforeMoving[node.id], newNode);
+                            //console.log("add virtual node", newNode.id, "in rank", srcNode.rank + 1, "at pos", posBeforeMoving[node.id], "for node", node.id)
+                            removeEdge(srcNode, node);
+                            addEdge(srcNode, newNode, srcNode.isVirtual ? Number.POSITIVE_INFINITY : inEdge.weight);
+                            addEdge(newNode, node, node.isVirtual ? Number.POSITIVE_INFINITY : inEdge.weight);
+                            //console.log("srcNode.rank", srcNode.rank, "node.rank", node.rank);
+                        }
                     });
                 }
 
-                const moveNodesInRank = (r: number) => {
+                const moveNodesInRank = (r: number, addVirtual: boolean = false) => {
                     if (moveBy === 0) {
                         return;
                     }
@@ -866,12 +857,13 @@ export default class OrderGraph {
                     }
                     _.forEach(tmpOrder, (nodeId: number) => {
                         if (moved[nodeId] < moveBy && (!intranode[nodeId] || neighbors[0][nodeId].length === 0 || graph.node(neighbors[0][nodeId][0].end).rank !== r - 1)) {
+                            const offset = moveBy - moved[nodeId];
                             moveNodeDown(graph.node(nodeId), moveBy - moved[nodeId], ranks.length > r + moveBy - moved[nodeId] ? order[r + moveBy - moved[nodeId]].length : 0);
+                            if (addVirtual) {
+                                //console.log("move node", nodeId, "to rank", graph.node(nodeId).rank, "offset", offset);
+                                addVirtualNodesForMovedNode(graph.node(nodeId));
+                            }
                             didMove = true;
-                        } else if (intranode[nodeId] && neighbors[1][nodeId].length === 1 && neighbors[1][nodeId][0].weight === Number.POSITIVE_INFINITY) {
-                            /*const neighbor = graph.node(neighbors[1][nodeId][0].end);
-                            removeNodeFromRank(neighbor);
-                            addNodeToRank(r + 1, order[r + 1].length, neighbor);*/
                         }
                     });
                     if (options["debug"]) {
@@ -958,16 +950,21 @@ export default class OrderGraph {
                         _.forEach(tmpOrder, (nodeId: number) => {
                             if (!sink[nodeId] && !intranode[nodeId]) {
                                 moveNodeDown(graph.node(nodeId), 1, order[r].length);
-                                addVirtualNodesForMovedNode(graph.node(nodeId), posBeforeMoving[nodeId]);
-                            } else if (intranode[nodeId] && neighbors[1][nodeId].length === 1 && neighbors[1][nodeId][0].weight === Number.POSITIVE_INFINITY) {
-                                const node = graph.node(neighbors[1][nodeId][0].end);
-                                removeNodeFromRank(node);
-                                addNodeToRank(r, order[r].length, node);
+                                addVirtualNodesForMovedNode(graph.node(nodeId));
+                            } else {
+                                //console.log("do not move", nodeId);
+                                if (intranode[nodeId]) {
+                                    // change position of neighbors on rank r
+                                    _.forEach(graph.outNeighbors(nodeId), (neighbor: OrderNode) => {
+                                        removeNodeFromRank(neighbor);
+                                        //console.log("readd node to rank", neighbor.id, order[r].length);
+                                        addNodeToRank(r, order[r].length, neighbor);
+                                    });
+                                }
                             }
                         });
                         moveBy++;
-                        moveNodesInRank(r);
-                        addVirtualNodesInRank(r);
+                        moveNodesInRank(r, true);
 
                         /*
                         // mark nodes that must not be moved
@@ -1080,14 +1077,20 @@ export default class OrderGraph {
                         if (options["debug"]) {
                             storeLocal();
                         }
-
                         if (DEBUG) {
-                            if (_.some(_.range(1, r + 1), r => getConflict("HEAVYHEAVY", r) !== null)) {
-                                console.log("problem after y resolution in rank", r);
+                            const conflict = getConflict("HEAVYLIGHT", r);
+                            if (conflict !== null) {
                                 storeLocal();
+                                const [r, crossedNorthPos, crossedSouthPos, crossingNorthPos, crossingSouthPos] = conflict;
+                                const crossedNorthNodeId = order[r - 1][crossedNorthPos];
+                                const crossedSouthNodeId = order[r][crossedSouthPos];
+                                const crossingNorthNodeId = order[r - 1][crossingNorthPos];
+                                const crossingSouthNodeId = order[r][crossingSouthPos];
+                                console.log(crossedNorthNodeId, crossedSouthNodeId, crossingNorthNodeId, crossingSouthNodeId);
                             }
-                            Assert.assertAll(_.range(1, r + 1), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after y resolution");
+                            Assert.assertAll(_.range(1, r + 1), r => getConflict("HEAVYLIGHT", r) === null, "heavy-light conflict after y resolution with r = " + r);
                         }
+
                         Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve", "resolveConflict", "resolveY"]);
                     }
 
@@ -1275,9 +1278,6 @@ export default class OrderGraph {
                         if (options["debug"]) {
                             storeLocal();
                         }
-                        if (DEBUG) {
-                            Assert.assertAll(_.range(1,r + 1), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after x resolution");
-                        }
                         Timer.stop(["doLayout", "orderRanks", "doOrder", "order", "doOrder", "resolve", "resolveConflict", "resolveX"]);
                     };
 
@@ -1363,7 +1363,6 @@ export default class OrderGraph {
                     }
                 }
                 if (DEBUG) {
-                    Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after resolution");
                     Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYLIGHT", r) === null, "heavy-light conflict after resolution");
                 }
 
@@ -1454,14 +1453,17 @@ export default class OrderGraph {
             if (options["resolveConflicts"]) {
                 resolveConflicts();
                 resolveConflicts();
-                Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after resolveConflicts");
-                Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYLIGHT", r) === null, "heavy-light conflict after resolveConflicts");
+                if (DEBUG) {
+                    Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after resolveConflicts");
+                    Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYLIGHT", r) === null, "heavy-light conflict after resolveConflicts");
+                }
                 options["debug"] = false;
                 reorder(false, false, 0, true);
-                //if (DEBUG) {
+                if (DEBUG) {
                     Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYHEAVY", r) === null, "heavy-heavy conflict after reorder with preventConflict");
                     Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYLIGHT", r) === null, "heavy-light conflict after reorder with preventConflict");
-                //}
+                    assertEdgesBetweenNeighboringRanks();
+                }
             }
 
             // transform component ranks to absolute ranks

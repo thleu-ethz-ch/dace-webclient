@@ -302,7 +302,6 @@ export default class SugiyamaLayouter extends Layouter {
 
         // add nodes
         const addConnectorsForSubgraph = (subgraph: LayoutGraph, indizes: Array<number> = null) => {
-            subgraph.levelGraph().invalidateRankOrder();
             _.forEach(subgraph.levelGraph().ranks(), (rank: Array<LevelNode>, r) => {
                 let index = (indizes === null ? 0 : indizes[r]);
                 if (shuffleNodes) {
@@ -594,18 +593,22 @@ export default class SugiyamaLayouter extends Layouter {
 
             // find for all new nodes the dominating and dominated non-new node
             const visited = _.fill(new Array(orderGraph.maxId() + 1), false);
-            const newNodesPerEdge: Map<string, Array<LevelNode>> = new Map();
+            const newLevelNodesPerEdge: Map<string, Array<LevelNode>> = new Map();
             newOrderNodes.forEach((orderNode: OrderNode) => {
                 if (visited[orderNode.id]) {
                     return; // start and end node already set
                 }
+                visited[orderNode.id] = true;
                 let tmpOrderNode = orderNode;
                 const nodes = [orderNode.reference];
                 while (newOrderNodes.has(tmpOrderNode) && orderGraph.inEdges(tmpOrderNode.id).length > 0) {
                     tmpOrderNode = orderGraph.node(orderGraph.inEdges(tmpOrderNode.id)[0].src);
                     if (newOrderNodes.has(tmpOrderNode)) {
                         nodes.push(tmpOrderNode.reference);
-                        visited[orderNode.id] = true;
+                        if (DEBUG) {
+                            Assert.assert(!visited[tmpOrderNode.id], "new node on multiple paths");
+                        }
+                        visited[tmpOrderNode.id] = true;
                     }
                 }
                 const startNode = tmpOrderNode;
@@ -615,21 +618,28 @@ export default class SugiyamaLayouter extends Layouter {
                     tmpOrderNode = orderGraph.node(orderGraph.outEdges(tmpOrderNode.id)[0].dst);
                     if (newOrderNodes.has(tmpOrderNode)) {
                         nodes.push(tmpOrderNode.reference);
-                        visited[orderNode.id] = true;
+                        if (DEBUG) {
+                            Assert.assert(!visited[tmpOrderNode.id], "new node on multiple paths");
+                        }
+                        visited[tmpOrderNode.id] = true;
                     }
                 }
                 const endNode = tmpOrderNode;
                 const key = startNode.id + "_" + endNode.id;
-                newNodesPerEdge.set(key, nodes);
+                newLevelNodesPerEdge.set(key, nodes);
             });
 
             levelGraph.invalidateRankOrder();
             const ranks = levelGraph.ranks();
 
-            // remove from layout graph edges that were removed in order graph
+            // reroute edges that were intermitted by new virtual nodes
             _.forEach(levelGraph.edges(), levelEdge => {
                 const orderSrcNodeId = nodeMap.get(levelEdge.src);
                 const orderDstNodeId = nodeMap.get(levelEdge.dst);
+                if (DEBUG) {
+                    Assert.assertFiniteNumber(orderSrcNodeId, "orderSrcNodeId is not a number");
+                    Assert.assertFiniteNumber(orderSrcNodeId, "orderSrcNodeId is not a number");
+                }
                 if (orderGraph.edgeBetween(orderSrcNodeId, orderDstNodeId) === undefined) {
                     levelGraph.removeEdge(levelEdge.id);
                     const srcLayoutNode = levelGraph.node(levelEdge.src).layoutNode;
@@ -639,13 +649,12 @@ export default class SugiyamaLayouter extends Layouter {
                         if (layoutEdge.isReplica) {
                             return;
                         }
-                        let newNodes = _.clone(newNodesPerEdge.get(key));
+                        let newNodes = _.clone(newLevelNodesPerEdge.get(key));
                         const dstConnector = layoutEdge.dstConnector;
                         if (e > 0) {
                             let clonedNewNodes = [];
                             // create a copy of all new nodes because each edge needs its own virtual nodes
                             _.forEach(newNodes, (levelNode: LevelNode) => {
-                                // virtual node was created by orderGraph.order() => add this node to layout graph
                                 const newLayoutNode = new LayoutNode({width: 0, height: 0}, 0, 0, true);
                                 //newLayoutNode.setLabel(levelNode.label());
                                 newLayoutNode.rank = levelNode.layoutNode.rank;
@@ -662,6 +671,7 @@ export default class SugiyamaLayouter extends Layouter {
                             newNodes = clonedNewNodes;
                         }
                         newNodes.push(orderGraph.node(orderDstNodeId).reference);
+                        // original edge gets rerouted to first new node
                         subgraph.removeEdge(layoutEdge.id);
                         layoutEdge.dst = newNodes[0].layoutNode.id;
                         layoutEdge.dstConnector = null;
@@ -670,6 +680,7 @@ export default class SugiyamaLayouter extends Layouter {
                         for (let n = 1; n < newNodes.length; ++n) {
                             const tmpSrcLayoutNodeId = newNodes[n - 1].layoutNode.id;
                             const tmpDstLayoutNodeId = newNodes[n].layoutNode.id;
+                            // last edge gets the original dst connector
                             const tmpDstConnector = ((n === newNodes.length - 1) ? dstConnector : null);
                             const newLayoutEdge = new LayoutEdge(tmpSrcLayoutNodeId, tmpDstLayoutNodeId, null, tmpDstConnector);
                             subgraph.addEdge(newLayoutEdge, null);
@@ -678,9 +689,14 @@ export default class SugiyamaLayouter extends Layouter {
                     });
                 }
             });
+            levelGraph.invalidateRankOrder();
         }
 
         this._updateLevelNodeRanks(graph);
+
+        if (DEBUG) {
+            Assert.assertAll(graph.allEdges(), edge => edge.graph.node(edge.src).rank + edge.graph.node(edge.src).rankSpan === edge.graph.node(edge.dst).rank, "edge not between neighboring ranks");
+        }
 
         /**
          * STEP 3: ORDER CONNECTORS
