@@ -59,6 +59,11 @@ export default abstract class Renderer {
 
     show(layouter: Layouter, name: string): void {
         Loader.load(name).then((graph: RenderGraph) => {
+            /*_.forEach(graph.allGraphs(), (subgraph: RenderGraph) => {
+                if (_.some(subgraph.nodes(), node => node.label() === "fill_ne_corner_vector_dgrid")) {
+                    graph = subgraph.parentNode.graph.parentNode.graph.parentNode.graph.parentNode.graph;
+                }
+            });*/
             // set node sizes
             _.forEach(graph.allNodes(), (node: RenderNode) => {
                 node.labelSize = this._labelSize(node);
@@ -87,8 +92,8 @@ export default abstract class Renderer {
                 console.log("Total size: " + box.width.toFixed(0) + "x" + box.height.toFixed(0));
                 console.log("Segment crossings: " + layoutAnalysis.segmentCrossings());
 
-                //Timer.printTimes();
-                //this._render(graph);
+                Timer.printTimes();
+                this._render(graph);
             });
         });
     }

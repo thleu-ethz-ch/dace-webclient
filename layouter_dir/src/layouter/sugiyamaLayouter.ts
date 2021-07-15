@@ -512,7 +512,7 @@ export default class SugiyamaLayouter extends Layouter {
             // do order
             await orderGraph.order({
                 debug: false/*subgraph.numNodes() === 189*/,
-                resolveX: true,
+                resolveX: false,
                 countInitial: this._options["preorderConnectors"],
                 shuffles: this._options["shuffleGlobal"] ? 0 : (this._options["preorderConnectors"] ? 0 : this._options["numShuffles"]),
             });
@@ -533,7 +533,7 @@ export default class SugiyamaLayouter extends Layouter {
                     orderNode.reference = levelNode;
                 } else {
                     if (levelNode.isFirst) {
-                        levelNode.layoutNode.updateRank(orderNode.rank);//levelNode.layoutNode.rank + orderNode.rank - orderNode.initialRank;
+                        levelNode.layoutNode.updateRank(orderNode.rank);
                     }
                 }
                 subgraph.numRanks = Math.max(subgraph.numRanks, levelNode.rank - subgraph.minRank + 1);

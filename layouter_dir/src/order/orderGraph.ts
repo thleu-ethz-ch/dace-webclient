@@ -856,9 +856,12 @@ export default class OrderGraph {
                         tmpOrder[pos] = order[r][pos];
                     }
                     _.forEach(tmpOrder, (nodeId: number) => {
-                        if (moved[nodeId] < moveBy && (!intranode[nodeId] || neighbors[0][nodeId].length === 0 || graph.node(neighbors[0][nodeId][0].end).rank !== r - 1)) {
-                            const offset = moveBy - moved[nodeId];
-                            moveNodeDown(graph.node(nodeId), moveBy - moved[nodeId], ranks.length > r + moveBy - moved[nodeId] ? order[r + moveBy - moved[nodeId]].length : 0);
+                        if (moved[nodeId] < moveBy && (!intranode[nodeId] || neighbors[0][nodeId].length === 0 || !intranode[neighbors[0][nodeId][0].end] || graph.node(neighbors[0][nodeId][0].end).rank !== r - 1)) {
+                            let offset = moveBy - moved[nodeId];
+                            if (intranode[nodeId] && neighbors[0][nodeId].length > 0) {
+                                offset = graph.node(neighbors[0][nodeId][0].end).rank + 1 - r;
+                            }
+                            moveNodeDown(graph.node(nodeId), offset, ranks.length > r + offset ? order[r + offset].length : 0);
                             if (addVirtual) {
                                 //console.log("move node", nodeId, "to rank", graph.node(nodeId).rank, "offset", offset);
                                 addVirtualNodesForMovedNode(graph.node(nodeId));
@@ -1078,16 +1081,6 @@ export default class OrderGraph {
                             storeLocal();
                         }
                         if (DEBUG) {
-                            const conflict = getConflict("HEAVYLIGHT", r);
-                            if (conflict !== null) {
-                                storeLocal();
-                                const [r, crossedNorthPos, crossedSouthPos, crossingNorthPos, crossingSouthPos] = conflict;
-                                const crossedNorthNodeId = order[r - 1][crossedNorthPos];
-                                const crossedSouthNodeId = order[r][crossedSouthPos];
-                                const crossingNorthNodeId = order[r - 1][crossingNorthPos];
-                                const crossingSouthNodeId = order[r][crossingSouthPos];
-                                console.log(crossedNorthNodeId, crossedSouthNodeId, crossingNorthNodeId, crossingSouthNodeId);
-                            }
                             Assert.assertAll(_.range(1, r + 1), r => getConflict("HEAVYLIGHT", r) === null, "heavy-light conflict after y resolution with r = " + r);
                         }
 
@@ -1464,6 +1457,8 @@ export default class OrderGraph {
                     Assert.assertAll(_.range(1, ranks.length), r => getConflict("HEAVYLIGHT", r) === null, "heavy-light conflict after reorder with preventConflict");
                     assertEdgesBetweenNeighboringRanks();
                 }
+                //console.log("local", ranks.length);
+                //storeLocal();
             }
 
             // transform component ranks to absolute ranks
