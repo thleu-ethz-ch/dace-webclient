@@ -30,8 +30,9 @@ export default class SugiyamaLayouter extends Layouter {
     constructor(options: object = {}) {
         super();
         this._options = _.defaults(options, this._options, {
-            compactRanks: true,
             spaceBetweenNodes: 30,
+            compactRanks: true,
+            fasterResolveY: false,
         });
     }
 
@@ -512,9 +513,9 @@ export default class SugiyamaLayouter extends Layouter {
             // do order
             await orderGraph.order({
                 debug: false/*subgraph.numNodes() === 189*/,
-                resolveX: false,
-                countInitial: this._options["preorderConnectors"],
-                shuffles: this._options["shuffleGlobal"] ? 0 : (this._options["preorderConnectors"] ? 0 : this._options["numShuffles"]),
+                resolveX: true,
+                fasterResolveY: this._options.fasterResolveY,
+                countInitial: this._options.preorderConnectors,
             });
 
             // copy node order into layout graph
