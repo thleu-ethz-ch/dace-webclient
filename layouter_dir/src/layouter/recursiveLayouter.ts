@@ -2,13 +2,16 @@ import * as _ from "lodash";
 import Layouter from "./layouter";
 import LayoutNode from "../layoutGraph/layoutNode";
 import LayoutGraph from "../layoutGraph/layoutGraph";
+import Timer from "../util/timer";
 
 export default abstract class RecursiveLayouter extends Layouter {
     doLayout(graph: LayoutGraph, withLabels: boolean = false) {
+        Timer.start(["doLayout"]);
         this.setNodeSizes(graph, withLabels);
         this.layoutSizedGraph(graph, withLabels);
         this._placeConnectorsCenter(graph);
         this._matchEdgesToConnectors(graph);
+        Timer.stop(["doLayout"]);
     }
 
     setNodeSizes(graph: LayoutGraph, withLabels: boolean = false) {

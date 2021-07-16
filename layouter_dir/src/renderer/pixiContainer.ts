@@ -96,4 +96,9 @@ export default class PixiContainer extends RendererContainer
             });
         }
     }
+
+    public removeChildren() {
+        super.removeChildren();
+        this.pixiContainer.removeChildren();
+    }
 }

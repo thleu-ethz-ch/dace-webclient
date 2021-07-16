@@ -5,6 +5,7 @@ import LayoutGraph from "../layoutGraph/layoutGraph";
 import LayoutNode from "../layoutGraph/layoutNode";
 import Segment from "../geometry/segment";
 import {inPlaceSort} from "fast-sort";
+import Timer from "../util/timer";
 
 export default class LayoutAnalysis {
     private readonly _layoutGraph: LayoutGraph;
@@ -96,31 +97,92 @@ export default class LayoutAnalysis {
     }
 
     checkNodeOverlaps(): boolean {
-        for (let i = 0; i < this._nodes.length; ++i) {
-            const nodeA = this._nodes[i];
-            for (let j = i + 1; j < this._nodes.length; ++j) {
-                const nodeB = this._nodes[j];
-                if (nodeA.boundingBox().intersects(nodeB.boundingBox()) && !this._nodesRelated(nodeA, nodeB)) {
-                    console.log("two nodes overlap", nodeA, nodeB);
-                    return false;
-                }
+        const overlaps = {};
+        _.forEach(["x", "y"], axis => {
+            overlaps[axis] = new Array(this._nodes.length);
+            for (let i = 0; i < this._nodes.length; ++i) {
+                overlaps[axis][i] = [];
             }
+            const endpoints = [];
+            for (let i = 0; i < this._nodes.length; ++i) {
+                endpoints.push([this._nodes[i][axis], i, true]);
+                endpoints.push([this._nodes[i][axis] + this._nodes[i][axis === "x" ? "width" : "height"], i, false]);
+            }
+            let openSegments = new Set();
+            inPlaceSort(endpoints).asc("0");
+            _.forEach(endpoints, ([coord, segId, isFirst]) => {
+                if (isFirst) {
+                    openSegments.forEach((openSegId: number) => {
+                        let min = Math.min(openSegId, segId);
+                        let max = Math.max(openSegId, segId);
+                        overlaps[axis][min].push(max);
+                    });
+                    openSegments.add(segId);
+                } else {
+                    openSegments.delete(segId);
+                }
+            });
+        });
+        let overlap = false;
+        for (let i = 0; i < this._nodes.length; ++i) {
+            const nodeI = this._nodes[i];
+            _.forEach(_.intersection(overlaps["y"][i], overlaps["x"][i]), (j: number) => {
+                const nodeJ = this._nodes[j];
+                if (nodeI.boundingBox().intersects(nodeJ.boundingBox()) && !this._nodesRelated(nodeI, nodeJ)) {
+                    console.log("two nodes overlap", nodeI, nodeJ);
+                    overlap = true;
+                }
+            });
         }
-        return true;
+        return !overlap;
     }
 
     checkEdgeOverlaps(): boolean {
-        for (let i = 0; i < this._edges.length; ++i) {
-            const edge = this._edges[i];
-            for (let j = 0; j < this._nodes.length; ++j) {
-                const node = this._nodes[j];
-                if (this._edgeIntersectsNode(edge, node) && !this._edgeParents.get(edge).has(node)) {
-                    console.log("node overlaps edge", node, edge);
-                    return false;
-                }
+        const overlaps = {};
+        _.forEach(["x", "y"], axis => {
+            overlaps[axis] = new Array(this._nodes.length + this._edges.length);
+            for (let i = 0; i < this._nodes.length + this._edges.length; ++i) {
+                overlaps[axis][i] = [];
             }
+            const endpoints = [];
+            for (let i = 0; i < this._nodes.length; ++i) {
+                endpoints.push([this._nodes[i][axis], i, true]);
+                endpoints.push([this._nodes[i][axis] + this._nodes[i][axis === "x" ? "width" : "height"], i, false]);
+            }
+            for (let i = 0; i < this._edges.length; ++i) {
+                const boundingBox = this._edges[i].boundingBox();
+                endpoints.push([boundingBox[axis], this._nodes.length + i, true]);
+                endpoints.push([boundingBox[axis] + boundingBox[axis === "x" ? "width" : "height"], this._nodes.length + i, false]);
+            }
+            let openSegments = new Set();
+            inPlaceSort(endpoints).asc("0");
+            _.forEach(endpoints, ([coord, segId, isFirst]) => {
+                if (isFirst) {
+                    openSegments.forEach((openSegId: number) => {
+                        let min = Math.min(openSegId, segId);
+                        let max = Math.max(openSegId, segId);
+                        if (min < this._nodes.length && max >= this._nodes.length) {
+                            overlaps[axis][min].push(max - this._nodes.length);
+                        }
+                    });
+                    openSegments.add(segId);
+                } else {
+                    openSegments.delete(segId);
+                }
+            });
+        });
+        let overlap = false;
+        for (let i = 0; i < this._nodes.length; ++i) {
+            const nodeI = this._nodes[i];
+            _.forEach(_.intersection(overlaps["y"][i], overlaps["x"][i]), (j: number) => {
+                const edgeJ = this._edges[j];
+                if (this._edgeIntersectsNode(edgeJ, nodeI) && !this._edgeParents.get(edgeJ).has(nodeI)) {
+                    console.log("node overlaps edge", nodeI, edgeJ);
+                    overlap = true;
+                }
+            });
         }
-        return true;
+        return !overlap;
     }
 
     checkNodeContainment(): boolean {
@@ -204,7 +266,7 @@ export default class LayoutAnalysis {
     }
 
     validate(): boolean {
-        return (
+        const valid = (
             this.checkUpwardFlow() &&
             this.checkNodeOverlaps() &&
             this.checkEdgeOverlaps() &&
@@ -213,6 +275,7 @@ export default class LayoutAnalysis {
             this.checkMapAlignment() &&
             this.checkConnectorAlignment()
         );
+        return valid;
     }
 
     bends(): number {

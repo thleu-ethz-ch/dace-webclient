@@ -59,6 +59,11 @@ export default abstract class Renderer {
 
     show(layouter: Layouter, name: string): void {
         Loader.load(name).then((graph: RenderGraph) => {
+            /*_.forEach(graph.allGraphs(), (subgraph: RenderGraph) => {
+                if (_.some(subgraph.nodes(), node => node.label() === "fill_ne_corner_vector_dgrid")) {
+                    graph = subgraph.parentNode.graph.parentNode.graph.parentNode.graph.parentNode.graph;
+                }
+            });*/
             // set node sizes
             _.forEach(graph.allNodes(), (node: RenderNode) => {
                 node.labelSize = this._labelSize(node);
@@ -199,7 +204,7 @@ export default abstract class Renderer {
                 y += groupNode.childPadding;
                 let groupHeight = 0;
                 _.forEach(group.nodes, (nodeObj: any) => {
-                    const node = new GenericNode(nodeObj.label.toString() || "", Color.WHITE, nodeObj.isVirtual ? Color.fromNumber(0xCCCCCC) : Color.BLACK); // might use nodeObj.id.toString() instead of nodeObj.label
+                    const node = new GenericNode(nodeObj.id.toString() || "", Color.WHITE, nodeObj.isVirtual ? Color.fromNumber(0xCCCCCC) : Color.BLACK); // might use nodeObj.id.toString() instead of nodeObj.label
                     groupGraph.addNode(node, parseInt(nodeObj.id));
                     nodeMap.set(node.id, node);
                     node.x = x;
@@ -234,6 +239,7 @@ export default abstract class Renderer {
                 });
             });
         });
+        this._additionalShapes.length = 0;
         _.forEach(stepObj.edges, (edgeObj: any) => {
             const srcNode = nodeMap.get(edgeObj.src);
             if (srcNode === undefined) {
