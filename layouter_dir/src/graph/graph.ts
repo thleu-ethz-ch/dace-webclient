@@ -405,16 +405,10 @@ export default class Graph<NodeT extends Node<any, any>, EdgeT extends Edge<any,
             let queuePointer = 0;
             while (queuePointer < queue.length) {
                 const node = queue[queuePointer++];
-                _.forEach(this.outEdges(node.id), (edge: EdgeT) => {
-                    if (componentNumbers[edge.dst] === null) {
-                        componentNumbers[edge.dst] = currentNumber;
-                        queue.push(this.node(edge.dst));
-                    }
-                });
-                _.forEach(this.inEdges(node.id), (edge: EdgeT) => {
-                    if (componentNumbers[edge.src] === null) {
-                        componentNumbers[edge.src] = currentNumber;
-                        queue.push(this.node(edge.src));
+                _.forEach(this.neighbors(node.id), (neighbor: NodeT) => {
+                    if (componentNumbers[neighbor.id] === null) {
+                        componentNumbers[neighbor.id] = currentNumber;
+                        queue.push(neighbor);
                     }
                 });
             }

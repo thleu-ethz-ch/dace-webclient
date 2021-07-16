@@ -81,7 +81,6 @@ export default class RankGraph extends Graph<RankNode, Edge<any, any>> {
                     if (!visitedEdges[inEdge.id]) {
                         upwardBorderEdgesQueue.push(inEdge);
                     }
-
                 });
             });
 

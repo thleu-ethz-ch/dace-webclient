@@ -51,7 +51,8 @@
                     graphs.push(layoutLib.Bench.GRAPHS_ALL[g]);
                 }
             }
-            //graphs = layoutLib.Bench.GRAPHS_POLYBENCH;
+            graphs = layoutLib.Bench.GRAPHS_POLYBENCH;
+            //graphs = layoutLib.Bench.GRAPHS_ALL;
             const layouters = [
                 //["Dagre", layoutLib.layouter.DagreLayouter, {}],
                 ["Sugiyama", layoutLib.layouter.SugiyamaLayouter, {compactRanks: true}],
@@ -63,7 +64,9 @@
             }
             const tableRows = document.getElementsByTagName("tr");
             for (let g = 0; g < graphs.length; ++g) {
-                tableRows[0].innerHTML += "<td><b>" + graphs[g] + "</b></td>";
+                let name = graphs[g];
+                let parts = name.split("/");
+                tableRows[0].innerHTML += "<td><b>" + parts[parts.length - 1] + "</b></td>";
                 for (let i = 1; i < tableRows.length; ++i) {
                     tableRows[i].innerHTML += '<td><p class="time"></p></td>';
                 }

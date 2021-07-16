@@ -690,7 +690,7 @@ export default class SugiyamaLayouter extends Layouter {
          * STEP 3: ORDER CONNECTORS
          */
 
-            // order connectors
+        // order connectors
         const connectorOrderGraph = this._createConnectorGraph(graph, false, false, shuffle && !this._options["preorderConnectors"]);
         await connectorOrderGraph.order({
             resolveConflicts: false,

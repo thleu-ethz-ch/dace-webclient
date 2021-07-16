@@ -706,7 +706,7 @@ export default class OrderGraph {
                 return null;
             }*/
 
-            const getConflict = (type: "HEAVYHEAVY" | "HEAVYLIGHT", r: number, skipIfZero: boolean = false): [number, number ,number, number, number] => {
+            const  getConflict = (type: "HEAVYHEAVY" | "HEAVYLIGHT", r: number, skipIfZero: boolean = false): [number, number ,number, number, number] => {
                 if (skipIfZero && crossings[r] === 0) {
                     // there is no conflict in this rank
                     return null;
