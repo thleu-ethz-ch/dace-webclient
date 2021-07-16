@@ -32,7 +32,7 @@ export default class SugiyamaLayouter extends Layouter {
         this._options = _.defaults(options, this._options, {
             spaceBetweenNodes: 30,
             compactRanks: true,
-            fasterResolveY: false,
+            fasterResolveY: true,
         });
     }
 
@@ -325,13 +325,8 @@ export default class SugiyamaLayouter extends Layouter {
                         return; // do not add connectors for scope nodes
                     }
                     let connectorGroup;
-                    const shuffleHierarchy = [null];
-                    _.forEachRight(node.parents(), parent => {
-                        shuffleHierarchy.push(parent);
-                    });
                     if (isPreorder || levelNode.isFirst) {
                         connectorGroup = new OrderGroup(levelNode);
-                        connectorGroup.shuffleHierarchy = shuffleHierarchy;
                         orderRank[levelNode.rank].addGroup(connectorGroup);
                         connectorGroup.position = index;
                         if (levelNode.isFirst) {
@@ -353,7 +348,6 @@ export default class SugiyamaLayouter extends Layouter {
                     if (isPreorder || levelNode.isLast) {
                         if (!isPreorder && !node.hasScopedConnectors) {
                             connectorGroup = new OrderGroup(levelNode);
-                            connectorGroup.shuffleHierarchy = shuffleHierarchy;
                             orderRank[levelNode.rank].addGroup(connectorGroup);
                             connectorGroup.position = index;
                         }
@@ -433,7 +427,6 @@ export default class SugiyamaLayouter extends Layouter {
             await connectorOrderGraph.order({
                 orderGroups: true,
                 resolveConflicts: false,
-                shuffles: this._options["shuffleGlobal"] ? 0 : this._options["numShuffles"]
             });
 
             // copy order information from order graph to layout graph
@@ -707,7 +700,6 @@ export default class SugiyamaLayouter extends Layouter {
         const connectorOrderGraph = this._createConnectorGraph(graph, false, false, shuffle && !this._options["preorderConnectors"]);
         await connectorOrderGraph.order({
             resolveConflicts: false,
-            shuffles: this._options["shuffleGlobal"] ? 0 : this._options["numShuffles"],
         });
 
         // copy order information from order graph to layout graph
@@ -751,7 +743,7 @@ export default class SugiyamaLayouter extends Layouter {
     }
 
     private async _orderRanks(graph: LayoutGraph): Promise<void> {
-        if (!this._options["shuffleGlobal"] || this._options["numShuffles"] === 0) {
+        if (this._options["numShuffles"] === 0) {
             await this.doOrder(graph);
         } else {
             if (!this._options["bundle"] && this._options["webWorkers"]) {

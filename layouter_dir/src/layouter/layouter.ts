@@ -28,7 +28,6 @@ export default abstract class Layouter {
             bundle: false,
             optimizeAngles: false,
             numShuffles: 16,
-            shuffleGlobal: true,
             weightBends: 0.2,
             weightCrossings: 1,
             weightLengths: 0.1,
